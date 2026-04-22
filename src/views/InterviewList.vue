@@ -95,23 +95,37 @@ import { getInterviews } from '@/api/interview.js'
 import InterviewCard from '@/components/InterviewCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
-const ENTRY_LOADER_FLAG = 'peakstars_interview_entry_loader_needed'
-const ENTRY_IDLE_MS = 180000
-const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart']
 
+// 记录“下次进入面经列表时是否需要再次显示进入加载页”的会话标记
+const ENTRY_LOADER_FLAG = 'peakstars_interview_entry_loader_needed'
+// 用户在列表页无操作 20 分钟后，下一次再进入列表时重新触发加载过渡
+const ENTRY_IDLE_MS = 1200000
+// 这些事件都视为用户仍在活跃浏览列表页，用来重置空闲计时
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart']
+// 页面跳转控制：进入详情、返回登录、返回列表等业务都会用到
 const router = useRouter()
+// 登录态控制：退出登录时需要清空认证状态
 const authStore = useAuthStore()
+// 列表页搜索关键词，控制面经内容筛选
 const keyword = ref('')
+// 当前选中的分类标签，用于切换“全部 / 前端 / Java后端”列表
 const activeCategory = ref('all')
 
 // 首屏先展示加载页，形成登录页 -> 加载页 -> 主页的自然视觉过渡
+// 是否显示进入论坛的全屏加载层
 const showEntryLoader = ref(true)
+// 加载过渡是否已经启动，避免重复触发同一轮进入动画
 const entryLoadingStarted = ref(false)
+// 进入加载条当前的进度百分比
 const entryProgress = ref(0)
+// 列表数据是否已经请求完成，用来决定进度条何时收尾
 const dataLoaded = ref(false)
 
+// 面经列表数据源，渲染主页卡片内容
 const list = ref([])
+// 列表接口请求中的加载状态，控制列表区域的“加载中”提示
 const loading = ref(false)
+// 列表接口请求失败时的错误提示文案
 const error = ref('')
 
 const tabs = [
@@ -139,15 +153,17 @@ const entryStatusText = computed(() => {
   if (entryProgress.value < 100) return '正在准备进入论坛...'
   return '进入完成'
 })
-
+// 判断是否应该显示入口加载器
 function shouldShowEntryLoader() {
   return sessionStorage.getItem(ENTRY_LOADER_FLAG) !== 'false'
 }
 
+// 标记需要显示入口加载器
 function markEntryLoaderNeeded() {
   sessionStorage.setItem(ENTRY_LOADER_FLAG, 'true')
 }
 
+// 标记入口加载器已处理完毕
 function markEntryLoaderHandled() {
   sessionStorage.setItem(ENTRY_LOADER_FLAG, 'false')
 }
@@ -170,6 +186,7 @@ async function fetchList() {
   }
 }
 
+// 清理加载进度条的定时器，避免重复推进进度或页面离开后继续执行
 function clearEntryProgressTimer() {
   if (entryProgressTimer) {
     window.clearInterval(entryProgressTimer)
@@ -177,6 +194,7 @@ function clearEntryProgressTimer() {
   }
 }
 
+// 清理“空闲后重新允许加载”的计时器，避免重复注册多个空闲倒计时
 function clearEntryIdleTimer() {
   if (entryIdleTimer) {
     window.clearTimeout(entryIdleTimer)
@@ -192,18 +210,21 @@ function scheduleLoaderForIdleReturn() {
   }, ENTRY_IDLE_MS)
 }
 
+// 记录用户仍在浏览列表页：本次会话内不重复加载，同时重新开始空闲计时
 function recordPageActivity() {
   if (showEntryLoader.value) return
   markEntryLoaderHandled()
   scheduleLoaderForIdleReturn()
 }
 
+// 给列表页绑定用户活动事件，用来判断用户是否长时间停留未操作
 function bindActivityListeners() {
   ACTIVITY_EVENTS.forEach((eventName) => {
     window.addEventListener(eventName, recordPageActivity, { passive: true })
   })
 }
 
+// 页面离开时解绑活动监听，避免事件残留影响后续页面
 function unbindActivityListeners() {
   ACTIVITY_EVENTS.forEach((eventName) => {
     window.removeEventListener(eventName, recordPageActivity)
@@ -251,6 +272,7 @@ function startEntryLoading() {
   }, 120)
 }
 
+// 初始化面经列表页：决定本次进入是直接展示列表，还是先走一次加载过渡
 async function initInterviewPage() {
   if (shouldShowEntryLoader()) {
     startEntryLoading()
@@ -263,11 +285,13 @@ async function initInterviewPage() {
   scheduleLoaderForIdleReturn()
 }
 
+// 用户切换分类时立即刷新列表；如果还在加载过渡中则不提前触发请求
 watch(activeCategory, () => {
   if (showEntryLoader.value) return
   fetchList()
 })
 
+// 搜索词变化后延迟请求，避免输入时频繁刷新列表
 watch(keyword, () => {
   if (showEntryLoader.value) return
 
@@ -275,6 +299,7 @@ watch(keyword, () => {
   debounceTimer = window.setTimeout(fetchList, 500)
 })
 
+// 进入某一篇面经详情页
 function goDetail(id) {
   router.push(`/interview/${id}`)
 }
@@ -286,6 +311,7 @@ function backToLogin() {
   router.replace('/login')
 }
 
+// 页面销毁时统一清理计时器和事件监听，避免列表页副作用残留
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   clearEntryProgressTimer()
