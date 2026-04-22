@@ -1,0 +1,217 @@
+.home-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(108, 99, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 85% 18%, rgba(90, 200, 250, 0.16), transparent 26%),
+    linear-gradient(180deg, #161d43 0%, #202a59 42%, #1b244d 100%);
+  color: #eef4ff;
+}
+
+.homepage-main {
+  width: min(1320px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 34px 0 80px;
+}
+
+.hero-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 28px;
+  align-items: stretch;
+  margin-bottom: 34px;
+}
+
+.hero-copy,
+.hero-metrics,
+.module-overview,
+.future-section {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 32px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 22px 60px rgba(6, 10, 24, 0.18);
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.hero-copy {
+  padding: 36px 34px;
+}
+
+.hero-kicker,
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(90, 200, 250, 0.12);
+  color: #8fd8ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hero-copy h1,
+.module-overview-head h2,
+.section-header h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.15;
+}
+
+.hero-copy p,
+.module-overview-head p,
+.section-header p {
+  color: rgba(232, 238, 255, 0.68);
+  line-height: 1.8;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.hero-primary-btn,
+.hero-secondary-btn {
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.hero-primary-btn {
+  padding: 11px 18px;
+  background: linear-gradient(135deg, #5ac8fa, #6c63ff);
+  color: #ffffff;
+  box-shadow: 0 18px 30px rgba(90, 200, 250, 0.16);
+}
+
+.hero-secondary-btn {
+  padding: 11px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eaf1ff;
+}
+
+.hero-metrics {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.hero-metric-card,
+.module-overview-card,
+.future-card {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 24px;
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(12, 19, 47, 0.76), rgba(12, 19, 47, 0.42));
+}
+
+.hero-metric-card span {
+  color: rgba(232, 238, 255, 0.5);
+  font-size: 12px;
+}
+
+.hero-metric-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+}
+
+.hero-metric-card p,
+.module-overview-card p,
+.future-card p {
+  margin: 10px 0 0;
+  color: rgba(232, 238, 255, 0.64);
+  line-height: 1.7;
+}
+
+.module-overview,
+.future-section {
+  padding: 28px;
+  margin-bottom: 28px;
+}
+
+.module-overview-head,
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.module-overview-grid,
+.future-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.module-overview-card {
+  text-align: left;
+  color: #eef4ff;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.module-overview-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(90, 200, 250, 0.18);
+}
+
+.module-overview-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.module-overview-icon {
+  font-size: 26px;
+}
+
+.module-overview-tag {
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(232, 238, 255, 0.7);
+  font-size: 11px;
+}
+
+.module-overview-card strong,
+.future-card strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 19px;
+}
+
+@media (max-width: 1180px) {
+  .homepage-main {
+    width: min(100%, calc(100% - 24px));
+  }
+
+  .hero-section,
+  .module-overview-grid,
+  .future-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .homepage-main {
+    padding-top: 22px;
+  }
+
+  .hero-copy,
+  .module-overview,
+  .future-section {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

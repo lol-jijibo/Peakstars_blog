@@ -4,7 +4,12 @@ import { isAuthenticated } from '@/stores/auth'
 const routes = [
   {
     path: '/',
-    redirect: () => (isAuthenticated() ? '/interview' : '/login')
+    redirect: () => (isAuthenticated() ? '/home' : '/login')
+  },
+  {
+    path: '/home',
+    component: () => import('@/views/HomeView.vue'),
+    meta: { title: '博客主页', requiresAuth: true }
   },
   {
     path: '/auth',
@@ -59,7 +64,7 @@ router.beforeEach((to) => {
 
   // 情况2：已登录却访问登录页 → 跳转到首页或redirect参数指定的页面
   if (to.path === '/login' && isAuthenticated()) {
-    return typeof to.query.redirect === 'string' ? to.query.redirect : '/interview'
+    return typeof to.query.redirect === 'string' ? to.query.redirect : '/home'
   }
 
   return true // 其他情况，直接放行

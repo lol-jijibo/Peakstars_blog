@@ -566,7 +566,7 @@ async function submitLogin() {
   }
 
   showToast(result.message, 'ok')
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/interview'
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
   setTimeout(() => {
     router.replace(redirect)
   }, 320)
