@@ -1,18 +1,118 @@
 .page-layout {
+  /* 主页主背景：延续登录页的蓝紫渐变，建立统一的登录后视觉氛围 */
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #f5f5f5;
+  background:
+    radial-gradient(circle at top, rgba(108, 99, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 85% 18%, rgba(90, 200, 250, 0.16), transparent 26%),
+    linear-gradient(180deg, #161d43 0%, #202a59 42%, #1b244d 100%);
 }
 
-/* 顶部 Header */
+.forum-entry-loader {
+  /* 全屏加载层：用于承接登录成功后的过渡展示 */
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(108, 99, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 78%, rgba(90, 200, 250, 0.18), transparent 24%),
+    linear-gradient(135deg, rgba(15, 12, 41, 0.86), rgba(48, 43, 99, 0.82), rgba(36, 36, 62, 0.8));
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.forum-entry-card {
+  /* 中央玻璃卡片：承载进入论坛的标题、说明和进度信息 */
+  width: min(100%, 520px);
+  padding: 32px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: 0 24px 70px rgba(8, 15, 48, 0.34);
+}
+
+.forum-entry-kicker {
+  margin-bottom: 12px;
+  color: #8fd8ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.forum-entry-title {
+  margin: 0;
+  color: #eef4ff;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.2;
+  text-shadow: 0 6px 20px rgba(13, 25, 72, 0.22);
+}
+
+.forum-entry-subtitle {
+  margin: 14px 0 24px;
+  color: rgba(232, 238, 255, 0.72);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.forum-entry-progress-shell {
+  /* 进度条轨道：提供清晰的加载过程展示 */
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 6px rgba(8, 15, 48, 0.22);
+}
+
+.forum-entry-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5ac8fa 0%, #6c63ff 48%, #9fdfff 100%);
+  box-shadow: 0 0 24px rgba(90, 200, 250, 0.34);
+  transition: width 0.18s ease;
+}
+
+.forum-entry-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  color: rgba(232, 238, 255, 0.74);
+  font-size: 14px;
+}
+
+.forum-entry-progress-meta strong {
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.forum-loader-fade-enter-active,
+.forum-loader-fade-leave-active {
+  transition: opacity 0.32s ease;
+}
+
+.forum-loader-fade-enter-from,
+.forum-loader-fade-leave-to {
+  opacity: 0;
+}
+
 .header {
+  /* 顶部导航改为深蓝渐变，和加载页、主页背景自然衔接 */
   position: sticky;
   top: 0;
   z-index: 100;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  background: linear-gradient(180deg, rgba(19, 26, 61, 0.88), rgba(28, 35, 78, 0.8));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 30px rgba(10, 16, 44, 0.2);
+  backdrop-filter: blur(16px) saturate(130%);
 }
+
 .header-inner {
   max-width: 800px;
   width: 100%;
@@ -24,48 +124,57 @@
   gap: 20px;
   box-sizing: border-box;
 }
+
 .logo {
   font-size: 18px;
   font-weight: 700;
-  color: #e87722;
+  color: #eef4ff;
   white-space: nowrap;
+  text-shadow: 0 6px 18px rgba(90, 200, 250, 0.18);
 }
+
 .category-tabs {
   display: flex;
   gap: 4px;
   flex: 1;
 }
+
 .login-back-btn {
   border: none;
   border-radius: 16px;
   padding: 6px 12px;
-  background: #fff3eb;
-  color: #e87722;
+  background: rgba(255, 255, 255, 0.12);
+  color: #d8e8ff;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: background 0.2s, transform 0.2s, color 0.2s;
 }
+
 .login-back-btn:hover {
-  background: #ffe6d6;
+  background: rgba(90, 200, 250, 0.18);
+  color: #ffffff;
   transform: translateY(-1px);
 }
+
 .cat-tab {
   padding: 4px 14px;
   border-radius: 16px;
   font-size: 14px;
   cursor: pointer;
-  color: #666;
+  color: rgba(232, 238, 255, 0.66);
   transition: all 0.2s;
 }
+
 .cat-tab.active {
-  background: #e87722;
+  background: linear-gradient(90deg, rgba(90, 200, 250, 0.9), rgba(108, 99, 255, 0.88));
   color: #fff;
   font-weight: 600;
+  box-shadow: 0 8px 24px rgba(90, 200, 250, 0.2);
 }
 
-/* 主内容 */
 .main-content {
   flex: 1;
   max-width: 800px;
@@ -75,47 +184,55 @@
   box-sizing: border-box;
 }
 
-/* 搜索框 */
 .search-bar {
   margin-bottom: 12px;
 }
+
 .search-input {
+  /* 搜索框使用半透明玻璃效果，保持登录后页面风格一致 */
   width: 100%;
   box-sizing: border-box;
   padding: 10px 16px;
-  border: 1.5px solid #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
   font-size: 14px;
   outline: none;
-  background: #fff;
-  transition: border-color 0.2s;
-}
-.search-input:focus {
-  border-color: #e87722;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
+  color: #eaf1ff;
+  backdrop-filter: blur(18px);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-/* 列表 */
+.search-input::placeholder {
+  color: rgba(232, 238, 255, 0.48);
+}
+
+.search-input:focus {
+  border-color: rgba(90, 200, 250, 0.5);
+  box-shadow: 0 0 0 4px rgba(90, 200, 250, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.1));
+}
+
 .interview-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.empty-tip {
-  text-align: center;
-  padding: 60px 0;
-  color: #aaa;
-  font-size: 15px;
-}
+
+.empty-tip,
 .loading-tip {
   text-align: center;
   padding: 60px 0;
-  color: #aaa;
+  color: rgba(232, 238, 255, 0.7);
   font-size: 15px;
+  text-shadow: 0 4px 12px rgba(6, 10, 26, 0.2);
 }
+
 .loading-spin {
   display: inline-block;
   animation: spin 1.2s linear infinite;
 }
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -125,53 +242,40 @@
     transform: rotate(360deg);
   }
 }
+
 .error-tip {
   text-align: center;
   padding: 60px 0;
-  color: #e87722;
+  color: #9fdfff;
   font-size: 14px;
 }
+
 .retry-btn {
   margin-top: 12px;
   padding: 8px 24px;
-  background: #e87722;
+  background: linear-gradient(90deg, #5ac8fa, #6c63ff);
   color: #fff;
   border: none;
   border-radius: 20px;
   cursor: pointer;
   font-size: 14px;
+  box-shadow: 0 12px 24px rgba(90, 200, 250, 0.18);
 }
 
-@media (max-width: 600px) {
-  .header-inner {
-    gap: 8px;
-    padding: 0 10px;
-  }
-  .logo {
-    font-size: 15px;
-  }
-  .cat-tab {
-    padding: 4px 8px;
-    font-size: 12px;
-  }
-  .login-back-btn {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-}
-
-/* 底部 TabBar */
 .tab-bar {
+  /* 底部导航同步采用深蓝渐变，统一整个主页的科技感 */
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   display: flex;
-  background: #fff;
-  border-top: 1px solid #eee;
+  background: linear-gradient(180deg, rgba(19, 26, 61, 0.88), rgba(24, 31, 69, 0.94));
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 100;
   padding-bottom: env(safe-area-inset-bottom);
+  backdrop-filter: blur(16px) saturate(130%);
 }
+
 .tab-item {
   flex: 1;
   display: flex;
@@ -179,18 +283,51 @@
   align-items: center;
   padding: 8px 0 6px;
   text-decoration: none;
-  color: #999;
+  color: rgba(232, 238, 255, 0.5);
   font-size: 12px;
   transition: color 0.2s;
   gap: 2px;
 }
+
 .tab-item.active {
-  color: #e87722;
+  color: #9fdfff;
 }
+
 .tab-icon {
   font-size: 20px;
   line-height: 1;
 }
+
 .tab-label {
   font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .forum-entry-card {
+    padding: 26px 20px;
+    border-radius: 24px;
+  }
+
+  .forum-entry-title {
+    font-size: 24px;
+  }
+
+  .header-inner {
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .logo {
+    font-size: 15px;
+  }
+
+  .cat-tab {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .login-back-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
 }
