@@ -1,0 +1,11 @@
+﻿CREATE TABLE IF NOT EXISTS auth_user (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键 ID',
+  username VARCHAR(50) NOT NULL COMMENT '用户名，支持登录',
+  email VARCHAR(100) NOT NULL COMMENT '邮箱，支持登录',
+  password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希值',
+  status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1 正常，0 禁用',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY uk_auth_user_username (username),
+  UNIQUE KEY uk_auth_user_email (email)
+) COMMENT='认证用户表';

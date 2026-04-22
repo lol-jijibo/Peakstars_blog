@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: interview-auth-service
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:mysql://localhost:3306/interview_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: lixuF123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 5s
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: ${MAIL_PROTOCOL:smtps}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  type-aliases-package: com.interview.auth.domain.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  auth:
+    token-secret: interview-demo-auth-secret
+    token-expire-hours: 168
+    verification:
+      register-code-expire-seconds: ${REGISTER_CODE_EXPIRE_SECONDS:300}
+      register-send-cooldown-seconds: ${REGISTER_SEND_COOLDOWN_SECONDS:60}
+      register-max-verify-attempts: ${REGISTER_MAX_VERIFY_ATTEMPTS:5}
+      register-max-send-per-email-per-day: ${REGISTER_MAX_SEND_PER_EMAIL_PER_DAY:10}
+      register-max-send-per-ip-per-day: ${REGISTER_MAX_SEND_PER_IP_PER_DAY:30}
+      register-code-length: ${REGISTER_CODE_LENGTH:6}
+      mail-from: ${MAIL_FROM:${MAIL_USERNAME:}}
+      register-mail-subject: ${REGISTER_MAIL_SUBJECT:PeakStars_blog Register Code}
