@@ -95,6 +95,10 @@ import { getInterviews } from '@/api/interview.js'
 import InterviewCard from '@/components/InterviewCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
+const ENTRY_LOADER_FLAG = 'peakstars_interview_entry_loader_needed'
+const ENTRY_IDLE_MS = 180000
+const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart']
+
 const router = useRouter()
 const authStore = useAuthStore()
 const keyword = ref('')
@@ -125,6 +129,7 @@ const navTabs = [
 
 let debounceTimer = 0
 let entryProgressTimer = 0
+let entryIdleTimer = 0
 
 // 根据进度阶段切换提示文案，让加载过程更有“正在进入论坛”的展示感
 const entryStatusText = computed(() => {
@@ -134,6 +139,18 @@ const entryStatusText = computed(() => {
   if (entryProgress.value < 100) return '正在准备进入论坛...'
   return '进入完成'
 })
+
+function shouldShowEntryLoader() {
+  return sessionStorage.getItem(ENTRY_LOADER_FLAG) !== 'false'
+}
+
+function markEntryLoaderNeeded() {
+  sessionStorage.setItem(ENTRY_LOADER_FLAG, 'true')
+}
+
+function markEntryLoaderHandled() {
+  sessionStorage.setItem(ENTRY_LOADER_FLAG, 'false')
+}
 
 async function fetchList() {
   loading.value = true
@@ -160,6 +177,39 @@ function clearEntryProgressTimer() {
   }
 }
 
+function clearEntryIdleTimer() {
+  if (entryIdleTimer) {
+    window.clearTimeout(entryIdleTimer)
+    entryIdleTimer = 0
+  }
+}
+
+// 用户长时间停留但没有操作时，仅为下次进入列表页重新打开加载动画
+function scheduleLoaderForIdleReturn() {
+  clearEntryIdleTimer()
+  entryIdleTimer = window.setTimeout(() => {
+    markEntryLoaderNeeded()
+  }, ENTRY_IDLE_MS)
+}
+
+function recordPageActivity() {
+  if (showEntryLoader.value) return
+  markEntryLoaderHandled()
+  scheduleLoaderForIdleReturn()
+}
+
+function bindActivityListeners() {
+  ACTIVITY_EVENTS.forEach((eventName) => {
+    window.addEventListener(eventName, recordPageActivity, { passive: true })
+  })
+}
+
+function unbindActivityListeners() {
+  ACTIVITY_EVENTS.forEach((eventName) => {
+    window.removeEventListener(eventName, recordPageActivity)
+  })
+}
+
 // 加载完成后补齐到 100%，再淡出进入主页内容
 function finishEntryLoading() {
   clearEntryProgressTimer()
@@ -167,6 +217,8 @@ function finishEntryLoading() {
 
   window.setTimeout(() => {
     showEntryLoader.value = false
+    markEntryLoaderHandled()
+    scheduleLoaderForIdleReturn()
   }, 180)
 }
 
@@ -199,6 +251,18 @@ function startEntryLoading() {
   }, 120)
 }
 
+async function initInterviewPage() {
+  if (shouldShowEntryLoader()) {
+    startEntryLoading()
+    return
+  }
+
+  showEntryLoader.value = false
+  markEntryLoaderHandled()
+  await fetchList()
+  scheduleLoaderForIdleReturn()
+}
+
 watch(activeCategory, () => {
   if (showEntryLoader.value) return
   fetchList()
@@ -216,6 +280,8 @@ function goDetail(id) {
 }
 
 function backToLogin() {
+  // 退出后下次重新登录，仍然展示一次进入论坛的加载过渡
+  markEntryLoaderNeeded()
   authStore.logout()
   router.replace('/login')
 }
@@ -223,11 +289,14 @@ function backToLogin() {
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   clearEntryProgressTimer()
+  clearEntryIdleTimer()
+  unbindActivityListeners()
 })
 
 onMounted(() => {
-  // 页面挂载后直接启动论坛进入动画
-  startEntryLoading()
+  // 页面挂载后初始化列表页，并根据会话状态决定是否展示加载过渡
+  bindActivityListeners()
+  initInterviewPage()
 })
 </script>
 
