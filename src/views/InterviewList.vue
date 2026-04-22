@@ -2,7 +2,7 @@
   <div class="interview-page">
     <blog-mega-header current-page="interview" />
 
-    <!-- 登录后首次进入面经页时，展示论坛加载过渡与实时进度。 -->
+    <!-- 首次进入面经页时，展示论坛式加载过渡与进入进度。 -->
     <transition name="forum-loader-fade">
       <div v-if="showEntryLoader" class="forum-entry-loader">
         <div class="forum-entry-card">
@@ -26,28 +26,13 @@
 
     <main class="interview-main">
       <section class="interview-content">
-        <div class="section-header">
-          <div>
-            <span class="section-kicker">Primary Module</span>
-            <h2>面经列表</h2>
-            <p>聚合前后端高频面试方向，方便后续持续补充与分类扩展。</p>
-          </div>
-
-          <div class="section-controls">
-            <button class="back-home-btn" type="button" @click="goHome">
-              返回主页
-            </button>
-          </div>
-        </div>
-
+        <!-- 页面主体：只保留分类和真实面经内容，不再单独放顶部“小区域”。 -->
         <div class="interview-module-body">
-          <!-- 左侧改成目录式导航，统一承载搜索入口和前后端技术栈专题。 -->
+          <!-- 分类侧栏：承接搜索、分组和技术栈切换。 -->
           <aside class="topic-sidebar">
             <div class="topic-basket">
               <div class="topic-basket-head">
-                <span class="topic-basket-kicker">Interview Basket</span>
                 <h3>面试分类</h3>
-                <p>按前后端方向归档技术栈与专题，后续可继续扩展具体面经内容。</p>
               </div>
 
               <div class="topic-search">
@@ -72,7 +57,7 @@
                     @click="selectGroup(group)"
                   >
                     <span>{{ group.label }}</span>
-                    <span class="topic-group-arrow">›</span>
+                    <span class="topic-group-arrow">></span>
                   </button>
 
                   <div class="topic-group-tags">
@@ -92,14 +77,21 @@
             </div>
           </aside>
 
-          <div class="interview-feed">
+          <!-- 内容区域：恢复数据库里的面经帖子卡片，并保持自适应排布。 -->
+          <section class="interview-feed">
+            <div class="interview-feed-head">
+              <h2>面经帖子</h2>
+              <p>当前展示各平台收集的面经帖子内容，包含个人心得和求职历程,欢迎采纳。</p>
+            </div>
+
             <div v-if="loading" class="loading-tip">
-              <span class="loading-spin">●</span> 加载中...
+              <span class="loading-spin"></span>
+              <span>加载中...</span>
             </div>
 
             <div v-else-if="error" class="error-tip">
               <p>{{ error }}</p>
-              <button @click="fetchList" class="retry-btn">重试</button>
+              <button class="retry-btn" type="button" @click="fetchList">重试</button>
             </div>
 
             <template v-else>
@@ -116,7 +108,7 @@
                 <span>当前分类下还没有面经内容</span>
               </div>
             </template>
-          </div>
+          </section>
         </div>
       </section>
     </main>
@@ -130,32 +122,36 @@ import { getInterviews } from '@/api/interview.js'
 import InterviewCard from '@/components/InterviewCard.vue'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 
+// 进入动效常量：控制首次进入和空闲回访时的加载覆盖层。
 const ENTRY_LOADER_FLAG = 'peakstars_interview_entry_loader_needed'
 const ENTRY_IDLE_MS = 1200000
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart']
 
+// 路由与筛选状态：维护当前分类、当前分组和搜索关键词。
 const route = useRoute()
 const router = useRouter()
+const initialCategory = typeof route.query.category === 'string' ? route.query.category : 'all'
 const keyword = ref('')
-const activeCategory = ref(typeof route.query.category === 'string' ? route.query.category : 'all')
-const activeGroup = ref('backend')
-const selectedTopic = ref(typeof route.query.category === 'string' ? route.query.category : 'all')
+const activeCategory = ref(initialCategory)
+const activeGroup = ref(resolveGroupKey(initialCategory))
+const selectedTopic = ref(initialCategory)
 
+// 加载状态：用于控制进入动画和数据请求状态。
 const showEntryLoader = ref(true)
 const entryLoadingStarted = ref(false)
 const entryProgress = ref(0)
 const dataLoaded = ref(false)
-
 const list = ref([])
 const loading = ref(false)
 const error = ref('')
 
-// 左侧分类篮子用于承载面经方向，当前先把结构搭好，后面可以继续扩充子类与题库。
+// 分类配置：左侧用于控制数据库面经帖子的筛选入口。
 const topicGroups = [
   {
     key: 'backend',
     label: '后端',
     category: 'java',
+    defaultTopicKey: 'all',
     items: [
       { key: 'all', label: '全部方向', category: 'all' },
       { key: 'java', label: 'Java', category: 'java' },
@@ -174,6 +170,7 @@ const topicGroups = [
     key: 'frontend',
     label: '前端',
     category: 'frontend',
+    defaultTopicKey: 'frontend',
     items: [
       { key: 'frontend', label: '前端总览', category: 'frontend' },
       { key: 'html', label: 'HTML', category: 'frontend' },
@@ -189,11 +186,12 @@ const topicGroups = [
   }
 ]
 
+// 定时器引用：避免页面切换时遗留旧的计时器。
 let debounceTimer = 0
 let entryProgressTimer = 0
 let entryIdleTimer = 0
 
-// 根据当前进度阶段反馈用户正在执行的进入动作，让加载过程更有感知。
+// 进度提示：根据当前加载阶段更新覆盖层提示文案。
 const entryStatusText = computed(() => {
   if (!entryLoadingStarted.value) return '等待开始'
   if (entryProgress.value < 35) return '正在初始化论坛界面...'
@@ -202,6 +200,18 @@ const entryStatusText = computed(() => {
   return '进入完成'
 })
 
+// 分类映射：把 query 里的类别映射到左侧前后端分组。
+function resolveGroupKey(category) {
+  return category === 'frontend' ? 'frontend' : 'backend'
+}
+
+function syncCategoryState(category) {
+  activeCategory.value = category
+  selectedTopic.value = category
+  activeGroup.value = resolveGroupKey(category)
+}
+
+// 进入动画记录：通过 sessionStorage 控制何时再次显示覆盖层。
 function shouldShowEntryLoader() {
   return sessionStorage.getItem(ENTRY_LOADER_FLAG) !== 'false'
 }
@@ -214,6 +224,7 @@ function markEntryLoaderHandled() {
   sessionStorage.setItem(ENTRY_LOADER_FLAG, 'false')
 }
 
+// 数据请求：从数据库接口读取当前分类下的面经帖子。
 async function fetchList() {
   loading.value = true
   error.value = ''
@@ -224,15 +235,15 @@ async function fetchList() {
       keyword: keyword.value.trim()
     })
     list.value = result.list
-  } catch (e) {
-    error.value = '数据加载失败，请检查后端服务是否已启动'
+  } catch (requestError) {
+    error.value = '数据加载失败，请检查后端服务是否已经启动'
     list.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 进入动画结束后及时清理定时器，避免重复叠加更新进度。
+// 定时器清理：离开页面或加载完成时释放旧任务。
 function clearEntryProgressTimer() {
   if (entryProgressTimer) {
     window.clearInterval(entryProgressTimer)
@@ -247,6 +258,7 @@ function clearEntryIdleTimer() {
   }
 }
 
+// 空闲唤醒：页面长时间无操作后，重新允许进入动画出现。
 function scheduleLoaderForIdleReturn() {
   clearEntryIdleTimer()
   entryIdleTimer = window.setTimeout(() => {
@@ -272,6 +284,7 @@ function unbindActivityListeners() {
   })
 }
 
+// 进入流程：在数据准备完成后关闭覆盖层。
 function finishEntryLoading() {
   clearEntryProgressTimer()
   entryProgress.value = 100
@@ -323,7 +336,7 @@ async function initInterviewPage() {
   scheduleLoaderForIdleReturn()
 }
 
-// 点击左侧分类时同步高亮状态，并复用现有主分类筛选能力。
+// 分类交互：点击分组或主题时刷新数据库帖子结果。
 function selectTopic(topic) {
   selectedTopic.value = topic.key
   activeCategory.value = topic.category
@@ -331,9 +344,11 @@ function selectTopic(topic) {
 
 function selectGroup(group) {
   activeGroup.value = group.key
+  selectedTopic.value = group.defaultTopicKey
   activeCategory.value = group.category
 }
 
+// 列表联动：分类变化立即请求，关键词变化防抖请求。
 watch(activeCategory, () => {
   if (showEntryLoader.value) return
   fetchList()
@@ -349,36 +364,30 @@ watch(
   () => route.query.category,
   (nextCategory) => {
     if (typeof nextCategory === 'string') {
-      activeCategory.value = nextCategory
-      selectedTopic.value = nextCategory
-      activeGroup.value = nextCategory === 'frontend' ? 'frontend' : 'backend'
+      syncCategoryState(nextCategory)
       return
     }
 
-    activeCategory.value = 'all'
-    selectedTopic.value = 'all'
-    activeGroup.value = 'backend'
+    syncCategoryState('all')
   }
 )
 
+// 页面跳转：点击帖子卡片后进入对应详情页。
 function goDetail(id) {
   router.push(`/interview/${id}`)
 }
 
-function goHome() {
-  router.push('/home')
-}
+// 生命周期：进入时初始化，离开时清理副作用。
+onMounted(() => {
+  bindActivityListeners()
+  initInterviewPage()
+})
 
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   clearEntryProgressTimer()
   clearEntryIdleTimer()
   unbindActivityListeners()
-})
-
-onMounted(() => {
-  bindActivityListeners()
-  initInterviewPage()
 })
 </script>
 

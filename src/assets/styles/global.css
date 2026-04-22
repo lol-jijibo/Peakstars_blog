@@ -50,19 +50,19 @@ img {
 
 /* ===========================
    响应式布局
-   PC端展示两列卡片
+   PC端卡片采用自适应宽度
    =========================== */
 @media (min-width: 768px) {
   .interview-list {
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 12px !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)) !important;
+    gap: 18px !important;
   }
 }
 
 @media (min-width: 1200px) {
   .interview-list {
-    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)) !important;
   }
 }
 
