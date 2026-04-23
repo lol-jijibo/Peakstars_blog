@@ -94,6 +94,7 @@
 .learning-route-card::after {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   content: '';
   background:
     linear-gradient(180deg, rgba(8, 17, 31, 0.05), rgba(8, 17, 31, 0.82)),
@@ -104,6 +105,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+  border-radius: inherit;
   content: '';
   background: linear-gradient(135deg, rgba(191, 219, 254, 0.28), rgba(94, 234, 212, 0.18), transparent 56%);
   opacity: 0;
@@ -150,16 +152,27 @@
   border-radius: 8px;
 }
 
-.learning-route-card:hover,
+.learning-route-card:hover {
+  transform: translateY(-3px) scale(1.012);
+  box-shadow:
+    0 14px 30px rgba(3, 7, 18, 0.18),
+    0 28px 56px rgba(3, 7, 18, 0.28),
+    0 0 24px rgba(125, 211, 252, 0.08);
+}
+
 .learning-route-card:focus-visible {
-  border-color: rgba(94, 234, 212, 0.44);
-  box-shadow: 0 22px 48px rgba(3, 7, 18, 0.28);
-  transform: translateY(-4px) rotate(-0.6deg);
+  box-shadow:
+    0 0 0 1px rgba(94, 234, 212, 0.22),
+    0 14px 30px rgba(3, 7, 18, 0.18),
+    0 28px 56px rgba(3, 7, 18, 0.28),
+    0 0 24px rgba(125, 211, 252, 0.08);
+  transform: translateY(-3px) scale(1.012);
 }
 
 .learning-route-cover {
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   object-fit: cover;
   display: block;
   transform: scale(1.02);
@@ -168,7 +181,12 @@
 
 .learning-route-card:hover .learning-route-cover,
 .learning-route-card:focus-visible .learning-route-cover {
-  transform: scale(1.08);
+  transform: scale(1.05);
+}
+
+.learning-route-card:hover::before,
+.learning-route-card:focus-visible::before {
+  opacity: 0.22;
 }
 
 .learning-route-card.is-navigating {
@@ -198,6 +216,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+  border-radius: inherit;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
