@@ -1,0 +1,207 @@
+.learning-detail-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(94, 234, 212, 0.14), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(147, 197, 253, 0.16), transparent 28%),
+    linear-gradient(135deg, #08111f 0%, #101a2d 48%, #07101d 100%);
+  color: #f8fafc;
+}
+
+.learning-detail-main {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 28px 0 88px;
+}
+
+.learning-detail-back {
+  border: 1px solid rgba(245, 247, 251, 0.1);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(245, 247, 251, 0.08);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.learning-detail-back:hover {
+  border-color: rgba(94, 234, 212, 0.36);
+  transform: translateY(-2px);
+}
+
+.learning-detail-shell {
+  margin-top: 22px;
+}
+
+.learning-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: 28px;
+  align-items: stretch;
+}
+
+.learning-detail-copy,
+.learning-detail-cover,
+.learning-detail-stats,
+.learning-detail-outline,
+.learning-detail-article,
+.learning-detail-state {
+  border: 1px solid rgba(245, 247, 251, 0.09);
+  border-radius: 32px;
+  background: linear-gradient(135deg, rgba(245, 247, 251, 0.08), rgba(245, 247, 251, 0.025));
+  box-shadow: 0 24px 60px rgba(3, 7, 18, 0.22);
+}
+
+.learning-detail-copy {
+  padding: clamp(28px, 5vw, 54px);
+}
+
+.learning-detail-type {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(94, 234, 212, 0.12);
+  color: #5eead4;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.learning-detail-copy h1 {
+  max-width: 720px;
+  margin: 22px 0 0;
+  font-size: clamp(34px, 5vw, 62px);
+  line-height: 1.05;
+  letter-spacing: -0.06em;
+}
+
+.learning-detail-copy p {
+  max-width: 680px;
+  margin: 22px 0 0;
+  color: rgba(245, 247, 251, 0.68);
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.learning-detail-meta,
+.learning-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.learning-detail-meta span,
+.learning-detail-tags span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(147, 197, 253, 0.09);
+  color: rgba(245, 247, 251, 0.72);
+  font-size: 12px;
+}
+
+.learning-detail-cover {
+  width: 100%;
+  min-height: 360px;
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.learning-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  padding: 22px;
+}
+
+.learning-detail-stats div {
+  border-radius: 24px;
+  padding: 20px;
+  background: rgba(8, 17, 31, 0.44);
+}
+
+.learning-detail-stats strong,
+.learning-detail-stats span {
+  display: block;
+}
+
+.learning-detail-stats strong {
+  font-size: 30px;
+}
+
+.learning-detail-stats span {
+  margin-top: 6px;
+  color: rgba(245, 247, 251, 0.56);
+}
+
+.learning-detail-content-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.learning-detail-outline,
+.learning-detail-article {
+  padding: 26px;
+}
+
+.learning-detail-outline {
+  position: sticky;
+  top: 104px;
+  align-self: start;
+}
+
+.learning-detail-outline h2,
+.learning-detail-article h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.learning-detail-outline ol {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding-left: 20px;
+  color: rgba(245, 247, 251, 0.7);
+  line-height: 1.7;
+}
+
+.learning-detail-article p {
+  margin: 18px 0 0;
+  color: rgba(245, 247, 251, 0.72);
+  font-size: 17px;
+  line-height: 2;
+}
+
+.learning-detail-state {
+  margin-top: 22px;
+  padding: 28px;
+  color: rgba(245, 247, 251, 0.68);
+}
+
+.learning-detail-state.error {
+  color: #fecaca;
+}
+
+@media (max-width: 900px) {
+  .learning-detail-hero,
+  .learning-detail-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-detail-outline {
+    position: static;
+  }
+}
+
+@media (max-width: 620px) {
+  .learning-detail-main {
+    width: min(100%, calc(100% - 24px));
+  }
+
+  .learning-detail-stats {
+    grid-template-columns: 1fr;
+  }
+}

@@ -31,6 +31,11 @@ const routes = [
     meta: { title: '面经详情', requiresAuth: true }
   },
   {
+    path: '/learning-route/:slug',
+    component: () => import('@/views/LearningRouteDetail.vue'),
+    meta: { title: '学习路线详情', requiresAuth: true }
+  },
+  {
     path: '/collect',
     component: () => import('@/views/Collect.vue'),
     meta: { title: '我的收藏', requiresAuth: true }

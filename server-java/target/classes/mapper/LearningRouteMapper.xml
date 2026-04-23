@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.auth.infrastructure.mapper.LearningRouteMapper">
+
+  <resultMap id="LearningRouteResultMap" type="com.interview.auth.domain.entity.LearningRoute">
+    <id column="id" property="id"/>
+    <result column="slug" property="slug"/>
+    <result column="route_type" property="routeType"/>
+    <result column="title" property="title"/>
+    <result column="summary" property="summary"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="content" property="content"/>
+    <result column="stage_list" property="stageList"/>
+    <result column="author" property="author"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="estimated_minutes" property="estimatedMinutes"/>
+    <result column="view_count" property="viewCount"/>
+    <result column="comment_count" property="commentCount"/>
+    <result column="like_count" property="likeCount"/>
+    <result column="stage_count" property="stageCount"/>
+    <result column="difficulty" property="difficulty"/>
+    <result column="tags" property="tags"/>
+    <result column="featured" property="featured"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="findPublishedRoutes" resultMap="LearningRouteResultMap">
+    SELECT
+      id,
+      slug,
+      route_type,
+      title,
+      summary,
+      cover_url,
+      author,
+      published_at,
+      estimated_minutes,
+      view_count,
+      comment_count,
+      like_count,
+      stage_count,
+      difficulty,
+      tags,
+      featured,
+      status,
+      sort_order,
+      created_at,
+      updated_at
+    FROM learning_route
+    WHERE status = 1
+    ORDER BY featured DESC, sort_order ASC, published_at DESC
+  </select>
+
+  <select id="findPublishedBySlug" resultMap="LearningRouteResultMap">
+    SELECT
+      id,
+      slug,
+      route_type,
+      title,
+      summary,
+      cover_url,
+      content,
+      stage_list,
+      author,
+      published_at,
+      estimated_minutes,
+      view_count,
+      comment_count,
+      like_count,
+      stage_count,
+      difficulty,
+      tags,
+      featured,
+      status,
+      sort_order,
+      created_at,
+      updated_at
+    FROM learning_route
+    WHERE status = 1 AND slug = #{slug}
+    LIMIT 1
+  </select>
+</mapper>

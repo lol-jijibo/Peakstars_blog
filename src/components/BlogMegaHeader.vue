@@ -83,14 +83,6 @@
         >
           返回主页
         </button>
-        <button
-          v-else
-          class="header-ghost-btn"
-          type="button"
-          @click="goInterview()"
-        >
-          进入面经
-        </button>
         <button class="header-primary-btn" type="button" @click="logout">
           退出登录
         </button>
@@ -119,7 +111,6 @@ const activeMegaGroup = ref('featured')
 const topNavs = [
   { key: 'home', label: '主页', type: 'route', path: '/home' },
   { key: 'interview', label: '面经', type: 'route', path: '/interview' },
-  { key: 'solutions', label: '内容矩阵', type: 'mega' },
   { key: 'favorites', label: '收藏与喜欢', type: 'mega' }
 ]
 

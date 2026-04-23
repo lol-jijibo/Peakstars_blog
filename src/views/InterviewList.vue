@@ -156,10 +156,8 @@ const topicGroups = [
       { key: 'all', label: '全部方向', category: 'all' },
       { key: 'java', label: 'Java', category: 'java' },
       { key: 'python', label: 'Python', category: 'all' },
-      { key: 'golang', label: 'Go', category: 'all' },
       { key: 'mysql', label: 'MySQL', category: 'java' },
       { key: 'redis', label: 'Redis', category: 'java' },
-      { key: 'spring', label: 'Spring', category: 'java' },
       { key: 'springboot', label: 'Spring Boot', category: 'java' },
       { key: 'jvm', label: 'JVM', category: 'java' },
       { key: 'network', label: '计算机网络', category: 'all' },
@@ -178,10 +176,8 @@ const topicGroups = [
       { key: 'javascript', label: 'JavaScript', category: 'frontend' },
       { key: 'typescript', label: 'TypeScript', category: 'frontend' },
       { key: 'vue', label: 'Vue', category: 'frontend' },
-      { key: 'react', label: 'React', category: 'frontend' },
-      { key: 'engineering', label: '工程化', category: 'frontend' },
-      { key: 'browser', label: '浏览器原理', category: 'frontend' },
-      { key: 'performance', label: '性能优化', category: 'frontend' }
+      { key: 'react', label: 'React', category: 'frontend' }
+    
     ]
   }
 ]
