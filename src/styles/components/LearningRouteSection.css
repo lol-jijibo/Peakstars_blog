@@ -2,10 +2,26 @@
   position: relative;
   z-index: 1;
   margin-top: clamp(28px, 4vw, 52px);
-  padding: 0;
+  padding: clamp(24px, 3vw, 32px) 0 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+/* 分割线-最开头 */
+.learning-route-section::before {
+  content: '';
+  width: min(100%, 1040px);
+  height: 1px;
+  margin-bottom: clamp(20px, 2vw, 30px);
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0),
+    rgba(191, 219, 254, 0.48) 18%,
+    rgba(125, 211, 252, 0.72) 50%,
+    rgba(191, 219, 254, 0.48) 82%,
+    rgba(148, 163, 184, 0)
+  );
+  box-shadow: 0 0 18px rgba(125, 211, 252, 0.18);
 }
 
 .learning-route-head {
@@ -37,6 +53,10 @@
   justify-content: center;
 }
 
+.learning-route-grid--loading .learning-route-card {
+  cursor: default;
+}
+
 .learning-route-card {
   position: relative;
   aspect-ratio: 1 / 1;
@@ -47,7 +67,28 @@
   box-shadow: 0 16px 36px rgba(3, 7, 18, 0.2);
   cursor: pointer;
   outline: none;
-  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, filter 0.24s ease;
+}
+
+.learning-route-card--skeleton {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 16px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(8, 17, 31, 0.88)),
+    rgba(8, 17, 31, 0.72);
+}
+
+.learning-route-card--skeleton::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background:
+    linear-gradient(110deg, transparent 18%, rgba(255, 255, 255, 0.09) 32%, transparent 48%),
+    radial-gradient(circle at 22% 18%, rgba(94, 234, 212, 0.1), transparent 30%);
+  transform: translateX(-110%);
+  animation: learning-route-skeleton-shimmer 1.35s ease-in-out infinite;
 }
 
 .learning-route-card::after {
@@ -57,6 +98,56 @@
   background:
     linear-gradient(180deg, rgba(8, 17, 31, 0.05), rgba(8, 17, 31, 0.82)),
     radial-gradient(circle at 18% 16%, rgba(94, 234, 212, 0.14), transparent 32%);
+}
+
+.learning-route-card::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: '';
+  background: linear-gradient(135deg, rgba(191, 219, 254, 0.28), rgba(94, 234, 212, 0.18), transparent 56%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.learning-route-card::selection {
+  background: transparent;
+}
+
+.learning-route-skeleton-chip,
+.learning-route-skeleton-title,
+.learning-route-skeleton-meta {
+  position: relative;
+  z-index: 1;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+}
+
+.learning-route-skeleton-chip {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 56px;
+  height: 20px;
+}
+
+.learning-route-skeleton-title {
+  width: 72%;
+  height: 16px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+}
+
+.learning-route-skeleton-title.short {
+  width: 46%;
+  margin-bottom: 14px;
+}
+
+.learning-route-skeleton-meta {
+  width: 82%;
+  height: 11px;
+  border-radius: 8px;
 }
 
 .learning-route-card:hover,
@@ -78,6 +169,29 @@
 .learning-route-card:hover .learning-route-cover,
 .learning-route-card:focus-visible .learning-route-cover {
   transform: scale(1.08);
+}
+
+.learning-route-card.is-navigating {
+  border-color: rgba(125, 211, 252, 0.68);
+  box-shadow:
+    0 0 0 1px rgba(191, 219, 254, 0.16),
+    0 16px 30px rgba(14, 165, 233, 0.14),
+    0 0 18px rgba(125, 211, 252, 0.14);
+  filter: saturate(1.06) brightness(1.02);
+  animation: learning-route-press 0.14s ease forwards;
+}
+
+.learning-route-card.is-navigating::before {
+  opacity: 0.7;
+}
+
+.learning-route-card.is-navigating .learning-route-cover {
+  transform: scale(1.1);
+  filter: saturate(1.03);
+}
+
+.learning-route-card.is-navigating .learning-route-overlay {
+  animation: learning-route-overlay-rise 0.14s ease forwards;
 }
 
 .learning-route-overlay {
@@ -147,6 +261,64 @@
   padding: 14px 16px;
   background: rgba(8, 17, 31, 0.46);
   color: rgba(245, 247, 251, 0.68);
+}
+
+.learning-route-anchor {
+  width: 100%;
+  height: 1px;
+}
+
+.learning-route-reveal-enter-active {
+  transition: opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+}
+
+.learning-route-reveal-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  filter: blur(4px);
+}
+
+.learning-route-reveal-enter-active:nth-child(1) {
+  transition-delay: 0.01s;
+}
+
+.learning-route-reveal-enter-active:nth-child(2) {
+  transition-delay: 0.04s;
+}
+
+.learning-route-static-enter-active,
+.learning-route-static-leave-active {
+  transition: none;
+}
+
+@keyframes learning-route-skeleton-shimmer {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes learning-route-press {
+  0% {
+    transform: translateY(-4px) rotate(-0.6deg) scale(1);
+  }
+
+  100% {
+    transform: translateY(-1px) rotate(0deg) scale(0.975);
+  }
+}
+
+@keyframes learning-route-overlay-rise {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(-2px);
+  }
 }
 
 @media (max-width: 720px) {

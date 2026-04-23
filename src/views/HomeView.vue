@@ -19,7 +19,7 @@
           </div>
         </div>
 
-        <div class="hero-right" aria-label="当今技术迭代动态展示">
+        <div class="hero-right" aria-label="当下技术迭代动态展示">
           <div class="tech-orbit" aria-hidden="true"></div>
 
           <div class="trend-wheel" aria-label="技术演进轮播控制">
@@ -77,7 +77,7 @@ const techTrends = [
   {
     phase: '01 / Model',
     short: '模型升级',
-    title: '大模型人性化',
+    title: '大模型正在持续进化',
     description: 'Gemini 3.1 Pro -> GPT-4o -> GPT 5.4 -> ChatGPT Images 2.0'
   },
   {
@@ -89,7 +89,7 @@ const techTrends = [
   {
     phase: '03 / Engineering',
     short: '工程融合',
-    title: 'vibecoding正重塑软开全流程',
+    title: 'vibecoding 正重塑软件全流程',
     description: 'Prompt、RAG、工具调用、评测体系和前后端协作正在融合。'
   },
   {

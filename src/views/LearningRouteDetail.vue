@@ -3,14 +3,43 @@
     <blog-mega-header current-page="home" />
 
     <main class="learning-detail-main">
-      <button class="learning-detail-back" type="button" @click="$router.push('/home')">
-        返回主页
+      <button class="learning-detail-back" type="button" @click="goBack">
+        ← 返回上一页
       </button>
 
-      <div v-if="loading" class="learning-detail-state">正在加载路线详情...</div>
+      <div v-if="loading" class="learning-detail-shell learning-detail-shell--skeleton" aria-hidden="true">
+        <section class="learning-detail-hero">
+          <div class="learning-detail-copy learning-detail-skeleton-block">
+            <div class="learning-detail-skeleton-chip"></div>
+            <div class="learning-detail-skeleton-title"></div>
+            <div class="learning-detail-skeleton-title short"></div>
+            <div class="learning-detail-skeleton-paragraph"></div>
+            <div class="learning-detail-skeleton-paragraph wide"></div>
+            <div class="learning-detail-skeleton-tags">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+
+          <div class="learning-detail-cover learning-detail-skeleton-block"></div>
+        </section>
+
+        <section class="learning-detail-stats learning-detail-skeleton-stats">
+          <div></div>
+          <div></div>
+          <div></div>
+        </section>
+
+        <section class="learning-detail-content-grid">
+          <aside class="learning-detail-outline learning-detail-skeleton-block"></aside>
+          <section class="learning-detail-article learning-detail-skeleton-block"></section>
+        </section>
+      </div>
+
       <div v-else-if="error" class="learning-detail-state error">{{ error }}</div>
 
-      <article v-else class="learning-detail-shell">
+      <article v-else class="learning-detail-shell learning-detail-shell--ready">
         <section class="learning-detail-hero">
           <div class="learning-detail-copy">
             <span class="learning-detail-type">{{ routeDetail.routeType }}</span>
@@ -66,13 +95,18 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { getLearningRouteDetail } from '@/api/learningRoute'
+import {
+  getCachedLearningRouteDetail,
+  getLearningRouteDetail,
+  primeLearningRouteDetail
+} from '@/api/learningRoute'
 
 const route = useRoute()
-const routeDetail = ref(null)
-const loading = ref(true)
+const router = useRouter()
+const routeDetail = ref(getCachedLearningRouteDetail(route.params.slug))
+const loading = ref(!routeDetail.value)
 const error = ref('')
 
 const fallbackDetails = {
@@ -97,7 +131,7 @@ const fallbackDetails = {
     slug: 'fullstack-roadmap',
     routeType: 'fullstack',
     title: '全栈开发者进阶路线',
-    summary: '以 Vue3 前端体验、Java API 服务、MySQL 数据建模、部署监控和 AI 工具链为主线，串起从页面到系统的完整交付能力。',
+    summary: '从 Vue3 前端体验、Java API 服务、MySQL 数据建模、部署监控和 AI 工具链为主线，串起从页面到系统的完整交付能力。',
     coverUrl: '/【哲风壁纸】夏日-晴天-氛围感.png',
     content: '全栈路线的核心不是“什么都会一点”，而是理解一次完整交付如何发生：从页面设计、组件拆分、状态管理，到 Java 后端 API、MySQL 数据结构、权限认证、部署上线和监控复盘。建议每学一个阶段都围绕同一个产品原型迭代，让前端、后端、数据库和工程化自然连接起来。',
     stages: ['HTML/CSS/JavaScript 体验基础', 'Vue3 组件、路由与状态管理', 'Java REST API 与分层架构', 'MySQL 表设计与 MyBatis 持久化', '登录鉴权、文件上传与内容管理', '前后端联调、环境配置与部署', '性能优化、监控日志与故障复盘', 'AI Coding 辅助开发工作流'],
@@ -121,6 +155,7 @@ const contentParagraphs = computed(() => {
   if (!routeDetail.value?.content) {
     return []
   }
+
   return routeDetail.value.content
     .split(/\n+/)
     .map((item) => item.trim())
@@ -138,16 +173,35 @@ function formatCount(value) {
   return `${count}`
 }
 
+function goBack() {
+  if (window.history.length > 1) {
+    router.back()
+    return
+  }
+
+  router.push({
+    path: '/home',
+    hash: '#learning-route-bottom-anchor'
+  })
+}
+
 onMounted(async () => {
+  if (routeDetail.value) {
+    return
+  }
+
   try {
     const detail = await getLearningRouteDetail(route.params.slug)
     routeDetail.value = {
       ...detail,
       coverUrl: routeCoverMap[detail.slug] || detail.coverUrl
     }
+    primeLearningRouteDetail(route.params.slug, routeDetail.value)
   } catch (err) {
-    routeDetail.value = fallbackDetails[route.params.slug]
-    if (!routeDetail.value) {
+    routeDetail.value = fallbackDetails[route.params.slug] || null
+    if (routeDetail.value) {
+      primeLearningRouteDetail(route.params.slug, routeDetail.value)
+    } else {
       error.value = err.message || '路线详情加载失败，请稍后重试。'
     }
   } finally {

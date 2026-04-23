@@ -1,21 +1,40 @@
 <template>
-  <section class="learning-route-section" aria-labelledby="learning-route-title">
+  <section id="learning-route-section" class="learning-route-section" aria-labelledby="learning-route-title">
     <div class="learning-route-head">
       <h2 id="learning-route-title">学习路线</h2>
       <p>点击一个小方块，进入完整路线与文章详情。</p>
     </div>
 
-    <div v-if="loading" class="learning-route-state">正在加载学习路线...</div>
+    <div v-if="showSkeleton" class="learning-route-grid learning-route-grid--loading" aria-hidden="true">
+      <div
+        v-for="item in skeletonCards"
+        :key="item"
+        class="learning-route-card learning-route-card--skeleton"
+      >
+        <div class="learning-route-skeleton-chip"></div>
+        <div class="learning-route-skeleton-title"></div>
+        <div class="learning-route-skeleton-title short"></div>
+        <div class="learning-route-skeleton-meta"></div>
+      </div>
+    </div>
 
-    <div v-else class="learning-route-grid">
+    <transition-group
+      v-else
+      :name="enableRevealAnimation ? 'learning-route-reveal' : 'learning-route-static'"
+      tag="div"
+      class="learning-route-grid"
+      appear
+    >
       <article
         v-for="route in routes"
         :key="route.id"
         class="learning-route-card"
         tabindex="0"
+        @mouseenter="warmRouteDetail(route.slug)"
+        @focus="warmRouteDetail(route.slug)"
         @click="goDetail(route.slug)"
         @keyup.enter="goDetail(route.slug)"
-        @keyup.space="goDetail(route.slug)"
+        @keyup.space.prevent="goDetail(route.slug)"
       >
         <img class="learning-route-cover" :src="route.coverUrl" :alt="route.title" loading="lazy" />
         <div class="learning-route-overlay">
@@ -32,18 +51,25 @@
           </div>
         </div>
       </article>
-    </div>
+    </transition-group>
+
+    <div id="learning-route-bottom-anchor" class="learning-route-anchor" aria-hidden="true"></div>
   </section>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getLearningRoutes } from '@/api/learningRoute'
+import { getLearningRoutes, prefetchLearningRouteDetail } from '@/api/learningRoute'
+
+let cachedLearningRoutes = null
+let learningRouteDetailViewPromise = null
 
 const router = useRouter()
-const routes = ref([])
-const loading = ref(true)
+const routes = ref(cachedLearningRoutes ? [...cachedLearningRoutes] : [])
+const loading = ref(!cachedLearningRoutes)
+const enableRevealAnimation = ref(!cachedLearningRoutes)
+const skeletonCards = [1, 2]
 
 const fallbackRoutes = [
   {
@@ -77,6 +103,15 @@ const routeCoverMap = {
   'fullstack-roadmap': '/【哲风壁纸】夏日-晴天-氛围感.png'
 }
 
+const showSkeleton = computed(() => loading.value && routes.value.length === 0)
+
+function normalizeRoutes(routeList) {
+  return routeList.map((route) => ({
+    ...route,
+    coverUrl: routeCoverMap[route.slug] || route.coverUrl
+  }))
+}
+
 function formatCount(value) {
   const count = Number(value || 0)
   if (count >= 10000) {
@@ -88,21 +123,43 @@ function formatCount(value) {
   return `${count}`
 }
 
-function goDetail(slug) {
-  router.push(`/learning-route/${slug}`)
+function preloadLearningRouteDetailView() {
+  if (!learningRouteDetailViewPromise) {
+    learningRouteDetailViewPromise = import('@/views/LearningRouteDetail.vue')
+  }
+  return learningRouteDetailViewPromise
+}
+
+function warmRouteDetail(slug) {
+  preloadLearningRouteDetailView()
+  prefetchLearningRouteDetail(slug)
+}
+
+async function goDetail(slug) {
+  warmRouteDetail(slug)
+  await router.push(`/learning-route/${slug}`)
 }
 
 onMounted(async () => {
   try {
-    const remoteRoutes = await getLearningRoutes()
-    routes.value = remoteRoutes.map((route) => ({
-      ...route,
-      coverUrl: routeCoverMap[route.slug] || route.coverUrl
-    }))
+    const remoteRoutes = normalizeRoutes(await getLearningRoutes())
+    routes.value = remoteRoutes
+    cachedLearningRoutes = remoteRoutes
+    preloadLearningRouteDetailView()
+    remoteRoutes.forEach((route) => {
+      prefetchLearningRouteDetail(route.slug)
+    })
   } catch (err) {
-    routes.value = fallbackRoutes
+    if (!routes.value.length) {
+      const safeFallback = normalizeRoutes(fallbackRoutes)
+      routes.value = safeFallback
+      cachedLearningRoutes = safeFallback
+    }
   } finally {
     loading.value = false
+    window.setTimeout(() => {
+      enableRevealAnimation.value = false
+    }, 180)
   }
 })
 </script>

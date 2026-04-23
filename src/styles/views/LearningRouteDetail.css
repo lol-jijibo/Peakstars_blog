@@ -32,6 +32,24 @@
   margin-top: 22px;
 }
 
+.learning-detail-shell--ready {
+  animation: learning-detail-fade-in 0.34s ease;
+}
+
+.learning-detail-shell--ready .learning-detail-hero,
+.learning-detail-shell--ready .learning-detail-stats,
+.learning-detail-shell--ready .learning-detail-content-grid {
+  animation: learning-detail-rise-in 0.42s ease both;
+}
+
+.learning-detail-shell--ready .learning-detail-stats {
+  animation-delay: 0.05s;
+}
+
+.learning-detail-shell--ready .learning-detail-content-grid {
+  animation-delay: 0.1s;
+}
+
 .learning-detail-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
@@ -183,6 +201,110 @@
 
 .learning-detail-state.error {
   color: #fecaca;
+}
+
+.learning-detail-skeleton-block {
+  position: relative;
+  overflow: hidden;
+}
+
+.learning-detail-skeleton-block::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.08) 34%, transparent 48%);
+  transform: translateX(-120%);
+  animation: learning-detail-shimmer 1.45s ease-in-out infinite;
+}
+
+.learning-detail-skeleton-chip,
+.learning-detail-skeleton-title,
+.learning-detail-skeleton-paragraph,
+.learning-detail-skeleton-tags span,
+.learning-detail-skeleton-stats div,
+.learning-detail-skeleton-block.learning-detail-outline,
+.learning-detail-skeleton-block.learning-detail-article {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.learning-detail-skeleton-chip {
+  width: 70px;
+  height: 26px;
+  border-radius: 999px;
+}
+
+.learning-detail-skeleton-title {
+  width: 68%;
+  height: 22px;
+  margin-top: 24px;
+  border-radius: 12px;
+}
+
+.learning-detail-skeleton-title.short {
+  width: 44%;
+  margin-top: 12px;
+}
+
+.learning-detail-skeleton-paragraph {
+  width: 74%;
+  height: 14px;
+  margin-top: 18px;
+  border-radius: 8px;
+}
+
+.learning-detail-skeleton-paragraph.wide {
+  width: 88%;
+  margin-top: 10px;
+}
+
+.learning-detail-skeleton-tags {
+  display: flex;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.learning-detail-skeleton-tags span {
+  width: 72px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.learning-detail-skeleton-stats div {
+  min-height: 108px;
+}
+
+@keyframes learning-detail-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes learning-detail-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes learning-detail-shimmer {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(130%);
+  }
 }
 
 @media (max-width: 900px) {
