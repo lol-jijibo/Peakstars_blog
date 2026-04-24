@@ -297,6 +297,10 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import {
+  startEntryTransitionLoader,
+  stopEntryTransitionLoader
+} from '@/stores/entryLoader'
 
 const router = useRouter()
 const route = useRoute()
@@ -400,6 +404,10 @@ function validateEmail(value) {
 
 function normalizeEmail(value) {
   return value.trim().toLowerCase()
+}
+
+function resolveRedirectPath() {
+  return typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
 }
 
 function isQqEmail(value) {
@@ -566,9 +574,20 @@ async function submitLogin() {
   }
 
   showToast(result.message, 'ok')
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
-  setTimeout(() => {
-    router.replace(redirect)
+  const redirect = resolveRedirectPath()
+  setTimeout(async () => {
+    try {
+      
+        startEntryTransitionLoader({
+          title: '正在进入 PeakStars_blog',
+          subtitle: '登录成功，系统正在同步你的页面内容与登录状态。'
+        })
+      
+
+      await router.replace(redirect)
+    } catch {
+      stopEntryTransitionLoader()
+    }
   }, 320)
 }
 

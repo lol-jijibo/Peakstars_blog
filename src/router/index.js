@@ -1,5 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { isAuthenticated } from '@/stores/auth'
+import {
+  finishEntryTransitionLoader,
+  startEntryTransitionLoader,
+  stopEntryTransitionLoader
+} from '@/stores/entryLoader'
+
+function resolveLoginRedirect(query) {
+  return typeof query.redirect === 'string' ? query.redirect : '/home'
+}
 
 const routes = [
   {
@@ -9,7 +18,7 @@ const routes = [
   {
     path: '/home',
     component: () => import('@/views/HomeView.vue'),
-    meta: { title: '博客主页', requiresAuth: true }
+    meta: { title: '博客首页', requiresAuth: true }
   },
   {
     path: '/auth',
@@ -17,7 +26,7 @@ const routes = [
   },
   {
     path: '/login',
-    component: () => import('@/views/LoginView.vue'), //统一路由懒加载(按需加载)
+    component: () => import('@/views/LoginView.vue'),
     meta: { title: '登录' }
   },
   {
@@ -48,7 +57,7 @@ const routes = [
   {
     path: '/mine',
     component: () => import('@/views/Mine.vue'),
-    meta: { title: '个人中心', requiresAuth: true } //自己定义的额外属性
+    meta: { title: '个人中心', requiresAuth: true }
   }
 ]
 
@@ -72,26 +81,35 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  // 情况1：需要登录但未登录 → 重定向到登录页
-  // to = 要去的那个页面
   if (to.meta.requiresAuth && !isAuthenticated()) {
+    stopEntryTransitionLoader()
     return {
       path: '/login',
-      query: { redirect: to.fullPath } // 记录原始目标，登录后跳转回去
+      query: { redirect: to.fullPath }
     }
   }
 
-  // 情况2：已登录却访问登录页 → 跳转到首页或redirect参数指定的页面
   if (to.path === '/login' && isAuthenticated()) {
-    return typeof to.query.redirect === 'string' ? to.query.redirect : '/home'
+    const redirect = resolveLoginRedirect(to.query)
+
+    startEntryTransitionLoader({
+      title: '正在进入 PeakStars_blog',
+      subtitle: '已检测到登录状态，正在为你打开目标页面。'
+    })
+
+    return redirect
   }
 
-  return true // 其他情况，直接放行
+  return true
 })
 
-//路由后置守卫：在每次路由切换后执行
 router.afterEach((to) => {
   document.title = to.meta?.title ? `${to.meta.title} - PeakStars_blog` : 'PeakStars_blog'
+  finishEntryTransitionLoader()
+})
+
+router.onError(() => {
+  stopEntryTransitionLoader()
 })
 
 export default router

@@ -28,7 +28,7 @@
       <article
         v-for="route in routes"
         :key="route.id"
-        class="learning-route-card"
+        class="learning-route-card is-interactive"
         tabindex="0"
         @mouseenter="warmRouteDetail(route.slug)"
         @focus="warmRouteDetail(route.slug)"
@@ -164,4 +164,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped src="../styles/components/LearningRouteSection.css"></style>
+<style scoped src="../styles/components/HomeCardSection.css"></style>

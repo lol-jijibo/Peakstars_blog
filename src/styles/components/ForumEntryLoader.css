@@ -1,0 +1,98 @@
+.forum-entry-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(108, 99, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 82% 78%, rgba(90, 200, 250, 0.18), transparent 24%),
+    linear-gradient(135deg, rgba(15, 12, 41, 0.86), rgba(48, 43, 99, 0.82), rgba(36, 36, 62, 0.8));
+  backdrop-filter: blur(18px) saturate(130%);
+}
+
+.forum-entry-card {
+  width: min(100%, 520px);
+  padding: 32px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(24px) saturate(160%);
+  box-shadow: 0 24px 70px rgba(8, 15, 48, 0.34);
+}
+
+.forum-entry-kicker {
+  margin-bottom: 12px;
+  color: #8fd8ff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.forum-entry-title {
+  margin: 0;
+  color: #eef4ff;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.2;
+}
+
+.forum-entry-subtitle {
+  margin: 14px 0 24px;
+  color: rgba(232, 238, 255, 0.72);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.forum-entry-progress-shell {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 6px rgba(8, 15, 48, 0.22);
+}
+
+.forum-entry-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5ac8fa 0%, #6c63ff 48%, #9fdfff 100%);
+  box-shadow: 0 0 24px rgba(90, 200, 250, 0.34);
+  transition: width 0.18s ease;
+}
+
+.forum-entry-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  color: rgba(232, 238, 255, 0.74);
+  font-size: 14px;
+}
+
+.forum-entry-progress-meta strong {
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.forum-loader-fade-enter-active,
+.forum-loader-fade-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.forum-loader-fade-enter-from,
+.forum-loader-fade-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 768px) {
+  .forum-entry-loader {
+    padding: 20px;
+  }
+
+  .forum-entry-card {
+    padding: 26px 20px;
+    border-radius: 24px;
+  }
+}
