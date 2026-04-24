@@ -1,5 +1,5 @@
 <template>
-  <header class="site-header">
+  <header class="site-header" @keydown.esc="closeMegaMenu">
     <div class="site-header-inner">
       <button class="site-brand" type="button" @click="goHome">
         <div class="site-brand-mark">PS</div>
@@ -9,64 +9,100 @@
         </div>
       </button>
 
-      <nav class="site-nav" @mouseleave="closeMegaMenu">
+      <nav
+        ref="siteNavRef"
+        class="site-nav"
+        @mouseenter="cancelCloseMegaMenu"
+        @mouseleave="scheduleCloseMegaMenu"
+        @focusout="handleNavFocusOut"
+      >
         <button
           v-for="nav in topNavs"
           :key="nav.key"
           class="site-nav-link"
-          :class="{ active: isActiveNav(nav) || activeMegaMenu === nav.key }"
+          :class="{
+            active: isActiveNav(nav),
+            'is-open': nav.type === 'mega' && activeMegaMenu === nav.key
+          }"
+          :aria-expanded="nav.type === 'mega' ? String(activeMegaMenu === nav.key) : undefined"
+          :aria-haspopup="nav.type === 'mega' ? 'true' : undefined"
           type="button"
           @mouseenter="handleNavEnter(nav)"
+          @mouseleave="handleNavLeave(nav)"
           @focus="handleNavEnter(nav)"
           @click="handleNavClick(nav)"
         >
-          {{ nav.label }}
+          <span class="site-nav-link-content">
+            <span>{{ nav.label }}</span>
+            <span v-if="nav.type === 'mega'" class="site-nav-link-caret">▾</span>
+          </span>
         </button>
 
         <transition name="mega-menu-fade">
           <div
-            v-if="activeMegaMenu"
+            v-if="activeMegaMenu === 'article'"
             class="mega-menu"
-            @mouseenter="activeMegaMenu = activeMegaMenu"
+            @mouseenter="cancelCloseMegaMenu"
+            @mouseleave="scheduleCloseMegaMenu"
           >
             <aside class="mega-menu-side">
-              <button
-                v-for="group in megaMenuGroups"
+              <div
+                v-for="group in articleGroups"
                 :key="group.key"
-                class="mega-menu-side-link"
-                :class="{ active: activeMegaGroup === group.key }"
-                type="button"
-                @mouseenter="activeMegaGroup = group.key"
-                @focus="activeMegaGroup = group.key"
+                class="mega-menu-side-item"
               >
-                <span>{{ group.label }}</span>
-                <small>{{ group.caption }}</small>
-              </button>
+                <button
+                  class="mega-menu-side-link"
+                  :class="{ active: activeMegaGroup === group.key }"
+                  type="button"
+                  @mouseenter="selectMegaGroup(group.key)"
+                  @focus="selectMegaGroup(group.key)"
+                  @click="handleMegaGroupClick(group)"
+                >
+                  <span class="mega-menu-side-copy">
+                    <span class="mega-menu-side-title">{{ group.label }}</span>
+                    <small>{{ group.caption }}</small>
+                  </span>
+                  <span class="mega-menu-side-arrow" aria-hidden="true">›</span>
+                </button>
+              </div>
             </aside>
 
             <div class="mega-menu-panel">
               <div class="mega-menu-panel-head">
-                <div>
-                  <div class="mega-menu-eyebrow">{{ currentMegaGroup.label }}</div>
+                <div class="mega-menu-panel-copy">
+                  <div class="mega-menu-eyebrow">{{ currentMegaGroup.eyebrow }}</div>
                   <h3>{{ currentMegaGroup.title }}</h3>
+                  <p>{{ currentMegaGroup.description }}</p>
                 </div>
-                <p>{{ currentMegaGroup.description }}</p>
+
+                <button
+                  class="mega-menu-panel-cta"
+                  type="button"
+                  @click="openCurrentMegaGroup"
+                >
+                  {{ currentMegaGroup.actionLabel }}
+                </button>
               </div>
 
-              <div class="mega-menu-grid">
+              <div class="mega-menu-showcase">
                 <button
-                  v-for="item in currentMegaGroup.items"
-                  :key="item.title"
-                  class="mega-menu-card"
+                  v-for="preview in orderedMegaPreviews"
+                  :key="preview.id"
+                  class="mega-menu-preview-card"
+                  :class="{ active: activePreviewId === preview.id }"
                   type="button"
-                  @click="handleMegaMenuAction(item)"
+                  @mouseenter="activePreviewId = preview.id"
+                  @focus="activePreviewId = preview.id"
+                  @click="activePreviewId = preview.id"
                 >
-                  <div class="mega-menu-card-top">
-                    <span class="mega-menu-card-icon">{{ item.icon }}</span>
-                    <span v-if="item.badge" class="mega-menu-card-badge">{{ item.badge }}</span>
+                  <div class="mega-menu-preview-card-top">
+                    <span class="mega-menu-preview-tag">{{ preview.tag }}</span>
+                    <span class="mega-menu-preview-meta">{{ preview.meta }}</span>
                   </div>
-                  <strong>{{ item.title }}</strong>
-                  <p>{{ item.description }}</p>
+                  <span class="mega-menu-preview-theme">{{ preview.theme }}</span>
+                  <strong>{{ preview.title }}</strong>
+                  <p>{{ preview.summary }}</p>
                 </button>
               </div>
             </div>
@@ -81,7 +117,7 @@
           type="button"
           @click="goHome"
         >
-          返回主页
+          返回首页
         </button>
         <button class="header-primary-btn" type="button" @click="logout">
           退出登录
@@ -92,9 +128,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { techMegaHighlights } from '@/data/techArticles'
 
 const props = defineProps({
   currentPage: {
@@ -103,68 +140,197 @@ const props = defineProps({
   }
 })
 
+const ARTICLE_SECTION_HASHES = ['#world-news-section', '#ai-hotspot-section']
+
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+const siteNavRef = ref(null)
 const activeMegaMenu = ref('')
-const activeMegaGroup = ref('featured')
+const activeMegaGroup = ref('tech')
+const hoveredNavKey = ref('')
+const activePreviewId = ref('')
+let closeMenuTimer = null
 
 const topNavs = [
-  { key: 'home', label: '主页', type: 'route', path: '/home' },
-  { key: 'interview', label: '面经', type: 'route', path: '/interview' },
-  { key: 'favorites', label: '收藏与喜欢', type: 'mega' }
+  { key: 'home', label: '首页', type: 'route', path: '/home' },
+  { key: 'article', label: '文章', type: 'mega' },
+  { key: 'interview', label: '面经', type: 'route', path: '/interview' }
 ]
 
-const megaMenuGroups = [
+const articleGroups = [
   {
-    key: 'featured',
-    label: '主模块',
-    caption: '面经',
-    title: '面经模块是当前博客的主内容入口',
-    description: '面经从博客主页中拆分为独立页面，作为核心内容区长期沉淀前端与后端求职经验。',
-    items: [
-      { icon: '📚', title: '全部面经', description: '跳转到完整面经页，浏览全部整理内容。', action: 'route', path: '/interview', badge: 'Primary' },
-      { icon: '🧭', title: '前端面经', description: '直接进入前端分类，查看前端方向专题内容。', action: 'route', path: '/interview', query: { category: 'frontend' } },
-      { icon: '⚙️', title: 'Java 后端面经', description: '直接进入 Java 分类，查看后端专题内容。', action: 'route', path: '/interview', query: { category: 'java' } }
+    key: 'tech',
+    label: '技术文章',
+    caption: '前后端 / 架构',
+    eyebrow: 'Featured Reading',
+    title: '技术文章精华预览',
+    description: '先看重点，再决定进入完整文章页。',
+    actionLabel: '查看更多',
+    action: { type: 'route', path: '/articles' },
+    previews: techMegaHighlights.map((article) => ({
+      id: article.id,
+      theme: article.category === 'frontend' ? '前端精华' : '后端精华',
+      tag: article.isVip ? 'VIP 专题' : '精选文章',
+      meta: `${article.author.name} · ${article.readTime}`,
+      title: article.title,
+      summary: article.essence,
+      description: article.summary,
+      points: article.highlights.slice(0, 3)
+    }))
+  },
+  {
+    key: 'world',
+    label: '看天下',
+    caption: '热议 / 行业',
+    eyebrow: 'World Focus',
+    title: '今日行业主题',
+    description: '只保留值得看的变化。',
+    actionLabel: '进入看天下',
+    action: { type: 'hash', hash: '#world-news-section' },
+    previews: [
+      {
+        id: 'world-product',
+        theme: '产品变化',
+        tag: 'New',
+        meta: '全球产品 · 5 min',
+        title: '产品策略重新强调可执行的 AI',
+        summary: '重点变成闭环，而不是单次能力展示。',
+        description: '更值得看的是 AI 如何成为稳定入口。',
+        points: ['从能力展示走向任务闭环', '工具调用被放到默认流程里', '权限与审计开始前置']
+      },
+      {
+        id: 'world-infra',
+        theme: '基础设施',
+        tag: 'Focus',
+        meta: '云基础设施 · 6 min',
+        title: '算力和交付速度成了双主线',
+        summary: '体验差距，越来越取决于稳定和延迟。',
+        description: '适合快速建立外部视角。',
+        points: ['算力成本重新影响产品设计', '低延迟成为用户体感门槛', '交付速度开始反向塑造需求']
+      }
     ]
   },
   {
-    key: 'secondary',
-    label: '次模块',
-    caption: '收藏 / 喜欢',
-    title: '收藏与喜欢作为次模块统一收纳',
-    description: '参考超级下拉菜单模式，把次级功能放进顶部导航，减少主页信息拥挤感。',
-    items: [
-      { icon: '⭐', title: '收藏夹', description: '查看你标记收藏的内容，作为二次回看入口。', action: 'route', path: '/collect', badge: 'Secondary' },
-      { icon: '❤️', title: '喜欢内容', description: '进入喜欢模块，查看点赞过的内容。', action: 'route', path: '/like' },
-      { icon: '👤', title: '个人中心', description: '预留个人页入口，后续可以承接账号与偏好设置。', action: 'route', path: '/mine' }
-    ]
-  },
-  {
-    key: 'future',
-    label: '预留模块',
-    caption: '后续扩展',
-    title: '主页已经为后续功能预留展示位',
-    description: '后面可以继续补项目复盘、技术专栏、学习路线等内容，不再挤压面经区域。',
-    items: [
-      { icon: '🧪', title: '项目复盘', description: '承载项目总结、技术选型和上线复盘。', action: 'route', path: '/home#future' },
-      { icon: '📝', title: '技术专栏', description: '沉淀体系化技术文章和专题内容。', action: 'route', path: '/home#future' },
-      { icon: '🛠️', title: '工具资源', description: '整理工具链、模板与效率资源。', action: 'route', path: '/home#future' }
+    key: 'ai',
+    label: 'AI 热点',
+    caption: '模型 / Agent',
+    eyebrow: 'AI Shift',
+    title: 'AI 热点更看落地',
+    description: '把模型和工作流放回真实开发场景。',
+    actionLabel: '进入 AI 热点',
+    action: { type: 'hash', hash: '#ai-hotspot-section' },
+    previews: [
+      {
+        id: 'ai-agent',
+        theme: 'Agent 方向',
+        tag: 'Focus',
+        meta: 'Agent 实战 · 7 min',
+        title: 'Agent 竞争转向稳定完成任务',
+        summary: '规划、调用和校验开始比参数更重要。',
+        description: '热点内容会压缩成更快的判断入口。',
+        points: ['任务分解更加结构化', '工具调用成为默认能力', '结果验证开始进入主流程']
+      },
+      {
+        id: 'ai-multimodal',
+        theme: '多模态',
+        tag: 'Hot',
+        meta: '模型演进 · 4 min',
+        title: '多模态更新真正改变的是开发接口',
+        summary: '机会更体现在格式、延迟和成本上。',
+        description: '内容生成和工具链会最先感受到变化。',
+        points: ['接口能力变化比口号更关键', '成本曲线影响场景边界', '开发者体验开始被重新定义']
+      }
     ]
   }
 ]
 
 const currentMegaGroup = computed(() => {
-  return megaMenuGroups.find((group) => group.key === activeMegaGroup.value) || megaMenuGroups[0]
+  return articleGroups.find((group) => group.key === activeMegaGroup.value) || articleGroups[0]
 })
 
+const currentMegaPreview = computed(() => {
+  return (
+    currentMegaGroup.value.previews.find((preview) => preview.id === activePreviewId.value) ||
+    currentMegaGroup.value.previews[0]
+  )
+})
+
+const orderedMegaPreviews = computed(() => {
+  const activePreview = currentMegaPreview.value
+  const restPreviews = currentMegaGroup.value.previews.filter((preview) => preview.id !== activePreview.id)
+
+  return [activePreview, ...restPreviews]
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    closeMegaMenu()
+  }
+)
+
+watch(
+  activeMegaGroup,
+  (groupKey) => {
+    const group = articleGroups.find((item) => item.key === groupKey)
+    activePreviewId.value = group?.previews[0]?.id || ''
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  cancelCloseMegaMenu()
+})
+
+function isArticleRoute() {
+  return route.path === '/articles' || (route.path === '/home' && ARTICLE_SECTION_HASHES.includes(route.hash))
+}
+
 function isActiveNav(nav) {
-  return (nav.key === 'home' && props.currentPage === 'home') || (nav.key === 'interview' && props.currentPage === 'interview')
+  if (nav.key === 'home' && hoveredNavKey.value && hoveredNavKey.value !== 'home') {
+    return false
+  }
+
+  if (nav.key === 'article') {
+    return isArticleRoute()
+  }
+
+  if (nav.key === 'home') {
+    return props.currentPage === 'home' && !isArticleRoute()
+  }
+
+  if (nav.key === 'interview') {
+    return props.currentPage === 'interview'
+  }
+
+  return false
+}
+
+function selectMegaGroup(groupKey) {
+  activeMegaGroup.value = groupKey
+}
+
+function handleMegaGroupClick(group) {
+  selectMegaGroup(group.key)
+  openMegaGroup(group)
 }
 
 function handleNavEnter(nav) {
-  if (nav.type === 'mega') {
-    activeMegaMenu.value = nav.key
-    if (!activeMegaGroup.value) activeMegaGroup.value = 'featured'
+  hoveredNavKey.value = nav.key
+  cancelCloseMegaMenu()
+
+  if (nav.type !== 'mega') {
+    closeMegaMenu()
+    return
+  }
+
+  activeMegaMenu.value = nav.key
+}
+
+function handleNavLeave(nav) {
+  if (hoveredNavKey.value === nav.key) {
+    hoveredNavKey.value = activeMegaMenu.value || ''
   }
 }
 
@@ -178,29 +344,86 @@ function handleNavClick(nav) {
   activeMegaMenu.value = activeMegaMenu.value === nav.key ? '' : nav.key
 }
 
-function handleMegaMenuAction(item) {
-  closeMegaMenu()
-  router.push({
-    path: item.path,
-    query: item.query || {}
-  })
+function handleNavFocusOut(event) {
+  const nextTarget = event.relatedTarget
+
+  if (!nextTarget || !siteNavRef.value?.contains(nextTarget)) {
+    scheduleCloseMegaMenu()
+  }
 }
 
 function closeMegaMenu() {
+  cancelCloseMegaMenu()
   activeMegaMenu.value = ''
+  if (hoveredNavKey.value === 'article') {
+    hoveredNavKey.value = ''
+  }
+}
+
+function scheduleCloseMegaMenu() {
+  cancelCloseMegaMenu()
+  closeMenuTimer = window.setTimeout(() => {
+    activeMegaMenu.value = ''
+    closeMenuTimer = null
+  }, 160)
+}
+
+function cancelCloseMegaMenu() {
+  if (closeMenuTimer) {
+    window.clearTimeout(closeMenuTimer)
+    closeMenuTimer = null
+  }
+}
+
+function navigateToSection(hash) {
+  closeMegaMenu()
+
+  if (route.path === '/home' && route.hash === hash) {
+    document.querySelector(hash)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start'
+    })
+    return
+  }
+
+  router.push({
+    path: '/home',
+    hash
+  })
+}
+
+function openCurrentMegaGroup() {
+  const action = currentMegaGroup.value.action
+  closeMegaMenu()
+
+  if (action.type === 'route') {
+    router.push(action.path)
+    return
+  }
+
+  navigateToSection(action.hash)
+}
+
+function openMegaGroup(group) {
+  const action = group.action
+  closeMegaMenu()
+
+  if (action.type === 'route') {
+    router.push(action.path)
+    return
+  }
+
+  navigateToSection(action.hash)
 }
 
 function goHome() {
+  hoveredNavKey.value = ''
   closeMegaMenu()
   router.push('/home')
 }
 
-function goInterview() {
-  closeMegaMenu()
-  router.push('/interview')
-}
-
 function logout() {
+  hoveredNavKey.value = ''
   authStore.logout()
   router.replace('/login')
 }

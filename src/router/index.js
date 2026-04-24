@@ -21,6 +21,11 @@ const routes = [
     meta: { title: '博客首页', requiresAuth: true }
   },
   {
+    path: '/articles',
+    component: () => import('@/views/TechArticleList.vue'),
+    meta: { title: '技术文章', requiresAuth: true }
+  },
+  {
     path: '/auth',
     redirect: '/login'
   },

@@ -49,7 +49,7 @@
       </section>
 
       <learning-route-section />
-      <tech-article-section />
+      <world-news-section />
       <ai-hotspot-section />
     </main>
   </div>
@@ -60,7 +60,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import LearningRouteSection from '@/components/LearningRouteSection.vue'
-import TechArticleSection from '@/components/TechArticleSection.vue'
+import WorldNewsSection from '@/components/WorldNewsSection.vue'
 import AiHotspotSection from '@/components/AiHotspotSection.vue'
 
 const router = useRouter()

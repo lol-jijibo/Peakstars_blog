@@ -3,6 +3,7 @@
   z-index: 1;
   margin-top: clamp(28px, 4vw, 52px);
   padding: clamp(24px, 3vw, 32px) 0 0;
+  scroll-margin-top: 116px;
   display: flex;
   flex-direction: column;
   align-items: center;
