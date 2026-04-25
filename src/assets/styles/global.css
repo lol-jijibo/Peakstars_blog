@@ -135,7 +135,7 @@ html[data-theme='dark'] .like-page {
 }
 
 html[data-theme='dark'] .simple-page,
-html[data-theme='dark'] .detail-page {
+html[data-theme='dark'] .detail-page { 
   background: linear-gradient(180deg, #08111f 0%, #10192b 100%);
   color: #eef4ff;
 }

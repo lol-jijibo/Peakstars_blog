@@ -163,7 +163,7 @@ const props = defineProps({
   }
 })
 
-const ARTICLE_SECTION_HASHES = ['#world-news-section', '#ai-hotspot-section']
+const ARTICLE_SECTION_HASHES = ['#ai-hotspot-section']
 
 const router = useRouter()
 const route = useRoute()
@@ -181,6 +181,7 @@ const isDarkTheme = computed(() => themeStore.isDark.value)
 const topNavs = [
   { key: 'home', label: '首页', type: 'route', path: '/home' },
   { key: 'article', label: '文章', type: 'mega' },
+  { key: 'world', label: '看天下', type: 'route', path: '/world' },
   { key: 'interview', label: '面经', type: 'route', path: '/interview' }
 ]
 
@@ -206,38 +207,6 @@ const articleGroups = [
     }))
   },
   {
-    key: 'world',
-    label: '看天下',
-    caption: '热议 / 行业',
-    eyebrow: 'World Focus',
-    title: '今日行业主题',
-    description: '只保留值得看的变化。',
-    actionLabel: '进入看天下',
-    action: { type: 'hash', hash: '#world-news-section' },
-    previews: [
-      {
-        id: 'world-product',
-        theme: '产品变化',
-        tag: 'New',
-        meta: '全球产品 · 5 min',
-        title: '产品策略重新强调可执行的 AI',
-        summary: '重点变成闭环，而不是单次能力展示。',
-        description: '更值得看的是 AI 如何成为稳定入口。',
-        points: ['从能力展示走向任务闭环', '工具调用被放到默认流程里', '权限与审计开始前置']
-      },
-      {
-        id: 'world-infra',
-        theme: '基础设施',
-        tag: 'Focus',
-        meta: '云基础设施 · 6 min',
-        title: '算力和交付速度成了双主线',
-        summary: '体验差距，越来越取决于稳定和延迟。',
-        description: '适合快速建立外部视角。',
-        points: ['算力成本重新影响产品设计', '低延迟成为用户体感门槛', '交付速度开始反向塑造需求']
-      }
-    ]
-  },
-  {
     key: 'ai',
     label: 'AI 热点',
     caption: '模型 / Agent',
@@ -255,7 +224,7 @@ const articleGroups = [
         title: 'Agent 竞争转向稳定完成任务',
         summary: '规划、调用和校验开始比参数更重要。',
         description: '热点内容会压缩成更快的判断入口。',
-        points: ['任务分解更加结构化', '工具调用成为默认能力', '结果验证开始进入主流程']
+        points: ['任务拆解更加结构化', '工具调用成为默认能力', '结果验证开始进入主流程']
       },
       {
         id: 'ai-multimodal',
@@ -263,7 +232,7 @@ const articleGroups = [
         tag: 'Hot',
         meta: '模型演进 · 4 min',
         title: '多模态更新真正改变的是开发接口',
-        summary: '机会更体现在格式、延迟和成本上。',
+        summary: '机会更多体现在格式、延迟和成本上。',
         description: '内容生成和工具链会最先感受到变化。',
         points: ['接口能力变化比口号更关键', '成本曲线影响场景边界', '开发者体验开始被重新定义']
       }
@@ -324,6 +293,10 @@ function isActiveNav(nav) {
 
   if (nav.key === 'home') {
     return props.currentPage === 'home' && !isArticleRoute()
+  }
+
+  if (nav.key === 'world') {
+    return props.currentPage === 'world'
   }
 
   if (nav.key === 'interview') {
