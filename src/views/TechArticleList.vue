@@ -100,7 +100,7 @@
 
             <div v-if="filteredArticles.length === 0" class="article-empty-state">
               <strong>当前筛选下还没有文章。</strong>
-              <p>换一个分类继续看，精华内容已经收拢到其他入口里了。</p>
+              <p>换一个分类继续看，精选内容已经收拢到其他入口里了。</p>
             </div>
           </div>
         </section>
@@ -112,17 +112,30 @@
 
           <div class="article-author-list">
             <article
-              v-for="author in recommendedAuthors"
+              v-for="author in recommendedAuthorCards"
               :key="author.id"
               class="article-author-item"
             >
               <div class="article-author-item-main">
-                <div
-                  class="article-author-avatar"
-                  :style="{ background: author.accent }"
-                  aria-hidden="true"
-                >
-                  {{ author.initials }}
+                <div class="article-author-avatar-wrap">
+                  <img
+                    v-if="author.avatarUrl"
+                    class="article-author-avatar article-author-avatar--recommend article-author-avatar-image"
+                    :src="author.avatarUrl"
+                    :alt="author.name"
+                    loading="lazy"
+                  />
+                  <div
+                    v-else
+                    class="article-author-avatar article-author-avatar--recommend"
+                    :style="{ background: author.accent }"
+                    aria-hidden="true"
+                  >
+                    {{ author.initials }}
+                  </div>
+                  <span class="article-author-badge" aria-hidden="true">
+                    <span class="article-author-badge-star">✦</span>
+                  </span>
                 </div>
 
                 <div class="article-author-item-copy">
@@ -130,7 +143,6 @@
                   <p>{{ author.subtitle }}</p>
                 </div>
               </div>
-
               <button class="article-follow-btn" type="button">关注</button>
             </article>
           </div>
@@ -144,7 +156,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { recommendedAuthors, techArticleCategories, techArticles } from '@/data/techArticles'
+import { recommendedAuthors, techArticles } from '@/data/techArticles'
 
 const route = useRoute()
 const router = useRouter()
@@ -205,6 +217,22 @@ const filteredArticles = computed(() => {
 })
 
 const featuredCount = computed(() => filteredArticles.value.filter((article) => article.featured).length)
+//  作者头像集
+const authorAvatarMap = {
+  fly: '/qq.jpg',
+  francek: encodeURI('/【哲风壁纸】夏日-晴天-氛围感.png'),
+  'd-life': encodeURI('/ChatGPT Image 2026年4月23日 18_37_46.png'),
+  'clean-code': encodeURI('/【哲风壁纸】xiaomiyu7-小米suv.png'),
+  'algo-art': encodeURI('/【哲风壁纸】云彩-夜晚-夜景.png'),
+  'free-dev': encodeURI('/【哲风壁纸】公路-后视镜-城镇.png')
+}
+
+const recommendedAuthorCards = computed(() =>
+  recommendedAuthors.map((author) => ({
+    ...author,
+    avatarUrl: authorAvatarMap[author.id] || ''
+  }))
+)
 
 watch(
   () => route.query.mode,
@@ -305,7 +333,7 @@ function resolveCategoryDescription(categoryKey) {
   }
 
   if (categoryKey === 'collect') {
-    return '把留下来的重点内容重新汇到一起。'
+    return '把留下来的重点内容重新聚到一起。'
   }
 
   if (categoryKey === 'like') {

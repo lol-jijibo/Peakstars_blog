@@ -119,8 +119,31 @@
         >
           返回首页
         </button>
-        <button class="header-primary-btn" type="button" @click="logout">
-          退出登录
+        <button
+          class="theme-toggle-btn"
+          :class="{ 'is-dark': isDarkTheme }"
+          type="button"
+          :aria-label="isDarkTheme ? '切换到明亮主题' : '切换到暗色主题'"
+          @click="themeStore.toggleTheme()"
+        >
+          <span class="theme-toggle-label">明</span>
+          <span class="theme-toggle-track">
+            <span class="theme-toggle-thumb">
+              <span class="theme-toggle-icon">{{ isDarkTheme ? '☾' : '☀' }}</span>
+            </span>
+          </span>
+          <span class="theme-toggle-label">暗</span>
+        </button>
+        <button class="header-primary-btn" type="button" @click="goMine">
+          <img
+            v-if="showHeaderAvatar"
+            :src="headerAvatarUrl"
+            alt="当前用户头像"
+            class="header-user-avatar"
+            @error="showHeaderAvatar = false"
+          />
+          <span v-else class="header-user-avatar header-user-avatar-fallback">我</span>
+          我的
         </button>
       </div>
     </div>
@@ -130,8 +153,8 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 import { techMegaHighlights } from '@/data/techArticles'
+import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps({
   currentPage: {
@@ -144,13 +167,16 @@ const ARTICLE_SECTION_HASHES = ['#world-news-section', '#ai-hotspot-section']
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
+const themeStore = useThemeStore()
 const siteNavRef = ref(null)
+const showHeaderAvatar = ref(true)
 const activeMegaMenu = ref('')
 const activeMegaGroup = ref('tech')
 const hoveredNavKey = ref('')
 const activePreviewId = ref('')
 let closeMenuTimer = null
+const headerAvatarUrl = '/qq.jpg'
+const isDarkTheme = computed(() => themeStore.isDark.value)
 
 const topNavs = [
   { key: 'home', label: '首页', type: 'route', path: '/home' },
@@ -422,10 +448,10 @@ function goHome() {
   router.push('/home')
 }
 
-function logout() {
+function goMine() {
   hoveredNavKey.value = ''
-  authStore.logout()
-  router.replace('/login')
+  closeMegaMenu()
+  router.push('/mine')
 }
 </script>
 
