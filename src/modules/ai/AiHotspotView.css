@@ -53,16 +53,6 @@
   padding: 0 4px;
 }
 
-.ai-feed-kicker {
-  display: inline-flex;
-  margin-bottom: 8px;
-  color: #8ca0b8;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .ai-feed-head h2 {
   margin: 0;
   color: #18273f;
@@ -301,13 +291,6 @@
   gap: 8px;
 }
 
-.ai-signin-kicker {
-  color: #8da0b5;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 .ai-signin-copy p {
   margin: 0;

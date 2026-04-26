@@ -9,7 +9,6 @@
             <div class="ai-hotspot-feed">
               <div class="ai-feed-head">
                 <div>
-                  <span class="ai-feed-kicker">Flow List</span>
                   <h2>{{ activeTrackLabel }}</h2> 
                 </div>
                 <p>{{ activeTrackDescription }}</p>
@@ -70,7 +69,6 @@
             <div class="ai-hotspot-sidebar">
               <el-card shadow="never" class="ai-panel ai-signin-card">
                 <div class="ai-signin-copy">
-                  <span class="ai-signin-kicker">时段问候</span>
                   <p>{{ dailyMessage }}</p>
                 </div>
                 <button type="button" class="ai-signin-btn">去签到</button>

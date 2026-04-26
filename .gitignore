@@ -1,2 +1,15 @@
 # Build output
 dist/
+
+# Dependencies
+node_modules/
+
+# IDE files
+.idea/
+.vs/
+
+# Java build output
+server-java/target/
+
+# Vite cache
+.vite/
