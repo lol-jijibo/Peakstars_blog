@@ -31,6 +31,11 @@ const routes = [
     meta: { title: '看天下', requiresAuth: true }
   },
   {
+    path: '/ai-hotspot',
+    component: () => import('@/modules/ai/AiHotspotView.vue'),
+    meta: { title: 'AI 热点', requiresAuth: true }
+  },
+  {
     path: '/auth',
     redirect: '/login'
   },

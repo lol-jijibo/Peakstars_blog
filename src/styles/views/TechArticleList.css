@@ -1,6 +1,6 @@
 .article-hub-page {
   min-height: 100vh;
-  background: #ffffff;
+  background: #f4f7fb;
   color: #101828;
 }
 
@@ -30,13 +30,13 @@
   border-radius: 22px;
   padding: 18px 16px;
   background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.98));
+    linear-gradient(180deg, rgba(242, 246, 250, 0.98), rgba(249, 251, 253, 0.98));
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.05);
 }
 
 .article-filter-panel--topics {
   background:
-    linear-gradient(180deg, rgba(252, 252, 253, 0.98), rgba(248, 250, 252, 0.98));
+    linear-gradient(180deg, rgba(246, 248, 251, 0.98), rgba(240, 245, 250, 0.98));
 }
 
 .article-filter-panel-head {

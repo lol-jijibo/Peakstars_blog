@@ -49,7 +49,6 @@
       </section>
 
       <learning-route-section />
-      <ai-hotspot-section />
     </main>
   </div>
 </template>
@@ -59,7 +58,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import LearningRouteSection from '@/components/LearningRouteSection.vue'
-import AiHotspotSection from '@/components/AiHotspotSection.vue'
 
 const router = useRouter()
 const activeHeroLeadIndex = ref(0)

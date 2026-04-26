@@ -163,8 +163,6 @@ const props = defineProps({
   }
 })
 
-const ARTICLE_SECTION_HASHES = ['#ai-hotspot-section']
-
 const router = useRouter()
 const route = useRoute()
 const themeStore = useThemeStore()
@@ -182,6 +180,7 @@ const topNavs = [
   { key: 'home', label: '首页', type: 'route', path: '/home' },
   { key: 'article', label: '文章', type: 'mega' },
   { key: 'world', label: '看天下', type: 'route', path: '/world' },
+  { key: 'ai', label: 'AI 热点', type: 'route', path: '/ai-hotspot' },
   { key: 'interview', label: '面经', type: 'route', path: '/interview' }
 ]
 
@@ -205,38 +204,6 @@ const articleGroups = [
       description: article.summary,
       points: article.highlights.slice(0, 3)
     }))
-  },
-  {
-    key: 'ai',
-    label: 'AI 热点',
-    caption: '模型 / Agent',
-    eyebrow: 'AI Shift',
-    title: 'AI 热点更看落地',
-    description: '把模型和工作流放回真实开发场景。',
-    actionLabel: '进入 AI 热点',
-    action: { type: 'hash', hash: '#ai-hotspot-section' },
-    previews: [
-      {
-        id: 'ai-agent',
-        theme: 'Agent 方向',
-        tag: 'Focus',
-        meta: 'Agent 实战 · 7 min',
-        title: 'Agent 竞争转向稳定完成任务',
-        summary: '规划、调用和校验开始比参数更重要。',
-        description: '热点内容会压缩成更快的判断入口。',
-        points: ['任务拆解更加结构化', '工具调用成为默认能力', '结果验证开始进入主流程']
-      },
-      {
-        id: 'ai-multimodal',
-        theme: '多模态',
-        tag: 'Hot',
-        meta: '模型演进 · 4 min',
-        title: '多模态更新真正改变的是开发接口',
-        summary: '机会更多体现在格式、延迟和成本上。',
-        description: '内容生成和工具链会最先感受到变化。',
-        points: ['接口能力变化比口号更关键', '成本曲线影响场景边界', '开发者体验开始被重新定义']
-      }
-    ]
   }
 ]
 
@@ -279,7 +246,7 @@ onBeforeUnmount(() => {
 })
 
 function isArticleRoute() {
-  return route.path === '/articles' || (route.path === '/home' && ARTICLE_SECTION_HASHES.includes(route.hash))
+  return route.path === '/articles'
 }
 
 function isActiveNav(nav) {
@@ -297,6 +264,10 @@ function isActiveNav(nav) {
 
   if (nav.key === 'world') {
     return props.currentPage === 'world'
+  }
+
+  if (nav.key === 'ai') {
+    return props.currentPage === 'ai'
   }
 
   if (nav.key === 'interview') {
@@ -374,33 +345,13 @@ function cancelCloseMegaMenu() {
   }
 }
 
-function navigateToSection(hash) {
-  closeMegaMenu()
-
-  if (route.path === '/home' && route.hash === hash) {
-    document.querySelector(hash)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start'
-    })
-    return
-  }
-
-  router.push({
-    path: '/home',
-    hash
-  })
-}
-
 function openCurrentMegaGroup() {
   const action = currentMegaGroup.value.action
   closeMegaMenu()
 
   if (action.type === 'route') {
     router.push(action.path)
-    return
   }
-
-  navigateToSection(action.hash)
 }
 
 function openMegaGroup(group) {
@@ -409,10 +360,7 @@ function openMegaGroup(group) {
 
   if (action.type === 'route') {
     router.push(action.path)
-    return
   }
-
-  navigateToSection(action.hash)
 }
 
 function goHome() {
