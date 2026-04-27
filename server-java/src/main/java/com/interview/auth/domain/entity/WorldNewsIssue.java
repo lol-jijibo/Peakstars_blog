@@ -26,6 +26,7 @@ public class WorldNewsIssue {
     private String coverHeadline;
     private String coverSummary;
     private String coverFooter;
+    private String contentHtml;
     private LocalDateTime publishedAt;
     private Integer status;
     private Integer sortOrder;

@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS `tech_article` (
   `author_initials`   VARCHAR(16)     NOT NULL DEFAULT ''     COMMENT '作者头像文字缩写',
   `author_accent`     VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '作者头像渐变背景',
   `cover_url`         VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '文章封面地址',
+  `content_html`      MEDIUMTEXT      NOT NULL                COMMENT '文章富文本内容，供后台管理页和富文本编辑器直接维护',
   `published_at`      DATETIME        NOT NULL                COMMENT '发布时间，用于排序和前端展示',
   `read_count`        INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '阅读数',
   `like_count`        INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '点赞数',
@@ -141,6 +142,27 @@ CREATE TABLE IF NOT EXISTS `tech_article` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='技术文章内容表';
 
 -- ------------------------------------------------------------
+-- 7.1 技术文章表增量补列
+-- 业务目的：兼容老环境已存在表结构的场景，给后台富文本编辑补齐正文 HTML 字段。
+-- 业务逻辑：通过 information_schema 判断字段是否存在，仅在缺失时执行 ALTER，避免重复执行报错。
+-- ------------------------------------------------------------
+SET @tech_article_content_html_exists = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'tech_article'
+    AND COLUMN_NAME = 'content_html'
+);
+SET @tech_article_content_html_sql = IF(
+  @tech_article_content_html_exists = 0,
+  'ALTER TABLE `tech_article` ADD COLUMN `content_html` MEDIUMTEXT NOT NULL COMMENT ''文章富文本内容，供后台管理页和富文本编辑器直接维护'' AFTER `cover_url`',
+  'SELECT 1'
+);
+PREPARE tech_article_content_html_stmt FROM @tech_article_content_html_sql;
+EXECUTE tech_article_content_html_stmt;
+DEALLOCATE PREPARE tech_article_content_html_stmt;
+
+-- ------------------------------------------------------------
 -- 8. 看天下期刊表
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `world_news_issue` (
@@ -157,6 +179,7 @@ CREATE TABLE IF NOT EXISTS `world_news_issue` (
   `cover_headline`    VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '封面主标题',
   `cover_summary`     VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '封面摘要',
   `cover_footer`      VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '封面底部说明',
+  `content_html`      MEDIUMTEXT      NOT NULL                COMMENT '期刊富文本内容，供后台管理页直接编辑与发布',
   `published_at`      DATETIME        NOT NULL                COMMENT '期刊发布时间，用于排序',
   `status`            TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1=发布 0=下线',
   `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '业务排序权重，值越小越靠前',
@@ -166,6 +189,27 @@ CREATE TABLE IF NOT EXISTS `world_news_issue` (
   UNIQUE KEY `uk_world_news_issue_key` (`issue_key`),
   KEY `idx_world_news_publish` (`published_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='看天下期刊内容表';
+
+-- ------------------------------------------------------------
+-- 8.1 看天下期刊表增量补列
+-- 业务目的：让已落库的老表也能直接支持后台富文本期刊正文编辑。
+-- 业务逻辑：只在字段不存在时追加 content_html，避免破坏现有数据和重复建列。
+-- ------------------------------------------------------------
+SET @world_news_content_html_exists = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'world_news_issue'
+    AND COLUMN_NAME = 'content_html'
+);
+SET @world_news_content_html_sql = IF(
+  @world_news_content_html_exists = 0,
+  'ALTER TABLE `world_news_issue` ADD COLUMN `content_html` MEDIUMTEXT NOT NULL COMMENT ''期刊富文本内容，供后台管理页直接编辑与发布'' AFTER `cover_footer`',
+  'SELECT 1'
+);
+PREPARE world_news_content_html_stmt FROM @world_news_content_html_sql;
+EXECUTE world_news_content_html_stmt;
+DEALLOCATE PREPARE world_news_content_html_stmt;
 
 -- ------------------------------------------------------------
 -- 9. AI 热点表
@@ -180,6 +224,7 @@ CREATE TABLE IF NOT EXISTS `ai_hotspot` (
   `author_name`       VARCHAR(64)     NOT NULL DEFAULT ''     COMMENT '发布作者名称',
   `published_at`      DATETIME        NOT NULL                COMMENT '发布时间，用于最新排序',
   `cover_url`         VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '热点封面地址',
+  `content_html`      MEDIUMTEXT      NOT NULL                COMMENT '热点富文本内容，供后台管理页和 AI 编辑流程维护',
   `tag_list`          VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '热点标签列表，使用竖线分隔，便于后端转换为数组',
   `view_count`        INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '浏览数',
   `comment_count`     INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '评论数',
@@ -196,3 +241,40 @@ CREATE TABLE IF NOT EXISTS `ai_hotspot` (
   KEY `idx_ai_hotspot_track` (`track`),
   KEY `idx_ai_hotspot_publish` (`published_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 热点内容表';
+
+-- ------------------------------------------------------------
+-- 9.1 AI 热点表增量补列
+-- 业务目的：补齐 AI 热点正文 HTML 字段，支撑后台富文本编辑和 AI 润色后的内容落库。
+-- 业务逻辑：老表缺少字段时自动追加，已存在字段时直接跳过，保证脚本可重复执行。
+-- ------------------------------------------------------------
+SET @ai_hotspot_content_html_exists = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'ai_hotspot'
+    AND COLUMN_NAME = 'content_html'
+);
+SET @ai_hotspot_content_html_sql = IF(
+  @ai_hotspot_content_html_exists = 0,
+  'ALTER TABLE `ai_hotspot` ADD COLUMN `content_html` MEDIUMTEXT NOT NULL COMMENT ''热点富文本内容，供后台管理页和 AI 编辑流程维护'' AFTER `cover_url`',
+  'SELECT 1'
+);
+PREPARE ai_hotspot_content_html_stmt FROM @ai_hotspot_content_html_sql;
+EXECUTE ai_hotspot_content_html_stmt;
+DEALLOCATE PREPARE ai_hotspot_content_html_stmt;
+
+-- ------------------------------------------------------------
+-- 10. 内容编辑日志表
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `content_edit_log` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '内容编辑日志主键ID',
+  `content_type`  VARCHAR(32)     NOT NULL                COMMENT '内容类型，如 tech / world / ai',
+  `content_key`   VARCHAR(64)     NOT NULL                COMMENT '内容业务主键，方便定位具体记录',
+  `action_type`   VARCHAR(32)     NOT NULL                COMMENT '操作类型，如 create / update / batch-import / delete',
+  `operator_name` VARCHAR(64)     NOT NULL DEFAULT 'admin' COMMENT '操作人名称，当前先记录后台默认操作者',
+  `content_title` VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '内容标题快照，便于后台仪表盘展示最近编辑',
+  `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '编辑发生时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_content_edit_log_type_time` (`content_type`, `created_at`),
+  KEY `idx_content_edit_log_key_time` (`content_key`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='后台内容编辑日志表';

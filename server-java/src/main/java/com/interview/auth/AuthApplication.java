@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan
-@MapperScan("com.interview.auth.infrastructure.mapper")
+@MapperScan("com.interview.auth")
 public class AuthApplication {
 
     /**

@@ -193,6 +193,14 @@ const quickEntries = [
     caption: '继续上次浏览的位置',
     count: recentCount,
     action: () => scrollToSection('recent-section')
+  },
+  {
+    key: 'admin',
+    icon: '📊',
+    label: '内容后台',
+    caption: '进入管理台查看实时数据',
+    count: 'GO',
+    action: () => router.push('/admin')
   }
 ]
 

@@ -73,6 +73,11 @@ const routes = [
     path: '/mine',
     component: () => import('@/views/Mine.vue'),
     meta: { title: '个人中心', requiresAuth: true }
+  },
+  {
+    path: '/admin',
+    component: () => import('@/modules/admin/views/AdminDashboardView.vue'),
+    meta: { title: '管理后台', requiresAuth: false }
   }
 ]
 
@@ -96,6 +101,8 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  // 业务目的：对需要登录的页面做统一鉴权，避免未登录状态直接进入用户内容页。
+  // 业务逻辑：管理后台当前开放直达，其余业务页仍通过 token 状态决定是否跳转登录页。
   if (to.meta.requiresAuth && !isAuthenticated()) {
     stopEntryTransitionLoader()
     return {
@@ -104,6 +111,8 @@ router.beforeEach((to) => {
     }
   }
 
+  // 业务目的：已登录用户再次访问登录页时自动回到业务页，减少重复登录操作。
+  // 业务逻辑：优先读取 redirect 参数，没有则回到首页，并在跳转前展示统一过渡反馈。
   if (to.path === '/login' && isAuthenticated()) {
     const redirect = resolveLoginRedirect(to.query)
 

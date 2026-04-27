@@ -21,6 +21,7 @@ public class AiHotspot {
     private String authorName;
     private LocalDateTime publishedAt;
     private String coverUrl;
+    private String contentHtml;
     private String tagList;
     private Integer viewCount;
     private Integer commentCount;

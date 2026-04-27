@@ -24,6 +24,7 @@ public class TechArticle {
     private String authorInitials;
     private String authorAccent;
     private String coverUrl;
+    private String contentHtml;
     private LocalDateTime publishedAt;
     private Integer readCount;
     private Integer likeCount;
