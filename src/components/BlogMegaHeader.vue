@@ -151,9 +151,9 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { techMegaHighlights } from '@/data/techArticles'
+import { getTechArticles } from '@/api/content'
 import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps({
@@ -172,6 +172,7 @@ const activeMegaMenu = ref('')
 const activeMegaGroup = ref('tech')
 const hoveredNavKey = ref('')
 const activePreviewId = ref('')
+const techArticles = ref([])
 let closeMenuTimer = null
 const headerAvatarUrl = '/qq.jpg'
 const isDarkTheme = computed(() => themeStore.isDark.value)
@@ -184,31 +185,39 @@ const topNavs = [
   { key: 'interview', label: '面经', type: 'route', path: '/interview' }
 ]
 
-const articleGroups = [
-  {
-    key: 'tech',
-    label: '技术文章',
-    caption: '前后端 / 架构',
-    eyebrow: 'Featured Reading',
-    title: '技术文章精华预览',
-    description: '先看重点，再决定进入完整文章页。',
-    actionLabel: '查看更多',
-    action: { type: 'route', path: '/articles' },
-    previews: techMegaHighlights.map((article) => ({
-      id: article.id,
-      theme: article.category === 'frontend' ? '前端精华' : '后端精华',
-      tag: article.isVip ? 'VIP 专题' : '精选文章',
-      meta: `${article.author.name} · ${article.readTime}`,
-      title: article.title,
-      summary: article.essence,
-      description: article.summary,
-      points: article.highlights.slice(0, 3)
-    }))
-  }
-]
+const articleGroups = computed(() => {
+  const techMegaHighlights = techArticles.value
+    .filter((article) => article.featured)
+    .slice(0, 4)
+
+  return [
+    {
+      key: 'tech',
+      label: '技术文章',
+      caption: '前后端 / 架构',
+      eyebrow: 'Featured Reading',
+      title: '技术文章精华预览',
+      description: techMegaHighlights.length
+        ? '先看重点，再决定进入完整文章页。'
+        : '技术文章精选内容正在从后端加载。',
+      actionLabel: '查看更多',
+      action: { type: 'route', path: '/articles' },
+      previews: techMegaHighlights.map((article) => ({
+        id: article.id,
+        theme: article.category === 'frontend' ? '前端精华' : '后端精华',
+        tag: article.isVip ? 'VIP 专题' : '精选文章',
+        meta: `${article.author.name} · ${article.readTime}`,
+        title: article.title,
+        summary: article.essence,
+        description: article.summary,
+        points: article.highlights.slice(0, 3)
+      }))
+    }
+  ]
+})
 
 const currentMegaGroup = computed(() => {
-  return articleGroups.find((group) => group.key === activeMegaGroup.value) || articleGroups[0]
+  return articleGroups.value.find((group) => group.key === activeMegaGroup.value) || articleGroups.value[0]
 })
 
 const currentMegaPreview = computed(() => {
@@ -220,6 +229,9 @@ const currentMegaPreview = computed(() => {
 
 const orderedMegaPreviews = computed(() => {
   const activePreview = currentMegaPreview.value
+  if (!activePreview) {
+    return []
+  }
   const restPreviews = currentMegaGroup.value.previews.filter((preview) => preview.id !== activePreview.id)
 
   return [activePreview, ...restPreviews]
@@ -235,11 +247,21 @@ watch(
 watch(
   activeMegaGroup,
   (groupKey) => {
-    const group = articleGroups.find((item) => item.key === groupKey)
+    const group = articleGroups.value.find((item) => item.key === groupKey)
     activePreviewId.value = group?.previews[0]?.id || ''
   },
   { immediate: true }
 )
+
+// 业务目的：头部文章下拉预览也统一切到后端数据源，避免导航和文章页出现两套内容口径。
+// 业务逻辑：组件挂载后拉取一次技术文章列表，再从精选文章里裁剪出头部需要的预览卡片。
+onMounted(async () => {
+  try {
+    techArticles.value = await getTechArticles()
+  } catch {
+    techArticles.value = []
+  }
+})
 
 onBeforeUnmount(() => {
   cancelCloseMegaMenu()

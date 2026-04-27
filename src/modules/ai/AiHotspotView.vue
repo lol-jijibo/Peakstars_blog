@@ -4,63 +4,61 @@
 
     <main class="ai-hotspot-main">
       <section class="ai-hotspot-shell" aria-labelledby="ai-hotspot-page-title">
-        <el-row :gutter="24" class="ai-hotspot-layout">
+        <el-row :gutter="18" class="ai-hotspot-layout">
           <el-col :xs="24" :lg="16" class="ai-hotspot-feed-col">
             <div class="ai-hotspot-feed">
-              <div class="ai-feed-head">
-                <div>
-                  <h2>{{ activeTrackLabel }}</h2> 
-                </div>
-                <p>{{ activeTrackDescription }}</p>
+              <div class="ai-feed-tabs" role="tablist" aria-label="AI 热点列表切换">
+                <button
+                  v-for="tab in feedTabs"
+                  :key="tab.key"
+                  type="button"
+                  class="ai-feed-tab"
+                  :class="{ 'is-active': activeFeedTab === tab.key }"
+                  :aria-selected="activeFeedTab === tab.key"
+                  @click="activeFeedTab = tab.key"
+                >
+                  {{ tab.label }}
+                </button>
               </div>
 
               <div class="ai-feed-list">
-                <el-card
-                  v-for="hotspot in filteredHotspots"
+                <article
+                  v-for="hotspot in displayedHotspots"
                   :key="hotspot.id"
-                  shadow="hover"
-                  class="ai-feed-card"
+                  class="ai-feed-item"
                 >
-                  <div class="ai-feed-card-main">
-                    <div class="ai-feed-card-head">
-                      <div class="ai-feed-meta-top">
-                        <el-tag size="small" :type="resolveTagType(hotspot.hotspotType)" effect="dark">
-                          {{ hotspot.hotspotType }}
-                        </el-tag>
-                        <span class="ai-feed-time">{{ hotspot.publishedAt }}</span>
-                      </div>
-                      <div class="ai-feed-score">
-                        <strong>{{ hotspot.heat }}</strong>
-                        <span>热度</span>
-                      </div>
+                  <div class="ai-feed-content">
+                    <div class="ai-feed-copy">
+                      <h3>{{ hotspot.title }}</h3>
+                      <p class="ai-feed-summary">{{ hotspot.summary }}</p>
                     </div>
 
-                    <h3>{{ hotspot.title }}</h3>
-                    <p class="ai-feed-summary">{{ hotspot.summary }}</p>
-
+                    <div class="ai-feed-stats">
+                      <span>{{ hotspot.authorName }}</span>
+                      <span>浏览 {{ formatViewCountInK(hotspot.viewCount) }}</span>
+                      <span>点赞 {{ hotspot.likeCount }}</span>
+                      <span>{{ hotspot.publishedAt }}</span>
+                    </div>
                     <div class="ai-feed-tags">
-                      <el-tag
+                      <span
                         v-for="tag in hotspot.tags"
                         :key="tag"
-                        size="small"
-                        effect="plain"
+                        class="ai-feed-tag"
                       >
                         {{ tag }}
-                      </el-tag>
-                    </div>
-
-                    <el-divider />
-
-                    <div class="ai-feed-bottom">
-                      <div class="ai-feed-stats">
-                        <span>{{ formatCount(hotspot.viewCount) }} 阅读</span>
-                        <span>{{ formatCount(hotspot.commentCount) }} 评论</span>
-                        <span>{{ formatCount(hotspot.likeCount) }} 点赞</span>
-                      </div>
-                      <el-button text type="primary">查看解读</el-button>
+                      </span>
                     </div>
                   </div>
-                </el-card>
+
+                  <div class="ai-feed-cover-shell">
+                    <img
+                      class="ai-feed-cover"
+                      :src="hotspot.coverUrl"
+                      :alt="hotspot.title"
+                      loading="lazy"
+                    />
+                  </div>
+                </article>
               </div>
             </div>
           </el-col>
@@ -68,10 +66,13 @@
           <el-col :xs="24" :lg="8" class="ai-hotspot-sidebar-col">
             <div class="ai-hotspot-sidebar">
               <el-card shadow="never" class="ai-panel ai-signin-card">
-                <div class="ai-signin-copy">
-                  <p>{{ dailyMessage }}</p>
+                <!-- 业务目的：将问候语和签到入口收拢到同一行，减少侧边卡片纵向占用。业务逻辑：左侧展示当前时间段问候语与用户名，右侧保留签到按钮，配合样式在窄屏时自动换行。 -->
+                <div class="ai-signin-row">
+                  <div class="ai-signin-copy">
+                    <p>{{ dailyMessage }}</p>
+                  </div>
+                  <button type="button" class="ai-signin-btn">去签到</button>
                 </div>
-                <button type="button" class="ai-signin-btn">去签到</button>
               </el-card>
 
               <el-card shadow="never" class="ai-panel ai-ranking-card">
@@ -112,50 +113,68 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElButton, ElCard, ElCol, ElDivider, ElRow, ElTag } from 'element-plus'
-import 'element-plus/es/components/button/style/css'
+import { ElCard, ElCol, ElRow } from 'element-plus'
 import 'element-plus/es/components/card/style/css'
 import 'element-plus/es/components/col/style/css'
-import 'element-plus/es/components/divider/style/css'
 import 'element-plus/es/components/row/style/css'
-import 'element-plus/es/components/tag/style/css'
+import { getAiHotspots, getTechArticles } from '@/api/content'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { aiHotspots, aiTracks } from './aiHotspots'
-import { techArticles } from '@/data/techArticles'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
-const activeTrack = ref('all')
+// 业务目的：维护热点列表当前选中的资讯标签，先用前端状态模拟后端栏目切换。
+// 输入输出：输入用户点击的标签 key，输出当前列表应该渲染的热点分组。
+// 关键逻辑：标签配置与当前选中值拆开维护，后续接 MySQL 时只需替换数据来源，不用改交互层。
+const activeFeedTab = ref('recommended')
 const rankingPage = ref(0)
 const now = ref(new Date())
+const aiHotspots = ref([])
+const techArticles = ref([])
 let greetingTimer = null
 
-const tracks = aiTracks
 const rankingPageSize = 5
+const feedTabs = [
+  { key: 'recommended', label: '推荐' },
+  { key: 'latest', label: '最新' }
+]
 
-const rankingArticles = [...techArticles].sort((left, right) => right.readCount - left.readCount)
-const rankingGroups = Array.from(
-  { length: Math.ceil(rankingArticles.length / rankingPageSize) },
-  (_, index) => rankingArticles.slice(index * rankingPageSize, (index + 1) * rankingPageSize)
+// 业务目的：让 AI 频道右侧文章榜直接复用后端技术文章数据，避免榜单继续依赖前端静态数组。
+// 业务逻辑：先按阅读数排序，再按固定分页大小切组，保持“换一换”的交互不变。
+const rankingArticles = computed(() =>
+  [...techArticles.value].sort((left, right) => right.readCount - left.readCount)
 )
 
-const filteredHotspots = computed(() => {
-  if (activeTrack.value === 'all') {
-    return aiHotspots
+const rankingGroups = computed(() =>
+  Array.from(
+    { length: Math.ceil(rankingArticles.value.length / rankingPageSize) || 0 },
+    (_, index) => rankingArticles.value.slice(index * rankingPageSize, (index + 1) * rankingPageSize)
+  )
+)
+
+// 业务目的：解析前端模拟发布时间，先支撑“最新”标签排序，后续可直接替换成后端时间戳。
+// 输入输出：输入热点发布时间字符串，输出可比较的毫秒时间。
+// 关键逻辑：把日期中的空格替换成 ISO 兼容格式，降低不同浏览器的解析偏差。
+function parsePublishedAt(value) {
+  return new Date(String(value || '').replace(' ', 'T')).getTime()
+}
+
+// 业务目的：给“推荐 / 最新”标签提供统一的数据出口，先模拟后端列表接口返回。
+// 输入输出：输入当前选中的标签 key，输出对应顺序的热点数组。
+// 关键逻辑：推荐按热度降序展示，最新按发布时间倒序展示。
+const displayedHotspots = computed(() => {
+  const hotspotList = [...aiHotspots.value]
+
+  if (activeFeedTab.value === 'latest') {
+    return hotspotList.sort((left, right) => parsePublishedAt(right.publishedAt) - parsePublishedAt(left.publishedAt))
   }
 
-  return aiHotspots.filter((item) => item.track === activeTrack.value)
+  return hotspotList
+    .filter((item) => item.isRecommended)
+    .sort((left, right) => right.heat - left.heat)
 })
-
-const activeTrackMeta = computed(() => {
-  return tracks.find((item) => item.key === activeTrack.value) || tracks[0]
-})
-
-const activeTrackLabel = computed(() => activeTrackMeta.value.label)
-const activeTrackDescription = computed(() => activeTrackMeta.value.description)
 
 const displayedRankArticles = computed(() => {
-  return rankingGroups[rankingPage.value] || []
+  return rankingGroups.value[rankingPage.value] || []
 })
 
 const rankingStart = computed(() => rankingPage.value * rankingPageSize)
@@ -183,44 +202,36 @@ const dailyMessage = computed(() => {
 })
 
 function switchRankingPage() {
-  rankingPage.value = (rankingPage.value + 1) % rankingGroups.length
+  if (!rankingGroups.value.length) {
+    return
+  }
+  rankingPage.value = (rankingPage.value + 1) % rankingGroups.value.length
 }
 
-function resolveTagType(type) {
-  if (type === 'agent') {
-    return 'primary'
-  }
-
-  if (type === 'multimodal') {
-    return 'success'
-  }
-
-  if (type === 'infra') {
-    return 'warning'
-  }
-
-  return 'info'
-}
-
-function formatCount(value) {
+// 业务目的：把浏览人数统一格式化为 k 单位，贴近资讯流列表的阅读数据显示方式。
+// 输入输出：输入原始浏览人数数字，输出带 k 后缀的展示字符串。
+// 关键逻辑：即使不足 1000 也保留一位小数，保证整列数据的视觉格式一致。
+function formatViewCountInK(value) {
   const count = Number(value || 0)
 
-  if (count >= 10000) {
-    return `${(count / 10000).toFixed(1)}w`
-  }
-
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}k`
-  }
-
-  return `${count}`
+  return `${(count / 1000).toFixed(1)}k`
 }
 
 function syncCurrentTime() {
   now.value = new Date()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 业务目的：页面初始化时并行加载 AI 热点流和右侧文章榜数据，统一切换到后端服务。
+  // 业务逻辑：两个接口互不依赖，先并发请求，再一次性回填响应式状态，减少首屏等待。
+  try {
+    const [remoteHotspots, remoteArticles] = await Promise.all([getAiHotspots(), getTechArticles()])
+    aiHotspots.value = remoteHotspots
+    techArticles.value = remoteArticles
+  } catch {
+    aiHotspots.value = []
+    techArticles.value = []
+  }
   syncCurrentTime()
   greetingTimer = window.setInterval(syncCurrentTime, 60000)
 })

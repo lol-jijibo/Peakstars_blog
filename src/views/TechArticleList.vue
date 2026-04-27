@@ -153,13 +153,15 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getTechArticles } from '@/api/content'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { recommendedAuthors, techArticles } from '@/data/techArticles'
+import { recommendedAuthors } from '@/data/techArticles'
 
 const route = useRoute()
 const router = useRouter()
+const techArticles = ref([])
 
 const articleModes = [
   { key: 'recommend', label: '推荐' },
@@ -204,7 +206,7 @@ const currentDescription = computed(() => {
 })
 
 const filteredArticles = computed(() => {
-  const baseList = techArticles.filter((article) => matchesMode(article, activeModeKey.value))
+  const baseList = techArticles.value.filter((article) => matchesMode(article, activeModeKey.value))
   const categoryList = baseList.filter((article) => matchesCategory(article, activeCategoryKey.value))
 
   return [...categoryList].sort((left, right) => {
@@ -233,6 +235,16 @@ const recommendedAuthorCards = computed(() =>
     avatarUrl: authorAvatarMap[author.id] || ''
   }))
 )
+
+// 业务目的：在页面挂载时切换到后端技术文章数据源，替换原本的本地静态数组。
+// 业务逻辑：接口结果会写入本地响应式状态，页面筛选、排序和头部统计继续复用原有计算属性。
+onMounted(async () => {
+  try {
+    techArticles.value = await getTechArticles()
+  } catch {
+    techArticles.value = []
+  }
+})
 
 watch(
   () => route.query.mode,

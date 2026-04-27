@@ -541,3 +541,110 @@ INSERT IGNORE INTO `interview_tag` (`interview_id`, `tag_id`) SELECT @iid6, id F
 INSERT IGNORE INTO `interview_tag` (`interview_id`, `tag_id`) SELECT @iid7, id FROM tag WHERE name IN ('Java','京东','分布式','微服务','Elasticsearch');
 -- 滴滴
 INSERT IGNORE INTO `interview_tag` (`interview_id`, `tag_id`) SELECT @iid8, id FROM tag WHERE name IN ('前端','滴滴','Vue3','地图','微前端');
+
+-- ------------------------------------------------------------
+-- 技术文章模块初始化数据
+-- 业务目的：把前端静态技术文章首批数据沉淀到 MySQL，后续统一走后端接口加载。
+-- 业务逻辑：使用 article_key 做幂等更新键，便于反复执行 seed 时覆盖最新内容。
+-- ------------------------------------------------------------
+INSERT INTO `tech_article` (
+  `article_key`, `category`, `title`, `summary`, `essence`, `highlight_list`,
+  `author_name`, `author_role`, `author_initials`, `author_accent`, `cover_url`,
+  `published_at`, `read_count`, `like_count`, `collect_count`, `comment_count`,
+  `read_time`, `is_vip`, `is_collected`, `is_liked`, `in_history`, `featured`, `status`, `sort_order`
+) VALUES
+('fastapi-middleware-advanced', 'backend', '开源模型应用落地-FastAPI-助力模型交互-进阶篇-中间件（四）', '把复杂路由、鉴权、日志链路和参数校验收拢进中间件层，让模型调用链从“能跑”进入“可持续演进”。', '重点拆开了中间件在推理请求里的位置，读完能直接把鉴权、请求追踪和异常处理接进现有服务。', '模型接口统一鉴权|请求追踪与日志落盘|异常链路的统一兜底', 'fTiN CAPA', '后端工程 / 模型服务', 'FC', 'linear-gradient(135deg, #f59e0b, #fb7185)', '/ChatGPT Image 2026年4月23日 18_37_46.png', '2026-04-24 09:00:00', 363, 8, 8, 18, '8 min', 1, 1, 1, 1, 1, 1, 1),
+('iotdb-advantage', 'backend', '【IoTDB】工业物联网时序数据库优选：Apache IoTDB 的显著优势', '围绕高并发写入、冷热数据组织、查询吞吐和边缘设备接入，把时序数据库选型从概念对比推进到工程判断。', '适合做 IoT 平台选型和 PoC 前的速读，能帮你快速抓住 IoTDB 真正拉开差距的几个点。', '时序写入性能拆解|冷热分层策略|边缘数据接入路径', 'Francek Chen', 'IoT 基础设施', 'FC', 'linear-gradient(135deg, #7c3aed, #22d3ee)', '/【哲风壁纸】公路-后视镜-城镇.png', '2026-04-22 10:00:00', 486, 8, 11, 22, '10 min', 0, 1, 0, 1, 1, 1, 2),
+('iot-protocol-engineering-tradeoff', 'backend', '物联网应用开发的协议选型与数据架构：工程落地中的真实取舍', '把 MQTT、HTTP、私有协议与数据分层放到同一条交付链里看，直面系统复杂度是如何一步步堆出来的。', '不是简单比较协议优缺点，而是从设备采集、链路抖动、存储分级和业务成本一起做取舍。', '协议选型的业务边界|数据分层与成本平衡|设备侧到平台侧的链路设计', '互联网推荐官', '工业互联网架构', 'IR', 'linear-gradient(135deg, #0891b2, #34d399)', '/【哲风壁纸】女孩-户外-旷野.png', '2026-04-21 10:00:00', 542, 14, 5, 31, '9 min', 0, 0, 1, 1, 1, 1, 3),
+('oiiotool-batch-image', 'frontend', 'C++ openimageio 工具：如何使用 oiiotool 进行图像批量处理', '从命令行参数、批量 glob、跨平台路径差异到输出规范，整理一套图像批处理的可复用工作流。', '如果你要做图像工具链或前端素材预处理，这篇非常实用，尤其是 Windows 和 macOS 的路径坑位总结。', '批量文件处理技巧|跨平台命令差异|输出规范与脚本封装', '2301_81666021', '图像处理 / 工具链', 'OI', 'linear-gradient(135deg, #2563eb, #38bdf8)', '/【哲风壁纸】夏日-晴天-氛围感.png', '2026-04-20 10:00:00', 417, 10, 12, 16, '7 min', 0, 1, 1, 0, 0, 1, 4),
+('vue-dashboard-experience', 'frontend', 'Vue 后台系统如何把列表页做得更顺手：从信息密度到交互反馈的细改', '不只讨论组件封装，而是从真实业务页面的扫描效率、按钮层级和状态反馈入手，重做列表页体验。', '很适合前端同学拿去对照自己的管理后台，看哪些地方总让人觉得“能用但不顺手”。', '高频动作前置|列表信息密度重排|反馈状态统一', '自由程序员', '前端体验设计', 'FP', 'linear-gradient(135deg, #fb7185, #f97316)', '/【哲风壁纸】侧脸-树木-欧阳娜娜.png', '2026-04-19 10:00:00', 628, 22, 18, 46, '11 min', 1, 1, 1, 0, 1, 1, 5),
+('springboot-boundary', 'backend', 'Spring Boot 接口边界治理：服务拆分之后，真正难的是责任归属', '用一次接口风暴复盘说明服务拆分为什么常常越拆越乱，以及如何从边界命名、错误码和契约文档重新收束。', '这篇写的是拆分之后的治理问题，尤其适合已经有多个服务、却总感觉职责交叉的团队。', '服务边界收束|错误码体系重建|契约文档的长期维护', '科技 D 人生', '服务治理 / 金融科技', 'DL', 'linear-gradient(135deg, #f97316, #facc15)', '/【哲风壁纸】xiaomiyu7-小米suv.png', '2026-04-18 10:00:00', 782, 31, 25, 58, '13 min', 1, 0, 1, 1, 0, 1, 6),
+('frontend-observability', 'frontend', '前端可观测性不是埋点越多越好：错误、性能与行为日志如何真正协同', '从日志设计开始，把错误采集、性能指标和行为路径串起来，避免监控堆很多却仍然无法定位问题。', '适合正在搭建前端监控体系的团队，文章把“该采什么”和“采了怎么用”讲得比较透。', '错误与性能联动|行为日志降噪|排障路径设计', '微笑很纯洁', '前端监控 / 工程化', 'WC', 'linear-gradient(135deg, #64748b, #cbd5e1)', '/【哲风壁纸】公路-后视镜-城镇.png', '2026-04-17 10:00:00', 519, 19, 20, 27, '9 min', 0, 1, 0, 0, 0, 1, 7),
+('architecture-retrospective', 'backend', '一次失败改造之后的架构复盘：为什么技术方案说服了大家，却没有说服系统', '从目标错位、数据迁移策略和灰度发布节奏拆开一次失败改造，讲清楚方案正确不等于系统就能承受。', '比较少见地把“失败的架构改造”讲透了，适合技术负责人和准备做大改的同学提前避坑。', '改造目标校准|数据迁移窗口设计|灰度发布节奏控制', '算法与编程之美', '架构复盘 / 方法论', 'AB', 'linear-gradient(135deg, #2563eb, #8b5cf6)', '/【哲风壁纸】女孩-户外-旷野.png', '2026-04-15 10:00:00', 901, 43, 37, 64, '14 min', 1, 0, 1, 1, 0, 1, 8)
+ON DUPLICATE KEY UPDATE
+  `category` = VALUES(`category`),
+  `title` = VALUES(`title`),
+  `summary` = VALUES(`summary`),
+  `essence` = VALUES(`essence`),
+  `highlight_list` = VALUES(`highlight_list`),
+  `author_name` = VALUES(`author_name`),
+  `author_role` = VALUES(`author_role`),
+  `author_initials` = VALUES(`author_initials`),
+  `author_accent` = VALUES(`author_accent`),
+  `cover_url` = VALUES(`cover_url`),
+  `published_at` = VALUES(`published_at`),
+  `read_count` = VALUES(`read_count`),
+  `like_count` = VALUES(`like_count`),
+  `collect_count` = VALUES(`collect_count`),
+  `comment_count` = VALUES(`comment_count`),
+  `read_time` = VALUES(`read_time`),
+  `is_vip` = VALUES(`is_vip`),
+  `is_collected` = VALUES(`is_collected`),
+  `is_liked` = VALUES(`is_liked`),
+  `in_history` = VALUES(`in_history`),
+  `featured` = VALUES(`featured`),
+  `status` = VALUES(`status`),
+  `sort_order` = VALUES(`sort_order`);
+
+-- ------------------------------------------------------------
+-- 看天下模块初始化数据
+-- 业务目的：把看天下期刊数据沉淀到 MySQL，支撑频道页改为后端数据源。
+-- 业务逻辑：期刊按发布时间倒序展示，因此 seed 中同步写入发布时间与排序权重。
+-- ------------------------------------------------------------
+INSERT INTO `world_news_issue` (
+  `issue_key`, `title`, `issue_label`, `category`, `today_reads`, `recommendation`,
+  `description`, `cover_accent`, `cover_kicker`, `cover_headline`, `cover_summary`,
+  `cover_footer`, `published_at`, `status`, `sort_order`
+) VALUES
+('world-news-2026-08', '看天下（2026年第8期）', '2026.08', '看天下', 344, 81.2, '《看天下》是一本综合类新闻杂志，创刊于2006年，也是经全球华文媒体BPA认证国内发行量最大的新闻期刊。内容丰富多元，包含时政、财经、科技、文化、娱乐、教育、心理等多个领域。立志于为读者展现更广阔的世界和人生的更多可能。', '#d33b2d', '热点观察', '国际热点与城市议题持续升温', '从全球视角看公共事件、商业变化与社会情绪。', '专题 / 深读 / 人物', '2026-08-01 09:00:00', 1, 1),
+('world-news-2026-07', '看天下（2026年第7期）', '2026.07', '看天下', 88, 78.8, '《看天下》是一本综合类新闻杂志，创刊于2006年，也是经全球华文媒体BPA认证国内发行量最大的新闻期刊。内容丰富多元，包含时政、财经、科技、文化、娱乐、教育、心理等多个领域。立志于为读者展现更广阔的世界和人生的更多可能。', '#b62822', '专题聚焦', '冲突、能源与经济预期交织变化', '用更密集的信息梳理复杂局势下的关键线索。', '国际 / 商业 / 现场', '2026-07-01 09:00:00', 1, 2),
+('world-news-2026-06', '看天下（2026年第6期）', '2026.06', '看天下', 126, 76.4, '《看天下》是一本综合类新闻杂志，创刊于2006年，也是经全球华文媒体BPA认证国内发行量最大的新闻期刊。内容丰富多元，包含时政、财经、科技、文化、娱乐、教育、心理等多个领域。立志于为读者展现更广阔的世界和人生的更多可能。', '#ce3a2f', '世界切面', '文化与科技正在共同塑造新叙事', '从人物、城市到平台，观察变化背后的长期趋势。', '文化 / 科技 / 评论', '2026-06-01 09:00:00', 1, 3)
+ON DUPLICATE KEY UPDATE
+  `title` = VALUES(`title`),
+  `issue_label` = VALUES(`issue_label`),
+  `category` = VALUES(`category`),
+  `today_reads` = VALUES(`today_reads`),
+  `recommendation` = VALUES(`recommendation`),
+  `description` = VALUES(`description`),
+  `cover_accent` = VALUES(`cover_accent`),
+  `cover_kicker` = VALUES(`cover_kicker`),
+  `cover_headline` = VALUES(`cover_headline`),
+  `cover_summary` = VALUES(`cover_summary`),
+  `cover_footer` = VALUES(`cover_footer`),
+  `published_at` = VALUES(`published_at`),
+  `status` = VALUES(`status`),
+  `sort_order` = VALUES(`sort_order`);
+
+-- ------------------------------------------------------------
+-- AI 热点模块初始化数据
+-- 业务目的：把 AI 热点流与推荐排序字段沉淀到 MySQL，支撑频道页后续直接切换后端服务。
+-- 业务逻辑：标签列表使用竖线存储，推荐态与今日热点标记独立保存，便于前端按 tab 过滤。
+-- ------------------------------------------------------------
+INSERT INTO `ai_hotspot` (
+  `hotspot_key`, `track`, `hotspot_type`, `title`, `summary`, `author_name`,
+  `published_at`, `cover_url`, `tag_list`, `view_count`, `comment_count`,
+  `like_count`, `heat`, `is_recommended`, `is_today`, `status`, `sort_order`
+) VALUES
+('ai-hotspot-agent-workflow', 'agent', 'agent', 'Agent 工作流从演示阶段转向稳定执行', '团队开始把规划、调用工具、结果回收和失败重试收进一条闭环链路，热点已经从“能不能做”切到“能不能稳定交付”。', '智驾小酒馆', '2026-04-26 09:20:00', '/peakstars-blog-icon.jpg', '任务编排|工具调用|结果校验', 4188, 56, 701, 92, 1, 1, 1, 1),
+('ai-hotspot-multimodal-interface', 'multimodal', 'multimodal', '多模态能力更新开始重写应用层交互设计', '新一轮变化不只在生成质量，更多落在输入输出格式统一、响应时延和多终端交互方式的变化上。', '前端观测站', '2026-04-26 10:10:00', '/qq.jpg', '图像输入|语音链路|前端交互', 3924, 49, 648, 88, 1, 1, 1, 2),
+('ai-hotspot-model-gateway', 'infra', 'infra', '模型网关与统一鉴权成为团队接入默认层', '越来越多团队先做模型网关，再做业务接入。核心不是抽象得多漂亮，而是把配额、日志和回退策略收成统一入口。', '云栖工程师', '2026-04-25 18:40:00', '/【哲风壁纸】xiaomiyu7-小米suv.png', '网关|鉴权|日志追踪', 3016, 31, 512, 81, 1, 0, 1, 3),
+('ai-hotspot-agent-eval', 'agent', 'agent', 'Agent 评测从问答正确率转向任务完成率', '单轮回答质量不再足够，真正影响采用的是任务是否能在限制条件内跑完，以及异常是否可恢复。', '架构研究社', '2026-04-25 14:15:00', '/【哲风壁纸】云彩-夜晚-夜景.png', '评测体系|完成率|异常恢复', 2874, 28, 476, 79, 1, 0, 1, 4),
+('ai-hotspot-multimodal-production', 'multimodal', 'multimodal', '多模态生产链路开始替代部分传统内容流水线', '在营销素材、帮助中心和商品内容等场景，多模态链路已经开始取代过去分散的人工作业和脚本拼接。', '内容实验室', '2026-04-24 20:30:00', '/【哲风壁纸】夏日-晴天-氛围感.png', '内容生产|工作流替换|成本优化', 2548, 26, 428, 74, 0, 0, 1, 5),
+('ai-hotspot-infra-cost', 'infra', 'infra', '推理成本下降正在重新打开边缘场景预算', '一旦单次调用成本和延迟继续下降，很多之前不成立的高频调用场景会重新进入产品设计范围。', '边缘算力观察', '2026-04-24 16:00:00', '/【哲风壁纸】女孩-户外-旷野.png', '推理成本|高频调用|场景边界', 2320, 19, 395, 71, 0, 0, 1, 6)
+ON DUPLICATE KEY UPDATE
+  `track` = VALUES(`track`),
+  `hotspot_type` = VALUES(`hotspot_type`),
+  `title` = VALUES(`title`),
+  `summary` = VALUES(`summary`),
+  `author_name` = VALUES(`author_name`),
+  `published_at` = VALUES(`published_at`),
+  `cover_url` = VALUES(`cover_url`),
+  `tag_list` = VALUES(`tag_list`),
+  `view_count` = VALUES(`view_count`),
+  `comment_count` = VALUES(`comment_count`),
+  `like_count` = VALUES(`like_count`),
+  `heat` = VALUES(`heat`),
+  `is_recommended` = VALUES(`is_recommended`),
+  `is_today` = VALUES(`is_today`),
+  `status` = VALUES(`status`),
+  `sort_order` = VALUES(`sort_order`);

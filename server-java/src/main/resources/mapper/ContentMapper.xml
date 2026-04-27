@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.auth.infrastructure.mapper.ContentMapper">
+
+  <resultMap id="TechArticleResultMap" type="com.interview.auth.domain.entity.TechArticle">
+    <id column="id" property="id"/>
+    <result column="article_key" property="articleKey"/>
+    <result column="category" property="category"/>
+    <result column="title" property="title"/>
+    <result column="summary" property="summary"/>
+    <result column="essence" property="essence"/>
+    <result column="highlight_list" property="highlightList"/>
+    <result column="author_name" property="authorName"/>
+    <result column="author_role" property="authorRole"/>
+    <result column="author_initials" property="authorInitials"/>
+    <result column="author_accent" property="authorAccent"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="read_count" property="readCount"/>
+    <result column="like_count" property="likeCount"/>
+    <result column="collect_count" property="collectCount"/>
+    <result column="comment_count" property="commentCount"/>
+    <result column="read_time" property="readTime"/>
+    <result column="is_vip" property="isVip"/>
+    <result column="is_collected" property="isCollected"/>
+    <result column="is_liked" property="isLiked"/>
+    <result column="in_history" property="inHistory"/>
+    <result column="featured" property="featured"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <resultMap id="WorldNewsIssueResultMap" type="com.interview.auth.domain.entity.WorldNewsIssue">
+    <id column="id" property="id"/>
+    <result column="issue_key" property="issueKey"/>
+    <result column="title" property="title"/>
+    <result column="issue_label" property="issueLabel"/>
+    <result column="category" property="category"/>
+    <result column="today_reads" property="todayReads"/>
+    <result column="recommendation" property="recommendation"/>
+    <result column="description" property="description"/>
+    <result column="cover_accent" property="coverAccent"/>
+    <result column="cover_kicker" property="coverKicker"/>
+    <result column="cover_headline" property="coverHeadline"/>
+    <result column="cover_summary" property="coverSummary"/>
+    <result column="cover_footer" property="coverFooter"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <resultMap id="AiHotspotResultMap" type="com.interview.auth.domain.entity.AiHotspot">
+    <id column="id" property="id"/>
+    <result column="hotspot_key" property="hotspotKey"/>
+    <result column="track" property="track"/>
+    <result column="hotspot_type" property="hotspotType"/>
+    <result column="title" property="title"/>
+    <result column="summary" property="summary"/>
+    <result column="author_name" property="authorName"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="tag_list" property="tagList"/>
+    <result column="view_count" property="viewCount"/>
+    <result column="comment_count" property="commentCount"/>
+    <result column="like_count" property="likeCount"/>
+    <result column="heat" property="heat"/>
+    <result column="is_recommended" property="isRecommended"/>
+    <result column="is_today" property="isToday"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="findPublishedTechArticles" resultMap="TechArticleResultMap">
+    SELECT
+      id,
+      article_key,
+      category,
+      title,
+      summary,
+      essence,
+      highlight_list,
+      author_name,
+      author_role,
+      author_initials,
+      author_accent,
+      cover_url,
+      published_at,
+      read_count,
+      like_count,
+      collect_count,
+      comment_count,
+      read_time,
+      is_vip,
+      is_collected,
+      is_liked,
+      in_history,
+      featured,
+      status,
+      sort_order,
+      created_at,
+      updated_at
+    FROM tech_article
+    WHERE status = 1
+    ORDER BY featured DESC, published_at DESC, sort_order ASC
+  </select>
+
+  <select id="findPublishedWorldNewsIssues" resultMap="WorldNewsIssueResultMap">
+    SELECT
+      id,
+      issue_key,
+      title,
+      issue_label,
+      category,
+      today_reads,
+      recommendation,
+      description,
+      cover_accent,
+      cover_kicker,
+      cover_headline,
+      cover_summary,
+      cover_footer,
+      published_at,
+      status,
+      sort_order,
+      created_at,
+      updated_at
+    FROM world_news_issue
+    WHERE status = 1
+    ORDER BY published_at DESC, sort_order ASC
+  </select>
+
+  <select id="findPublishedAiHotspots" resultMap="AiHotspotResultMap">
+    SELECT
+      id,
+      hotspot_key,
+      track,
+      hotspot_type,
+      title,
+      summary,
+      author_name,
+      published_at,
+      cover_url,
+      tag_list,
+      view_count,
+      comment_count,
+      like_count,
+      heat,
+      is_recommended,
+      is_today,
+      status,
+      sort_order,
+      created_at,
+      updated_at
+    FROM ai_hotspot
+    WHERE status = 1
+    ORDER BY sort_order ASC, published_at DESC
+  </select>
+</mapper>

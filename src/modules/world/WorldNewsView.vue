@@ -54,8 +54,21 @@
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
+import { getWorldNews } from '@/api/content'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { worldNews } from './worldNews'
+
+const worldNews = ref([])
+
+// 业务目的：把看天下页面切换为后端期刊数据源，后续新增期刊只需要更新数据库。
+// 业务逻辑：页面仍然保持原有字段渲染结构，接口返回的数据直接覆盖本地列表状态。
+onMounted(async () => {
+  try {
+    worldNews.value = await getWorldNews()
+  } catch {
+    worldNews.value = []
+  }
+})
 </script>
 
 <style src="./WorldNewsView.css"></style>
