@@ -26,3 +26,4 @@
 2026-04-28T20:58:08.204+08:00  INFO 49116 --- [interview-auth-service] [io-18080-exec-3] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
 2026-04-28T20:58:08.553+08:00  INFO 49116 --- [interview-auth-service] [io-18080-exec-3] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@2a1ccecd
 2026-04-28T20:58:08.555+08:00  INFO 49116 --- [interview-auth-service] [io-18080-exec-3] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-04-28T22:02:39.639+08:00  WARN 49116 --- [interview-auth-service] [l-1:housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=13m30s281ms581µs800ns).

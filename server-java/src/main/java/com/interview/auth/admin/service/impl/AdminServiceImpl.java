@@ -3,6 +3,7 @@ package com.interview.auth.admin.service.impl;
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
+import com.interview.auth.admin.dto.response.AdminCommentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
 import com.interview.auth.admin.dto.response.AdminModuleStatResponse;
 import com.interview.auth.admin.dto.response.AdminRecentEditResponse;
@@ -16,6 +17,7 @@ import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -96,6 +98,7 @@ public class AdminServiceImpl implements AdminService {
         response.setModuleStats(buildModuleStats());
         response.setRecentEdits(buildRecentEdits());
         response.setHotContents(buildHotContents());
+        response.setCommentRecords(buildCommentRecords());
         return response;
     }
 
@@ -267,6 +270,43 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
+     * 目的: 构建后台评论管理模块的统一巡检列表。
+     * 逻辑: 将技术文章与 AI 热点里的评论指标折算成待跟进量、互动率和优先级，输出稳定的运营视图给前端表格和图表直接消费。
+     */
+    private List<AdminCommentRecordResponse> buildCommentRecords() {
+        List<AdminCommentRecordResponse> records = new ArrayList<>();
+        adminMapper.findAllTechArticles().forEach(article -> records.add(createCommentRecord(
+            TYPE_TECH,
+            article.getArticleKey(),
+            "技术文章",
+            article.getTitle(),
+            article.getAuthorName(),
+            article.getPublishedAt(),
+            safeInt(article.getReadCount()),
+            safeInt(article.getCommentCount())
+        )));
+        adminMapper.findAllAiHotspots().forEach(hotspot -> records.add(createCommentRecord(
+            TYPE_AI,
+            hotspot.getHotspotKey(),
+            "AI 热点",
+            hotspot.getTitle(),
+            hotspot.getAuthorName(),
+            hotspot.getPublishedAt(),
+            safeInt(hotspot.getViewCount()),
+            safeInt(hotspot.getCommentCount())
+        )));
+
+        return records.stream()
+            .filter(item -> safeInt(item.getCommentCount()) > 0)
+            .sorted(Comparator
+                .comparing((AdminCommentRecordResponse item) -> safeInt(item.getPendingCount())).reversed()
+                .thenComparing(item -> safeInt(item.getCommentCount()), Comparator.reverseOrder())
+                .thenComparing(item -> safeInt(item.getViewCount()), Comparator.reverseOrder()))
+            .limit(12)
+            .toList();
+    }
+
+    /**
      * 业务目的：按模块创建统一的统计对象。
      * 业务逻辑：保证不同内容模块都能按同一结构输出给图表层使用。
      */
@@ -277,6 +317,43 @@ public class AdminServiceImpl implements AdminService {
         response.setContentCount(contentCount);
         response.setViewCount(viewCount);
         response.setCommentCount(commentCount);
+        return response;
+    }
+
+    /**
+     * 目的: 把不同内容模块的评论热度统一映射成评论管理记录。
+     * 逻辑: 按评论量和互动率推导优先级、状态与待跟进量，避免前端重复实现一套运营规则。
+     */
+    private AdminCommentRecordResponse createCommentRecord(
+        String contentType,
+        String contentKey,
+        String moduleLabel,
+        String contentTitle,
+        String authorName,
+        LocalDateTime publishedAt,
+        int viewCount,
+        int commentCount
+    ) {
+        BigDecimal engagementRate = calculateEngagementRate(viewCount, commentCount);
+        String priority = resolveCommentPriority(commentCount, engagementRate);
+        String status = resolveCommentStatus(commentCount, engagementRate);
+
+        AdminCommentRecordResponse response = new AdminCommentRecordResponse();
+        response.setContentType(contentType);
+        response.setContentKey(contentKey);
+        response.setModuleLabel(moduleLabel);
+        response.setContentTitle(contentTitle);
+        response.setAuthorName(defaultString(authorName, "后台运营"));
+        response.setPublishedAt(formatDateTime(publishedAt));
+        response.setViewCount(viewCount);
+        response.setCommentCount(commentCount);
+        response.setPendingCount(resolvePendingCount(commentCount, priority));
+        response.setEngagementRate(engagementRate);
+        response.setPriority(priority);
+        response.setPriorityLabel(resolveCommentPriorityLabel(priority));
+        response.setStatus(status);
+        response.setStatusLabel(resolveCommentStatusLabel(status));
+        response.setActionHint(resolveCommentActionHint(priority));
         return response;
     }
 
@@ -616,6 +693,99 @@ public class AdminServiceImpl implements AdminService {
      */
     private String formatDateTime(LocalDateTime value) {
         return value == null ? null : value.format(DATE_TIME_FORMATTER);
+    }
+
+    /**
+     * 目的: 统一计算评论互动率，支撑后台评论管理优先级判断。
+     * 逻辑: 按评论量除以浏览量并保留一位小数，浏览量为 0 时直接回退为 0，避免图表和表格出现除零异常。
+     */
+    private BigDecimal calculateEngagementRate(int viewCount, int commentCount) {
+        if (viewCount <= 0 || commentCount <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(commentCount)
+            .multiply(BigDecimal.valueOf(100))
+            .divide(BigDecimal.valueOf(viewCount), 1, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 目的: 给后台评论列表生成统一优先级。
+     * 逻辑: 高评论量或高互动率的内容直接进入紧急跟进，其余按关注与常规巡检分层，便于运营人员快速排序处理。
+     */
+    private String resolveCommentPriority(int commentCount, BigDecimal engagementRate) {
+        if (commentCount >= 50 || engagementRate.compareTo(BigDecimal.valueOf(18)) >= 0) {
+            return "urgent";
+        }
+        if (commentCount >= 24 || engagementRate.compareTo(BigDecimal.valueOf(10)) >= 0) {
+            return "focus";
+        }
+        return "routine";
+    }
+
+    /**
+     * 目的: 给后台评论列表生成当前处理状态。
+     * 逻辑: 根据评论热度区分待集中回复、持续跟进和常规稳定三种状态，减少前端模板层硬编码判断。
+     */
+    private String resolveCommentStatus(int commentCount, BigDecimal engagementRate) {
+        if (commentCount >= 40 || engagementRate.compareTo(BigDecimal.valueOf(15)) >= 0) {
+            return "pending";
+        }
+        if (commentCount >= 16 || engagementRate.compareTo(BigDecimal.valueOf(8)) >= 0) {
+            return "tracking";
+        }
+        return "stable";
+    }
+
+    /**
+     * 目的: 估算评论管理模块的待跟进数量。
+     * 逻辑: 按不同优先级使用不同折算系数，既保留热度差异，又避免把评论总量原样当成待办量造成管理视图失真。
+     */
+    private int resolvePendingCount(int commentCount, String priority) {
+        if (commentCount <= 0) {
+            return 0;
+        }
+        int pendingCount = switch (priority) {
+            case "urgent" -> Math.max(3, (int) Math.ceil(commentCount * 0.28));
+            case "focus" -> Math.max(2, (int) Math.ceil(commentCount * 0.18));
+            default -> Math.max(1, (int) Math.ceil(commentCount * 0.10));
+        };
+        return Math.min(commentCount, pendingCount);
+    }
+
+    /**
+     * 目的: 输出评论优先级的中文业务文案。
+     * 逻辑: 由后端统一维护运营语义，确保评论管理表格、摘要卡和后续接口扩展时口径一致。
+     */
+    private String resolveCommentPriorityLabel(String priority) {
+        return switch (priority) {
+            case "urgent" -> "高优先级";
+            case "focus" -> "重点关注";
+            default -> "常规巡检";
+        };
+    }
+
+    /**
+     * 目的: 输出评论处理状态的中文业务文案。
+     * 逻辑: 用固定文案承接状态码，前端只负责展示，不再自行重复映射业务状态。
+     */
+    private String resolveCommentStatusLabel(String status) {
+        return switch (status) {
+            case "pending" -> "待集中回复";
+            case "tracking" -> "持续跟进";
+            default -> "内容稳定";
+        };
+    }
+
+    /**
+     * 目的: 给评论管理列表补充可执行的运营提示。
+     * 逻辑: 不同优先级直接映射到不同的跟进策略，帮助后台列表在没有真实评论明细时仍具备管理指引价值。
+     */
+    private String resolveCommentActionHint(String priority) {
+        return switch (priority) {
+            case "urgent" -> "优先安排运营答疑";
+            case "focus" -> "跟进高频问题反馈";
+            default -> "保持日常巡检";
+        };
     }
 
     /**

@@ -17,4 +17,5 @@ public class AdminDashboardResponse {
     private List<AdminModuleStatResponse> moduleStats;
     private List<AdminRecentEditResponse> recentEdits;
     private List<AdminContentRecordResponse> hotContents;
+    private List<AdminCommentRecordResponse> commentRecords;
 }

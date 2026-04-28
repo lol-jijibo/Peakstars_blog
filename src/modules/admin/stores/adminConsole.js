@@ -36,6 +36,7 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
   const trendPoints = computed(() => dashboard.value?.trendPoints || [])
   const moduleStats = computed(() => dashboard.value?.moduleStats || [])
   const hotContents = computed(() => dashboard.value?.hotContents || [])
+  const commentRecords = computed(() => dashboard.value?.commentRecords || [])
 
   async function loadDashboard() {
     loadingMap.value.dashboard = true
@@ -120,20 +121,28 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
 
   async function refreshAll(type) {
     await heartbeat()
-    await Promise.all([loadDashboard(), loadContent(type)])
+    if (type) {
+      await Promise.all([loadDashboard(), loadContent(type)])
+      return
+    }
+    await loadDashboard()
   }
 
   function startRealtime(type) {
     stopRealtime()
     heartbeat()
     loadDashboard().catch(() => null)
-    loadContent(type).catch(() => null)
+    if (type) {
+      loadContent(type).catch(() => null)
+    }
     heartbeatTimer.value = window.setInterval(() => {
       heartbeat()
     }, 15000)
     dashboardTimer.value = window.setInterval(() => {
       loadDashboard().catch(() => null)
-      loadContent(type).catch(() => null)
+      if (type) {
+        loadContent(type).catch(() => null)
+      }
     }, 20000)
   }
 
@@ -163,6 +172,7 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
     trendPoints,
     moduleStats,
     hotContents,
+    commentRecords,
     loadDashboard,
     loadContent,
     saveContent,

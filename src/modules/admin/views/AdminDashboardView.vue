@@ -19,7 +19,7 @@
           v-for="module in moduleOptions"
           :key="module.key"
           class="nav-item"
-          :class="{ active: currentType === module.key }"
+          :class="{ active: routeSection === module.key }"
           type="button"
           @click="switchType(module.key)"
         >
@@ -29,22 +29,22 @@
         </button>
 
         <div class="nav-section">数据</div>
-        <button class="nav-item" type="button" @click="scrollToTable">
+        <button class="nav-item" :class="{ active: isStatsPage }" type="button" @click="scrollToAnalytics">
           <span class="icon">数</span>
           数据分析
         </button>
-        <button class="nav-item" type="button" @click="scrollToActivity">
+        <button class="nav-item" :class="{ active: isCommentsPage }" type="button" @click="scrollToCommentSection">
           <span class="icon">评</span>
           评论管理
-          <span class="nav-badge">{{ formatCount(moduleSummary.commentCount) }}</span>
+          <span class="nav-badge">{{ formatCount(summary.totalComments) }}</span>
         </button>
 
         <div class="nav-section">系统</div>
-        <button class="nav-item" type="button" @click="openCreateDialog">
+        <button v-if="isContentPage" class="nav-item" type="button" @click="openCreateDialog">
           <span class="icon">建</span>
           新建内容
         </button>
-        <button class="nav-item" type="button" @click="handleExportCurrentModule">
+        <button v-if="isContentPage" class="nav-item" type="button" @click="handleExportCurrentModule">
           <span class="icon">出</span>
           导出内容
         </button>
@@ -63,8 +63,8 @@
 
     <div class="main">
       <header class="topbar">
-        <div class="topbar-title">{{ activeModule.topbarTitle }}</div>
-        <div class="topbar-actions">
+        <div class="topbar-title">{{ pageTitle }}</div>
+        <div v-if="isContentPage" class="topbar-actions">
           <label class="search-box">
             <!-- 目的: 将后台检索入口替换为更直观的彩色搜索图标; 逻辑: 使用内联 SVG 承载图标样式并保持与输入框同一交互热区。 -->
             <span class="search-box-icon" aria-hidden="true">
@@ -86,6 +86,10 @@
           <button class="btn btn-ghost" type="button" @click="handleExportCurrentModule">导出</button>
           <button class="btn btn-primary" type="button" @click="openCreateDialog">+ 新建{{ activeModule.shortLabel }}</button>
         </div>
+        <div v-else class="topbar-actions">
+          <span class="topbar-meta">最近更新 {{ summary.lastUpdatedAt || '--' }}</span>
+          <button class="btn btn-ghost" type="button" @click="refreshPageData">刷新数据</button>
+        </div>
       </header>
 
       <div class="content">
@@ -94,7 +98,7 @@
           <p>{{ errorMessage }}</p>
         </section>
 
-        <div class="stats-grid">
+        <div v-if="isContentPage" class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">文</div>
             <div class="stat-label">{{ activeModule.statLabels.total }}</div>
@@ -121,7 +125,62 @@
           </div>
         </div>
 
-        <div class="tab-row">
+        <!-- 目的: 在内容管理表格之前先承接后台数据分析总览; 逻辑: 用后端 dashboard 聚合结果驱动 ECharts 图表和热榜卡片，形成可快速扫描的分析层。 -->
+        <section v-if="isStatsPage" ref="analyticsSectionRef" class="analytics-grid">
+          <div class="panel analytics-panel analytics-panel-wide">
+            <div class="panel-header">
+              <span class="panel-title">数据分析总览</span>
+              <span class="panel-action">实时聚合</span>
+            </div>
+            <div class="analytics-highlight-grid">
+              <div v-for="item in analyticsHighlights" :key="item.label" class="analytics-highlight-card">
+                <span class="analytics-highlight-label">{{ item.label }}</span>
+                <strong class="analytics-highlight-value">{{ item.value }}</strong>
+                <span class="analytics-highlight-note">{{ item.note }}</span>
+              </div>
+            </div>
+            <AdminTrendChart :trend-points="trendPoints" />
+          </div>
+
+          <div class="panel analytics-panel">
+            <div class="panel-header">
+              <span class="panel-title">模块流量对比</span>
+              <span class="panel-action">ECharts</span>
+            </div>
+            <AdminModuleChart :module-stats="moduleStats" />
+            <div class="analytics-highlight-grid analytics-highlight-grid-compact">
+              <div v-for="item in moduleSnapshotCards" :key="item.key" class="analytics-highlight-card">
+                <span class="analytics-highlight-label">{{ item.label }}</span>
+                <strong class="analytics-highlight-value">{{ item.value }}</strong>
+                <span class="analytics-highlight-note">{{ item.note }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel analytics-panel analytics-panel-wide">
+            <div class="panel-header">
+              <span class="panel-title">热点内容排行</span>
+              <span class="panel-action">Top {{ hotContentRankings.length }}</span>
+            </div>
+            <div v-if="hotContentRankings.length" class="hot-ranking-list">
+              <div v-for="item in hotContentRankings" :key="`${item.type}-${item.id}`" class="hot-ranking-item">
+                <div class="hot-ranking-main">
+                  <span class="hot-ranking-index">#{{ item.rank }}</span>
+                  <div class="hot-ranking-meta">
+                    <div class="hot-ranking-title">{{ item.title }}</div>
+                    <div class="hot-ranking-sub">{{ resolveCategory(item) }} / {{ formatCount(item.viewCount) }} 浏览 / {{ formatCount(item.commentCount || 0) }} 评论</div>
+                  </div>
+                </div>
+                <div class="hot-ranking-track">
+                  <div class="hot-ranking-fill" :style="{ width: `${item.ratio}%` }"></div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="activity-empty">当前暂无热点内容数据。</div>
+          </div>
+        </section>
+
+        <div v-if="isContentPage" class="tab-row">
           <button
             v-for="tab in filterTabs"
             :key="tab.key"
@@ -134,7 +193,7 @@
           </button>
         </div>
 
-        <div class="two-col">
+        <div v-if="isContentPage" class="two-col">
           <div ref="tableSectionRef" class="panel">
             <div class="panel-header">
               <span class="panel-title">{{ activeModule.panelTitle }}</span>
@@ -232,6 +291,81 @@
             </div>
           </div>
         </div>
+
+        <!-- 目的: 承接后台评论管理模块的核心看板与巡检列表; 逻辑: 先用摘要卡和 ECharts 标出高压内容，再落到逐条内容级的评论运营明细。 -->
+        <section v-if="isCommentsPage" ref="commentSectionRef" class="comment-grid">
+          <div class="panel comment-panel">
+            <div class="panel-header">
+              <span class="panel-title">评论管理概览</span>
+              <span class="panel-action">统一巡检</span>
+            </div>
+            <div class="comment-summary-grid">
+              <div v-for="item in commentSummaryCards" :key="item.label" class="comment-summary-card">
+                <span class="comment-summary-label">{{ item.label }}</span>
+                <strong class="comment-summary-value">{{ item.value }}</strong>
+                <span class="comment-summary-note">{{ item.note }}</span>
+              </div>
+            </div>
+            <div class="comment-summary-grid comment-summary-grid-wide">
+              <div v-for="item in commentModuleCards" :key="item.key" class="comment-summary-card">
+                <span class="comment-summary-label">{{ item.label }}</span>
+                <strong class="comment-summary-value">{{ item.value }}</strong>
+                <span class="comment-summary-note">{{ item.note }}</span>
+              </div>
+            </div>
+            <AdminCommentChart :comment-records="commentManagementList" />
+          </div>
+
+          <div class="panel comment-panel">
+            <div class="panel-header">
+              <span class="panel-title">评论巡检列表</span>
+              <span class="panel-action">Top {{ commentManagementList.length }}</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>内容</th>
+                    <th>模块</th>
+                    <th>评论量</th>
+                    <th>待跟进</th>
+                    <th>互动率</th>
+                    <th>优先级</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody v-if="commentManagementList.length">
+                  <tr v-for="item in commentManagementList" :key="`${item.contentType}-${item.contentKey}`">
+                    <td>
+                      <div class="post-title-cell">
+                        <span class="post-title">{{ item.contentTitle }}</span>
+                        <span class="post-meta">{{ item.authorName }} / {{ item.publishedAt }}</span>
+                      </div>
+                    </td>
+                    <td><span class="tag">{{ item.moduleLabel }}</span></td>
+                    <td class="mono-cell">{{ formatCount(item.commentCount) }}</td>
+                    <td class="mono-cell">{{ formatCount(item.pendingCount) }}</td>
+                    <td class="mono-cell">{{ Number(item.engagementRate || 0).toFixed(1) }}%</td>
+                    <td>
+                      <span class="badge" :class="resolveCommentPriorityClass(item.priority)">{{ item.priorityLabel }}</span>
+                    </td>
+                    <td>
+                      <div class="comment-status-cell">
+                        <span class="badge" :class="resolveCommentStatusClass(item.status)">{{ item.statusLabel }}</span>
+                        <span class="comment-status-note">{{ item.actionHint }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+                <tbody v-else>
+                  <tr>
+                    <td colspan="7" class="empty-cell">当前暂无评论管理数据。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -329,14 +463,20 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRoute, useRouter } from 'vue-router'
 import { useAdminConsoleStore } from '@/modules/admin/stores/adminConsole'
+import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
+import AdminModuleChart from '@/modules/admin/components/AdminModuleChart.vue'
+import AdminCommentChart from '@/modules/admin/components/AdminCommentChart.vue'
 
 const AdminRichEditor = defineAsyncComponent(() => import('@/modules/admin/components/AdminRichEditor.vue'))
 
+const route = useRoute()
+const router = useRouter()
 const adminStore = useAdminConsoleStore()
-const { currentSummary, errorMessage, recentEdits, saving } = storeToRefs(adminStore)
+const { currentSummary, errorMessage, recentEdits, saving, trendPoints, moduleStats, hotContents, commentRecords } = storeToRefs(adminStore)
 
 let xlsxLibraryPromise = null
 
@@ -358,7 +498,7 @@ const moduleOptions = computed(() => [
   {
     key: 'tech',
     icon: '文',
-    badge: `${adminStore.getContentList('tech').length}`,
+    badge: `${resolveModuleCount('tech')}`,
     navLabel: '文章管理',
     topbarTitle: '文章管理',
     shortLabel: '文章',
@@ -377,7 +517,7 @@ const moduleOptions = computed(() => [
   {
     key: 'world',
     icon: '刊',
-    badge: `${adminStore.getContentList('world').length}`,
+    badge: `${resolveModuleCount('world')}`,
     navLabel: '期刊管理',
     topbarTitle: '期刊管理',
     shortLabel: '期刊',
@@ -396,7 +536,7 @@ const moduleOptions = computed(() => [
   {
     key: 'ai',
     icon: 'AI',
-    badge: `${adminStore.getContentList('ai').length}`,
+    badge: `${resolveModuleCount('ai')}`,
     navLabel: '热点管理',
     topbarTitle: 'AI 热点管理',
     shortLabel: '热点',
@@ -414,8 +554,15 @@ const moduleOptions = computed(() => [
   }
 ])
 
+const analyticsSectionRef = ref(null)
 const tableSectionRef = ref(null)
 const activitySectionRef = ref(null)
+const commentSectionRef = ref(null)
+const contentSectionKeys = ['tech', 'world', 'ai']
+const routeSection = computed(() => String(route.params.section || 'tech'))
+const isContentPage = computed(() => contentSectionKeys.includes(routeSection.value))
+const isStatsPage = computed(() => routeSection.value === 'stats')
+const isCommentsPage = computed(() => routeSection.value === 'comment')
 const currentType = ref('tech')
 const currentFilter = ref('all')
 const keyword = ref('')
@@ -435,6 +582,56 @@ const summary = computed(() => currentSummary.value || {
 
 const activeModule = computed(() => moduleOptions.value.find((item) => item.key === currentType.value) || moduleOptions.value[0])
 const currentRecords = computed(() => adminStore.getContentList(currentType.value))
+const pageTitle = computed(() => {
+  if (isStatsPage.value) {
+    return '数据分析'
+  }
+  if (isCommentsPage.value) {
+    return '评论管理'
+  }
+  return activeModule.value.topbarTitle
+})
+
+// 目的: 统一沉淀后台数据分析模块的核心概览卡，避免图表说明和摘要数字口径割裂。
+// 逻辑: 从后端 dashboard 聚合结果中提取总量、热度和模块峰值，直接服务数据分析面板和评论管理摘要区。
+const analyticsHighlights = computed(() => {
+  const hottestModule = [...moduleStats.value].sort((left, right) => Number(right.viewCount || 0) - Number(left.viewCount || 0))[0]
+  const hottestContent = hotContents.value[0]
+  const pendingCount = commentRecords.value.reduce((total, item) => total + Number(item.pendingCount || 0), 0)
+  return [
+    {
+      label: '全站浏览',
+      value: formatCount(summary.value.totalViews),
+      note: `在线 ${summary.value.onlineUsers} 人`
+    },
+    {
+      label: '评论待跟进',
+      value: formatCount(pendingCount),
+      note: `总评论 ${formatCount(summary.value.totalComments)}`
+    },
+    {
+      label: '流量峰值模块',
+      value: hottestModule?.moduleLabel || '暂无数据',
+      note: `${formatCount(hottestModule?.viewCount || 0)} 浏览`
+    },
+    {
+      label: '当前热度内容',
+      value: hottestContent?.title || '暂无数据',
+      note: `${formatCount(hottestContent?.viewCount || 0)} 浏览`
+    }
+  ]
+})
+
+// 目的: 将三个内容模块的聚合结果拆成独立摘要卡，确保数据分析页能直接看到每个模块的变化数据。
+// 逻辑: 统一使用 dashboard 的模块统计结果生成卡片，避免页面层再次分散查询不同模块的数据口径。
+const moduleSnapshotCards = computed(() => {
+  return moduleStats.value.map((item) => ({
+    key: item.moduleKey,
+    label: item.moduleLabel,
+    value: formatCount(item.viewCount),
+    note: `${formatCount(item.contentCount)} 内容 / ${formatCount(item.commentCount)} 评论`
+  }))
+})
 
 // 业务目的：表格和统计卡都依赖同一份模块聚合结果，保证模板每块数字表达一致。
 // 业务逻辑：统一聚合浏览、评论、当月新增和推荐类计数，避免顶部和右侧面板口径不一致。
@@ -510,6 +707,56 @@ const currentRecentEdits = computed(() => {
   return (scopedLogs.length ? scopedLogs : recentEdits.value).slice(0, 4)
 })
 
+// 目的: 把后台评论管理记录转换成页面可直接渲染的评论巡检列表。
+// 逻辑: 优先展示后端已经按热度排序的记录，同时在前端补齐空态兜底，保证评论模块首屏稳定。
+const commentManagementList = computed(() => {
+  return commentRecords.value.length
+    ? commentRecords.value
+    : []
+})
+
+// 目的: 生成评论管理区的摘要卡片，帮助运营先看风险再看明细。
+// 逻辑: 对后端返回的评论记录按优先级和状态二次汇总，避免模板层散落多处 reduce 逻辑。
+const commentSummaryCards = computed(() => {
+  const urgentCount = countBy(commentManagementList.value, (item) => item.priority === 'urgent')
+  const trackingCount = countBy(commentManagementList.value, (item) => item.status === 'tracking' || item.status === 'pending')
+  const pendingCount = commentManagementList.value.reduce((total, item) => total + Number(item.pendingCount || 0), 0)
+  const engagementPeak = [...commentManagementList.value].sort((left, right) => Number(right.engagementRate || 0) - Number(left.engagementRate || 0))[0]
+  return [
+    {
+      label: '高优先级内容',
+      value: `${urgentCount}`,
+      note: '需要优先安排答疑'
+    },
+    {
+      label: '待跟进评论',
+      value: formatCount(pendingCount),
+      note: '结合热度折算后的待办量'
+    },
+    {
+      label: '持续跟进项',
+      value: `${trackingCount}`,
+      note: '适合运营日内复查'
+    },
+    {
+      label: '最高互动率',
+      value: engagementPeak ? `${Number(engagementPeak.engagementRate || 0).toFixed(1)}%` : '0%',
+      note: engagementPeak?.contentTitle || '暂无数据'
+    }
+  ]
+})
+
+// 目的: 将评论管理页的三模块评论变化拆成独立摘要卡，便于直接横向比较各模块评论压力。
+// 逻辑: 复用 dashboard 的模块评论统计，即使某个模块当前评论为 0 也明确展示，避免误判为未加载。
+const commentModuleCards = computed(() => {
+  return moduleStats.value.map((item) => ({
+    key: item.moduleKey,
+    label: item.moduleLabel,
+    value: formatCount(item.commentCount),
+    note: `${formatCount(item.viewCount)} 浏览 / ${formatCount(item.contentCount)} 内容`
+  }))
+})
+
 const sideCategoryItems = computed(() => {
   if (currentType.value === 'tech') {
     return [
@@ -536,6 +783,17 @@ const sideCategoryItems = computed(() => {
   ]
 })
 
+// 目的: 输出后台数据分析区的热点内容榜，辅助运营将图表结论落到具体内容对象。
+// 逻辑: 使用后端 dashboard 已经聚合好的热度内容列表，并在前端补充排名序号与进度条宽度。
+const hotContentRankings = computed(() => {
+  const highestViewCount = Math.max(...hotContents.value.map((item) => Number(item.viewCount || 0)), 0)
+  return hotContents.value.map((item, index) => ({
+    ...item,
+    rank: index + 1,
+    ratio: highestViewCount > 0 ? Math.max(12, Math.round((Number(item.viewCount || 0) / highestViewCount) * 100)) : 0
+  }))
+})
+
 const progressInfo = computed(() => {
   const targetMap = { tech: 20, world: 6, ai: 10 }
   const target = targetMap[currentType.value] || 10
@@ -550,23 +808,22 @@ const progressInfo = computed(() => {
   }
 })
 
-watch(currentType, (nextType) => {
+watch(routeSection, (nextSection) => {
   keyword.value = ''
   currentFilter.value = 'all'
+  if (contentSectionKeys.includes(nextSection)) {
+    currentType.value = nextSection
+  }
   adminStore.stopRealtime()
-  adminStore.startRealtime(nextType)
-})
-
-onMounted(() => {
-  adminStore.startRealtime(currentType.value)
-})
+  adminStore.startRealtime(contentSectionKeys.includes(nextSection) ? nextSection : undefined)
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   adminStore.stopRealtime()
 })
 
 function switchType(type) {
-  currentType.value = type
+  router.push(`/admin/${type}`)
 }
 
 // 业务目的：按模块 key 返回左侧导航的彩色图标字符，保证每个模块都有稳定图标。
@@ -575,12 +832,12 @@ function resolveSidebarEmoji(iconKey) {
   return sidebarEmojiMap[iconKey] || sidebarEmojiMap.tech
 }
 
-function scrollToTable() {
-  tableSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+function scrollToAnalytics() {
+  router.push('/admin/stats')
 }
 
-function scrollToActivity() {
-  activitySectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+function scrollToCommentSection() {
+  router.push('/admin/comment')
 }
 
 function matchFilter(record, filterKey) {
@@ -673,6 +930,22 @@ function resolveActivityColor(actionType) {
   }[actionType] || '#7ab0e0'
 }
 
+function resolveCommentPriorityClass(priority) {
+  return {
+    urgent: 'badge-comment-urgent',
+    focus: 'badge-comment-focus',
+    routine: 'badge-comment-routine'
+  }[priority] || 'badge-comment-routine'
+}
+
+function resolveCommentStatusClass(status) {
+  return {
+    pending: 'badge-comment-urgent',
+    tracking: 'badge-comment-focus',
+    stable: 'badge-comment-routine'
+  }[status] || 'badge-comment-routine'
+}
+
 function resolveActivityText(item) {
   return `${resolveActionLabel(item.actionType)}《${item.contentTitle}》`
 }
@@ -723,8 +996,26 @@ function formatCount(value) {
   return `${count}`
 }
 
+// 目的: 统一从 dashboard 模块统计里读取左侧导航的模块数量。
+// 逻辑: 优先使用后端聚合结果，若 dashboard 尚未回填则退回当前缓存列表，避免导航徽标出现空值。
+function resolveModuleCount(type) {
+  const targetModule = moduleStats.value.find((item) => item.moduleKey === type)
+  if (targetModule) {
+    return Number(targetModule.contentCount || 0)
+  }
+  return adminStore.getContentList(type).length
+}
+
+async function refreshPageData() {
+  if (isContentPage.value) {
+    await adminStore.refreshAll(currentType.value).catch(() => null)
+    return
+  }
+  await adminStore.refreshAll().catch(() => null)
+}
+
 function refreshCurrentType() {
-  adminStore.refreshAll(currentType.value).catch(() => null)
+  refreshPageData()
 }
 
 function openCreateDialog() {

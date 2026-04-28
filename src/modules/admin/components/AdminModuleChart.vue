@@ -14,60 +14,147 @@ const props = defineProps({
 
 const chartRef = ref(null)
 let chartInstance = null
-let chartConstructor = null
-let g2RuntimePromise = null
+let echartsModule = null
+let echartsRuntimePromise = null
 
-// 业务目的：用 G2 绘制模块热度占比图，帮助后台快速识别技术文章、看天下和 AI 热点的流量结构。
-// 业务逻辑：每次统计数据变化时销毁旧图重建，保证切换模块和容器尺寸变化后图表仍保持稳定展示。
+// 目的: 用 ECharts 输出后台模块级的数据对比图，直观看到内容量、浏览量和评论量的模块差异。
+// 逻辑: 统一将模块统计映射成柱线混合图，避免多个维度拆成多张图后破坏后台分析面板的阅读效率。
 async function renderChart() {
   if (!chartRef.value) {
     return
   }
 
-  await ensureG2Runtime()
-  chartInstance?.destroy()
-  chartInstance = new chartConstructor({
-    container: chartRef.value,
-    autoFit: true,
-    height: 320
-  })
+  const echarts = await ensureEchartsRuntime()
+  if (!chartInstance) {
+    chartInstance = echarts.init(chartRef.value)
+  }
 
   const safeData = props.moduleStats.length
-    ? props.moduleStats.map((item) => ({
-        moduleLabel: item.moduleLabel,
-        viewCount: item.viewCount,
-        commentCount: item.commentCount,
-        contentCount: item.contentCount
-      }))
-    : [{ moduleLabel: '暂无数据', viewCount: 1, commentCount: 0, contentCount: 0 }]
-
-  chartInstance.coordinate({ type: 'theta', innerRadius: 0.45, outerRadius: 0.88 })
-  chartInstance
-    .interval()
-    .data(safeData)
-    .transform({ type: 'stackY' })
-    .encode('y', 'viewCount')
-    .encode('color', 'moduleLabel')
-    .style('stroke', '#ffffff')
-    .style('lineWidth', 2)
-    .legend('color', {
-      position: 'bottom',
-      layout: { justifyContent: 'center' }
-    })
-    .tooltip({
-      title: 'moduleLabel',
-      items: [
-        (datum) => ({ name: '浏览量', value: `${datum.viewCount}` }),
-        (datum) => ({ name: '评论量', value: `${datum.commentCount}` }),
-        (datum) => ({ name: '内容数', value: `${datum.contentCount}` })
+    ? props.moduleStats
+    : [
+        {
+          moduleLabel: '暂无数据',
+          contentCount: 0,
+          viewCount: 0,
+          commentCount: 0
+        }
       ]
-    })
 
-  chartInstance.render()
+  chartInstance.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      },
+      backgroundColor: 'rgba(12, 18, 32, 0.94)',
+      borderWidth: 0,
+      textStyle: {
+        color: '#f8fafc'
+      }
+    },
+    legend: {
+      top: 0,
+      textStyle: {
+        color: '#94a3b8'
+      }
+    },
+    grid: {
+      left: 18,
+      right: 18,
+      top: 40,
+      bottom: 18,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: safeData.map((item) => item.moduleLabel),
+      axisTick: {
+        show: false
+      },
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(148, 163, 184, 0.24)'
+        }
+      },
+      axisLabel: {
+        color: '#94a3b8'
+      }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '内容 / 评论',
+        splitLine: {
+          lineStyle: {
+            color: 'rgba(148, 163, 184, 0.12)'
+          }
+        },
+        axisLabel: {
+          color: '#94a3b8'
+        }
+      },
+      {
+        type: 'value',
+        name: '浏览量',
+        splitLine: {
+          show: false
+        },
+        axisLabel: {
+          color: '#94a3b8'
+        }
+      }
+    ],
+    series: [
+      {
+        name: '内容量',
+        type: 'bar',
+        barMaxWidth: 18,
+        itemStyle: {
+          color: '#20d7d4',
+          borderRadius: [6, 6, 0, 0]
+        },
+        data: safeData.map((item) => item.contentCount)
+      },
+      {
+        name: '评论量',
+        type: 'bar',
+        barMaxWidth: 18,
+        itemStyle: {
+          color: '#f59e0b',
+          borderRadius: [6, 6, 0, 0]
+        },
+        data: safeData.map((item) => item.commentCount)
+      },
+      {
+        name: '浏览量',
+        type: 'line',
+        yAxisIndex: 1,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: {
+          width: 3,
+          color: '#4da3ff'
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(77, 163, 255, 0.24)' },
+            { offset: 1, color: 'rgba(77, 163, 255, 0.02)' }
+          ])
+        },
+        data: safeData.map((item) => item.viewCount)
+      }
+    ]
+  })
+}
+
+function handleResize() {
+  chartInstance?.resize()
 }
 
 onMounted(() => {
   renderChart()
+  window.addEventListener('resize', handleResize)
 })
 
 watch(
@@ -79,19 +166,21 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  chartInstance?.destroy()
+  window.removeEventListener('resize', handleResize)
+  chartInstance?.dispose()
   chartInstance = null
 })
 
-// 业务目的：把 G2 运行时延迟到占比图真正渲染时再加载，避免首页管理台包体积膨胀。
-// 业务逻辑：首次异步导入后缓存 Chart 构造器，后续趋势轮询和标签切换都直接复用本地运行时。
-async function ensureG2Runtime() {
-  if (!g2RuntimePromise) {
-    g2RuntimePromise = import('@antv/g2').then((module) => {
-      chartConstructor = module.Chart
+// 目的: 仅在模块图真正渲染时再异步装载 ECharts 运行时，避免后台首页包体无效膨胀。
+// 逻辑: 运行时 Promise 只创建一次，后续后台轮询刷新和模块切换直接复用同一份图表库实例。
+async function ensureEchartsRuntime() {
+  if (!echartsRuntimePromise) {
+    echartsRuntimePromise = import('echarts').then((module) => {
+      echartsModule = module
+      return module
     })
   }
-  await g2RuntimePromise
+  return echartsModule || echartsRuntimePromise
 }
 </script>
 

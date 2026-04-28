@@ -200,7 +200,7 @@ const quickEntries = [
     label: '内容后台',
     caption: '进入管理台查看实时数据',
     count: 'GO',
-    action: () => router.push('/admin')
+    action: () => router.push('/admin/tech')
   }
 ]
 
