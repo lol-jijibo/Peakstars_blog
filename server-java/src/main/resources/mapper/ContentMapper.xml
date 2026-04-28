@@ -17,6 +17,7 @@
     <result column="author_initials" property="authorInitials"/>
     <result column="author_accent" property="authorAccent"/>
     <result column="cover_url" property="coverUrl"/>
+    <result column="content_html" property="contentHtml"/>
     <result column="published_at" property="publishedAt"/>
     <result column="read_count" property="readCount"/>
     <result column="like_count" property="likeCount"/>
@@ -92,6 +93,7 @@
       author_initials,
       author_accent,
       cover_url,
+      content_html,
       published_at,
       read_count,
       like_count,

@@ -602,3 +602,37 @@
     width: 100%;
   }
 }
+
+html[data-theme='light'] .login-page {
+  /* 目的: 亮色模式下修正登录页整体对比度。 */
+  /* 逻辑: 将背景、卡片和表单文字切换为浅色系，避免深底在亮色主题下压暗内容。 */
+  --bg-start: #f7f9fc;
+  --bg-mid: #eef3fb;
+  --bg-end: #e7edf7;
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --card-border: rgba(15, 23, 42, 0.08);
+  --text: #132238;
+  --muted: #607086;
+  --input-bg: rgba(248, 250, 252, 0.92);
+  --input-border: rgba(15, 23, 42, 0.12);
+}
+
+html[data-theme='light'] .login-page .brand-name {
+  /* 目的: 亮色模式下保证品牌标题可见。 */
+  /* 逻辑: 去掉透明文字效果，直接使用深色品牌字。 */
+  background: none;
+  -webkit-text-fill-color: initial;
+  color: #132238;
+}
+
+html[data-theme='light'] .login-page .tabs {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='light'] .login-page .tab-btn.active {
+  color: #ffffff;
+}
+
+html[data-theme='light'] .login-page .input-wrap input::placeholder {
+  color: rgba(96, 112, 134, 0.58);
+}

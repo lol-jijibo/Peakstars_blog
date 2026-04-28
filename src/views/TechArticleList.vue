@@ -65,6 +65,10 @@
               v-for="article in filteredArticles"
               :key="article.id"
               class="article-feed-item"
+              tabindex="0"
+              role="link"
+              @click="openArticleDetail(article.id)"
+              @keydown.enter="openArticleDetail(article.id)"
             >
               <div class="article-feed-main">
                 <div class="article-author-row">
@@ -325,6 +329,12 @@ function selectMode(modeKey) {
 
 function selectCategory(categoryKey) {
   activeCategoryKey.value = categoryKey
+}
+
+// 目的: 让技术文章列表中的每篇文章都能进入独立详情页，形成完整阅读闭环。
+// 逻辑: 使用文章稳定 id 拼接详情路由，点击卡片或键盘回车都会触发同一跳转。
+function openArticleDetail(articleId) {
+  router.push(`/articles/${articleId}`)
 }
 
 function resolveCategoryLabel(categoryKey) {

@@ -364,3 +364,48 @@
     grid-template-columns: 1fr;
   }
 }
+
+html[data-theme='light'] .mine-page {
+  /* 目的: 亮色模式下修正个人中心页整体视觉。 */
+  /* 逻辑: 使用浅背景与深文字重建层级，避免大面积白字在亮底上失真。 */
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4fb 42%, #eef2f7 100%);
+  color: #132238;
+}
+
+html[data-theme='light'] .mine-header,
+html[data-theme='light'] .profile-card,
+html[data-theme='light'] .quick-panel,
+html[data-theme='light'] .content-section,
+html[data-theme='light'] .follow-card,
+html[data-theme='light'] .recent-card,
+html[data-theme='light'] .tab-bar,
+html[data-theme='light'] .header {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .profile-copy h1,
+html[data-theme='light'] .follow-copy strong,
+html[data-theme='light'] .recent-card strong,
+html[data-theme='light'] .logo,
+html[data-theme='light'] .empty-title {
+  color: #132238;
+}
+
+html[data-theme='light'] .profile-copy p,
+html[data-theme='light'] .follow-copy p,
+html[data-theme='light'] .recent-card p,
+html[data-theme='light'] .recent-meta,
+html[data-theme='light'] .empty-sub,
+html[data-theme='light'] .tab-item,
+html[data-theme='light'] .header-title {
+  color: #607086;
+}
+
+html[data-theme='light'] .tab-item.active,
+html[data-theme='light'] .go-btn,
+html[data-theme='light'] .logout-btn {
+  color: #ffffff;
+}

@@ -26,6 +26,11 @@ const routes = [
     meta: { title: '技术文章', requiresAuth: true }
   },
   {
+    path: '/articles/:id',
+    component: () => import('@/views/TechArticleDetail.vue'),
+    meta: { title: '技术文章详情', requiresAuth: true }
+  },
+  {
     path: '/world',
     component: () => import('@/modules/world/WorldNewsView.vue'),
     meta: { title: '看天下', requiresAuth: true }

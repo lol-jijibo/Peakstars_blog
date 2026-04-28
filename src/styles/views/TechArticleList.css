@@ -167,6 +167,17 @@
   gap: 20px;
   padding: 20px 0;
   border-bottom: 1px solid #eef1f4;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+/* 目的: 给文章卡片补充可点击反馈，让列表进入详情页的动作更明确。 */
+/* 逻辑: 鼠标悬停和键盘聚焦时轻微位移并强调分割线，保持阅读流的克制感。 */
+.article-feed-item:hover,
+.article-feed-item:focus-visible {
+  transform: translateY(-2px);
+  border-bottom-color: #cbd5e1;
 }
 
 .article-feed-main {
@@ -419,4 +430,27 @@
   .article-filter-panel {
     padding: 16px 14px;
   }
+}
+
+html[data-theme='light'] .article-hub-page {
+  /* 目的: 亮色模式下修正技术文章列表页背景与文字对比。 */
+  /* 逻辑: 使用浅色底和深色正文，避免卡片文字在亮底上发灰发虚。 */
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  color: #132238;
+}
+
+html[data-theme='light'] .article-hub-page h1,
+html[data-theme='light'] .article-hub-page h2,
+html[data-theme='light'] .article-hub-page h3,
+html[data-theme='light'] .article-hub-page strong,
+html[data-theme='light'] .article-stream-card-title,
+html[data-theme='light'] .article-spotlight-title,
+html[data-theme='light'] .article-author-name {
+  color: #132238;
+}
+
+html[data-theme='light'] .article-hub-page p,
+html[data-theme='light'] .article-hub-page small,
+html[data-theme='light'] .article-hub-page span {
+  color: #607086;
 }

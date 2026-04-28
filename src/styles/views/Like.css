@@ -95,3 +95,23 @@
 .tab-label {
   font-size: 11px;
 }
+
+html[data-theme='light'] .like-page {
+  /* 目的: 亮色模式下修正喜欢页内容可读性。 */
+  /* 逻辑: 采用浅色背景和深色正文，避免标题和说明被浅底吞没。 */
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  color: #132238;
+}
+
+html[data-theme='light'] .like-page .empty-title,
+html[data-theme='light'] .like-page h1,
+html[data-theme='light'] .like-page h2,
+html[data-theme='light'] .like-page strong {
+  color: #132238;
+}
+
+html[data-theme='light'] .like-page .empty-sub,
+html[data-theme='light'] .like-page p,
+html[data-theme='light'] .like-page span {
+  color: #607086;
+}

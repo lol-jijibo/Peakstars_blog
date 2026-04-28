@@ -20,6 +20,7 @@ public class TechArticleResponse {
     private List<String> highlights;
     private TechArticleAuthorResponse author;
     private String coverUrl;
+    private String contentHtml;
     private String publishedAt;
     private Integer readCount;
     private Integer likeCount;

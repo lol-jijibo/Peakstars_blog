@@ -78,6 +78,7 @@ public class ContentServiceImpl implements ContentService {
         response.setHighlights(splitPipeValues(article.getHighlightList()));
         response.setAuthor(toAuthorResponse(article));
         response.setCoverUrl(article.getCoverUrl());
+        response.setContentHtml(article.getContentHtml());
         response.setPublishedAt(article.getPublishedAt() == null ? null : article.getPublishedAt().format(ARTICLE_DATE_FORMATTER));
         response.setReadCount(article.getReadCount());
         response.setLikeCount(article.getLikeCount());

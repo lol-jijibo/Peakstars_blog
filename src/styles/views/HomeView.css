@@ -530,3 +530,132 @@
     font-size: 12px;
   }
 }
+
+html[data-theme='light'] .home-page {
+  /* 目的: 亮色模式下保持首页主视觉清晰易读。 */
+  /* 逻辑: 将背景压暗到雾蓝灰层次，避免页面过曝并衬托首页主文案。 */
+  background:
+    radial-gradient(circle at 14% 16%, rgba(59, 130, 246, 0.1), transparent 30%),
+    radial-gradient(circle at 86% 22%, rgba(16, 185, 129, 0.08), transparent 28%),
+    linear-gradient(135deg, #e8eef5 0%, #dee7f1 48%, #d7e0ea 100%);
+  color: #11233a;
+}
+
+html[data-theme='light'] .home-page::before {
+  /* 目的: 亮色模式下弱化网格纹理的存在感。 */
+  /* 逻辑: 降低叠加层透明度与反差，避免网格在浅底上抢走文案注意力。 */
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.022) 1px, transparent 1px);
+}
+
+html[data-theme='light'] .hero-left h1,
+html[data-theme='light'] .hero-lead-line,
+html[data-theme='light'] .trend-title,
+html[data-theme='light'] .trend-wheel-node strong,
+html[data-theme='light'] .trend-wheel-node span,
+html[data-theme='light'] .feature-card h3,
+html[data-theme='light'] .feature-card p,
+html[data-theme='light'] .stats-card strong,
+html[data-theme='light'] .stats-card span,
+html[data-theme='light'] .section-title,
+html[data-theme='light'] .section-copy,
+html[data-theme='light'] .section-card-title,
+html[data-theme='light'] .section-card-desc {
+  /* 目的: 统一修正首页亮色模式文字显示。 */
+  /* 逻辑: 采用更深的正文色与次级色，保证标题、说明和卡片文字都能稳定识别。 */
+  color: #132238;
+}
+
+html[data-theme='light'] .hero-lead-line {
+  /* 目的: 修正亮色模式下首页金句发灰的问题。 */
+  /* 逻辑: 取消透明渐变字，改为实体深色文字，保证在浅底上稳定显示。 */
+  background: none;
+  -webkit-background-clip: border-box;
+  filter: none;
+  color: #20324a;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+html[data-theme='light'] .hero-lead::before {
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0), rgba(14, 165, 233, 0.7), rgba(34, 197, 94, 0));
+}
+
+html[data-theme='light'] .hero-primary-btn {
+  /* 目的: 提升亮色模式下主按钮的识别度。 */
+  /* 逻辑: 使用实体蓝色按钮承载白字，避免浅底叠浅按钮导致行动入口发虚。 */
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  color: #f8fbff;
+  box-shadow: 0 18px 38px rgba(37, 99, 235, 0.24);
+}
+
+html[data-theme='light'] .hero-right::before {
+  border-color: rgba(15, 23, 42, 0.08);
+  background:
+    radial-gradient(circle at 50% 46%, rgba(59, 130, 246, 0.12), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(233, 239, 247, 0.2));
+  box-shadow: inset 0 0 42px rgba(59, 130, 246, 0.04), 0 24px 56px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .hero-right::after {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.09), transparent 66%);
+}
+
+html[data-theme='light'] .tech-orbit {
+  background:
+    radial-gradient(circle at center, rgba(224, 232, 241, 0.96) 0 54%, transparent 55%),
+    conic-gradient(from 160deg, rgba(37, 99, 235, 0.32), rgba(59, 130, 246, 0.1), rgba(15, 23, 42, 0.03), rgba(37, 99, 235, 0.32));
+  opacity: 0.9;
+}
+
+html[data-theme='light'] .tech-orbit::before,
+html[data-theme='light'] .tech-orbit::after,
+html[data-theme='light'] .trend-wheel {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .tech-orbit::after {
+  border-color: rgba(37, 99, 235, 0.18);
+}
+
+html[data-theme='light'] .trend-wheel::before {
+  background: #2563eb;
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.42);
+}
+
+html[data-theme='light'] .trend-wheel-node {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #526176;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme='light'] .trend-wheel-node.active,
+html[data-theme='light'] .trend-wheel-node.is-active,
+html[data-theme='light'] .trend-wheel-node:hover {
+  color: #173154;
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+html[data-theme='light'] .tech-stage {
+  /* 目的: 修正亮色模式下右侧核心卡片标题发暗的问题。 */
+  /* 逻辑: 保持信息卡片为深色承载面，再单独抬高标题与描述的亮度。 */
+  border-color: rgba(37, 99, 235, 0.16);
+  background:
+    linear-gradient(180deg, rgba(16, 27, 47, 0.94), rgba(20, 33, 56, 0.84)),
+    rgba(16, 27, 47, 0.84);
+  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.18);
+}
+
+html[data-theme='light'] .tech-trend span {
+  color: #7dd3fc;
+}
+
+html[data-theme='light'] .tech-trend h2 {
+  color: #eef4ff;
+}
+
+html[data-theme='light'] .tech-trend p {
+  color: rgba(226, 235, 248, 0.84);
+}

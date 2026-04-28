@@ -95,3 +95,23 @@
 .tab-label {
   font-size: 11px;
 }
+
+html[data-theme='light'] .collect-page {
+  /* 目的: 亮色模式下修正收藏页内容对比。 */
+  /* 逻辑: 用浅色背景与深色文字替换深色卡片式视觉，保证空状态与正文都清晰。 */
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  color: #132238;
+}
+
+html[data-theme='light'] .collect-page .empty-title,
+html[data-theme='light'] .collect-page h1,
+html[data-theme='light'] .collect-page h2,
+html[data-theme='light'] .collect-page strong {
+  color: #132238;
+}
+
+html[data-theme='light'] .collect-page .empty-sub,
+html[data-theme='light'] .collect-page p,
+html[data-theme='light'] .collect-page span {
+  color: #607086;
+}
