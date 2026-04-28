@@ -11,7 +11,12 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan
-@MapperScan("com.interview.auth")
+// 业务目的：只扫描真正承载 SQL 映射的 Mapper 包，避免把 Service 接口误注册成 MyBatis 代理。
+// 业务逻辑：认证域和后台管理域分别维护独立 Mapper 包，启动时按精确包名加载即可满足全部 SQL 映射需求。
+@MapperScan({
+    "com.interview.auth.infrastructure.mapper",
+    "com.interview.auth.admin.mapper"
+})
 public class AuthApplication {
 
     /**

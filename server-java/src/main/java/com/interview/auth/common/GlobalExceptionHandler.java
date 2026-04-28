@@ -1,6 +1,7 @@
 package com.interview.auth.common;
 
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -8,31 +9,26 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 全局异常处理器。
- * 作用：把认证业务中的异常统一转换成前端可直接消费的响应结构，
- * 避免控制器里到处手写 try/catch。
+ * 业务目的：统一接住控制器层抛出的业务异常、参数异常和系统异常，保证前端始终拿到标准响应结构。
+ * 业务逻辑：已知业务错误按约定 code 返回，参数错误固定回 400，未知异常统一记录堆栈并输出可排查的错误类型。
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     /**
-     * 处理业务异常。
-     * 场景：账号不存在、密码错误、登录凭证失效等可预期错误。
-     *
-     * @param exception 业务异常对象
-     * @return 带业务 code 和提示文案的失败响应
+     * 业务目的：把可预期的业务异常原样透传给前端，避免业务提示被系统错误覆盖。
+     * 业务逻辑：直接复用业务异常中的 code 和 message，前端可继续按原有协议展示提示。
      */
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Void> handleBusinessException(BusinessException exception) {
+        log.warn("Business exception intercepted: code={}, message={}", exception.getCode(), exception.getMessage());
         return ApiResponse.fail(exception.getCode(), exception.getMessage());
     }
 
     /**
-     * 处理参数校验异常。
-     * 场景：请求体缺字段、邮箱格式不合法、JSON 结构错误等。
-     *
-     * @param exception 参数校验相关异常
-     * @return 统一的参数错误响应
+     * 业务目的：统一处理请求体缺字段、字段格式不合法和 JSON 结构错误等输入异常。
+     * 业务逻辑：参数异常统一落成 400，同时记录异常类型，便于快速区分是校验失败还是请求结构错误。
      */
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
@@ -41,18 +37,26 @@ public class GlobalExceptionHandler {
         HttpMessageNotReadableException.class
     })
     public ApiResponse<Void> handleValidationException(Exception exception) {
+        log.warn(
+            "Validation exception intercepted: type={}, message={}",
+            exception.getClass().getSimpleName(),
+            exception.getMessage()
+        );
         return ApiResponse.fail(400, "请求参数不合法");
     }
 
     /**
-     * 处理未被识别的系统异常。
-     * 场景：数据库异常、空指针、加解密异常等非预期错误。
-     *
-     * @param exception 未捕获异常
-     * @return 通用服务器错误响应
+     * 业务目的：兜底记录未识别系统异常，避免前端只收到无来源的泛化 500。
+     * 业务逻辑：完整打印异常堆栈到后端日志，前端仍保持统一的系统错误提示，避免内部实现细节外泄。
      */
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception exception) {
+        log.error(
+            "Unhandled exception intercepted: type={}, message={}",
+            exception.getClass().getName(),
+            exception.getMessage(),
+            exception
+        );
         return ApiResponse.fail(500, "服务器内部错误");
     }
 }

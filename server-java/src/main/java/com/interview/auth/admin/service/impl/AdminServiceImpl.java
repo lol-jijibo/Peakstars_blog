@@ -30,6 +30,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 业务逻辑：后端统一负责模块差异映射、仪表盘快照生成和编辑日志记录，前端只消费标准化结构。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AdminServiceImpl implements AdminService {
 
@@ -53,6 +56,7 @@ public class AdminServiceImpl implements AdminService {
     private static final int MAX_TREND_POINTS = 12;
 
     private final AdminMapper adminMapper;
+    private volatile boolean editLogStorageAvailable = true;
 
     /**
      * 业务目的：维护后台当前在线会话集合，给管理台实时在线人数提供数据来源。
@@ -192,7 +196,7 @@ public class AdminServiceImpl implements AdminService {
         summary.setOnlineUsers(onlineClientMap.size());
         summary.setTotalViews(techViews + worldViews + aiViews);
         summary.setTotalComments(totalComments);
-        summary.setEditsToday(safeInt(adminMapper.countTodayEdits()));
+        summary.setEditsToday(loadTodayEditCountSafely());
         summary.setTotalContents(techCount + worldCount + aiCount);
         summary.setLastUpdatedAt(LocalDateTime.now().format(DATE_TIME_FORMATTER));
         return summary;
@@ -233,7 +237,7 @@ public class AdminServiceImpl implements AdminService {
      * 业务逻辑：直接读取最近日志并格式化时间，前端可以把结果作为动态列表展示。
      */
     private List<AdminRecentEditResponse> buildRecentEdits() {
-        return adminMapper.findRecentEditLogs(8).stream().map(log -> {
+        return findRecentEditLogsSafely().stream().map(log -> {
             AdminRecentEditResponse response = new AdminRecentEditResponse();
             response.setId(log.getId());
             response.setContentType(log.getContentType());
@@ -454,13 +458,68 @@ public class AdminServiceImpl implements AdminService {
      * 业务逻辑：每次保存、删除和批量导入都记录一条操作轨迹，便于后台管理员回看最近变化。
      */
     private void appendEditLog(String contentType, String contentKey, String actionType, String contentTitle) {
+        if (!editLogStorageAvailable) {
+            return;
+        }
+
         ContentEditLog log = new ContentEditLog();
         log.setContentType(contentType);
         log.setContentKey(contentKey);
         log.setActionType(actionType);
         log.setOperatorName(DEFAULT_OPERATOR);
         log.setContentTitle(defaultString(contentTitle, contentKey));
-        adminMapper.insertContentEditLog(log);
+        try {
+            adminMapper.insertContentEditLog(log);
+        } catch (DataAccessException exception) {
+            disableEditLogStorage(exception);
+        }
+    }
+
+    /**
+     * 业务目的：安全读取今日编辑次数，避免后台辅助日志表缺失时首页接口直接失败。
+     * 业务逻辑：优先查询 content_edit_log 统计值，若表不存在或 SQL 失败则自动降级为 0 并关闭后续日志查询。
+     */
+    private int loadTodayEditCountSafely() {
+        if (!editLogStorageAvailable) {
+            return 0;
+        }
+
+        try {
+            return safeInt(adminMapper.countTodayEdits());
+        } catch (DataAccessException exception) {
+            disableEditLogStorage(exception);
+            return 0;
+        }
+    }
+
+    /**
+     * 业务目的：安全读取最近编辑动态，避免日志表未建时阻断后台首页展示。
+     * 业务逻辑：日志查询失败后直接回退为空列表，让右侧动态面板可用空态正常渲染。
+     */
+    private List<ContentEditLog> findRecentEditLogsSafely() {
+        if (!editLogStorageAvailable) {
+            return List.of();
+        }
+
+        try {
+            return adminMapper.findRecentEditLogs(8);
+        } catch (DataAccessException exception) {
+            disableEditLogStorage(exception);
+            return List.of();
+        }
+    }
+
+    /**
+     * 业务目的：在后台日志表不可用时快速熔断辅助写入，保证核心内容管理接口继续可用。
+     * 业务逻辑：首次捕获数据库异常后记录警告并关闭日志能力，后续请求不再重复访问该表。
+     */
+    private void disableEditLogStorage(DataAccessException exception) {
+        if (!editLogStorageAvailable) {
+            return;
+        }
+
+        editLogStorageAvailable = false;
+        log.warn("Admin edit log storage unavailable, dashboard recent-edit widgets will fall back to empty state.", exception);
     }
 
     /**
