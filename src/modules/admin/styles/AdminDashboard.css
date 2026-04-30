@@ -909,7 +909,7 @@ tr:hover .row-actions {
 }
 
 .modal {
-  width: min(960px, 100%);
+  width: min(1160px, 100%);
   max-height: calc(100vh - 40px);
   overflow: auto;
   border: 1px solid var(--border);
@@ -966,6 +966,7 @@ textarea.form-input {
 
 .editor-group {
   margin-top: 4px;
+  margin-bottom: 18px;
 }
 
 .modal-footer {

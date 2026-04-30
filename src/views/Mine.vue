@@ -87,7 +87,6 @@
           >
             <span class="recent-tag">{{ article.category === 'frontend' ? '前端' : '后端' }}</span>
             <strong>{{ article.title }}</strong>
-            <p>{{ article.summary }}</p>
             <span class="recent-meta">{{ article.author.name }} · {{ article.readTime }}</span>
           </button>
         </div>

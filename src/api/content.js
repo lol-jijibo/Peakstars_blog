@@ -1,3 +1,5 @@
+import { techArticles as localTechArticles } from '@/data/techArticles'
+
 const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
 // 业务目的：用一份内存缓存承接三个内容模块的列表数据，避免页面和导航重复请求同一接口。
@@ -43,8 +45,30 @@ function loadWithCache(cacheKey, url) {
   return target.promise
 }
 
+// 目的: 在不影响后台真实数据的前提下，为技术文章补充前端内置演示文章。
+// 逻辑: 以后端返回为主，按文章 id 去重后追加本地缺失项，确保新增参考文章可以直接展示。
+function mergeTechArticles(data) {
+  const remoteList = Array.isArray(data) ? [...data] : []
+  const articleIdSet = new Set(remoteList.map((item) => String(item.id)))
+
+  localTechArticles.forEach((item) => {
+    if (!articleIdSet.has(String(item.id))) {
+      remoteList.push(item)
+    }
+  })
+
+  return remoteList
+}
+
 export function getTechArticles() {
-  return loadWithCache('techArticles', '/api/content/tech-articles')
+  return loadWithCache('techArticles', '/api/content/tech-articles').then((data) => mergeTechArticles(data))
+}
+
+// 目的: 后台新增、编辑或删除技术文章后，让前台重新读取 MySQL 最新内容。
+// 逻辑: 主动清空技术文章缓存和进行中的请求引用，下一次进入列表或详情页会重新请求后端接口。
+export function invalidateTechArticlesCache() {
+  contentCache.techArticles.data = null
+  contentCache.techArticles.promise = null
 }
 
 export function getWorldNews() {

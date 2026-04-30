@@ -209,7 +209,6 @@ const articleGroups = computed(() => {
         meta: `${article.author.name} · ${article.readTime}`,
         title: article.title,
         summary: article.essence,
-        description: article.summary,
         points: article.highlights.slice(0, 3)
       }))
     }

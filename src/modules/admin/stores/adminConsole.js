@@ -9,6 +9,7 @@ import {
   sendAdminHeartbeat,
   updateAdminContent
 } from '@/modules/admin/api/admin'
+import { invalidateTechArticlesCache } from '@/api/content'
 
 // 业务目的：集中管理后台管理台的仪表盘、内容列表、轮询状态和编辑动作。
 // 业务逻辑：页面只和 Pinia 仓库交互，避免把轮询、缓存和错误处理散落到多个组件里。
@@ -82,6 +83,7 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
       } else {
         await createAdminContent(type, payload)
       }
+      invalidateFrontendContentCache(type)
       await Promise.all([loadContent(type), loadDashboard()])
     } catch (error) {
       errorMessage.value = error.message
@@ -96,6 +98,7 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
     errorMessage.value = ''
     try {
       await batchSaveAdminContent(type, records)
+      invalidateFrontendContentCache(type)
       await Promise.all([loadContent(type), loadDashboard()])
     } catch (error) {
       errorMessage.value = error.message
@@ -110,12 +113,21 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
     errorMessage.value = ''
     try {
       await deleteAdminContent(type, contentKey)
+      invalidateFrontendContentCache(type)
       await Promise.all([loadContent(type), loadDashboard()])
     } catch (error) {
       errorMessage.value = error.message
       throw error
     } finally {
       saving.value = false
+    }
+  }
+
+  // 目的: 管理后台写库成功后同步刷新前台内容数据源，避免新增技术文章仍显示旧缓存。
+  // 逻辑: 按内容类型清理对应前台接口缓存，当前先对接技术文章模块，后续模块可继续扩展。
+  function invalidateFrontendContentCache(type) {
+    if (type === 'tech') {
+      invalidateTechArticlesCache()
     }
   }
 

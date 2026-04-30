@@ -1,8 +1,12 @@
 <template>
   <div class="admin-rich-editor">
+    <div class="admin-rich-editor-head">
+      <strong>正文排版编辑</strong>
+      <span>支持标题、字号、加粗、列表、引用、图片、表格、代码块和全屏编辑</span>
+    </div>
     <div ref="editorRef" class="admin-rich-editor-shell"></div>
     <p class="admin-rich-editor-tip">
-      {{ aiEnabled ? 'AI 已启用，可直接在编辑器气泡菜单中调用润色与续写。' : '当前未配置 AI Key，编辑器可正常使用，补齐配置后会自动启用 AI 能力。' }}
+      {{ aiEnabled ? 'AI 已启用，选中文本后可在气泡菜单中调用润色、续写和改写。' : '当前未配置 AI Key，富文本排版能力可正常使用；补齐配置后会自动启用 AI 辅助写作。' }}
     </p>
   </div>
 </template>
@@ -17,7 +21,7 @@ const props = defineProps({
   },
   placeholder: {
     type: String,
-    default: '请输入正文内容'
+    default: '输入正文内容，使用标题、引用、列表、图片和表格组织文章结构。'
   }
 })
 
@@ -28,8 +32,10 @@ let editorInstance = null
 let editorConstructor = null
 let editorRuntimePromise = null
 
-// 业务目的：在后台内容弹窗中挂载富文本编辑器，统一承接正文编辑、AI 润色与内容回填。
-// 业务逻辑：首次打开时异步加载 AiEditor 运行时与样式，后续继续复用同一份实例构造器，避免把重依赖提前打进管理页主包。
+/**
+ * 统一承接后台正文编辑与内容回填。
+ * 首次打开时异步加载编辑器，并给新文章注入基础正文骨架。
+ */
 async function initEditor() {
   if (!editorRef.value) {
     return
@@ -38,9 +44,52 @@ async function initEditor() {
   await ensureEditorRuntime()
   editorInstance = new editorConstructor({
     element: editorRef.value,
-    content: props.modelValue || '<p>请输入正文内容</p>',
+    content: props.modelValue || createDefaultContent(),
     placeholder: props.placeholder,
+    lang: 'zh',
     theme: 'light',
+    toolbarSize: 'medium',
+    toolbarTipEnable: true,
+    draggable: true,
+    contentRetention: false,
+    toolbarKeys: editorToolbarKeys,
+    fontFamily: {
+      values: [
+        { name: '默认字体', value: '' },
+        { name: '苹方 / 微软雅黑', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif' },
+        { name: '宋体', value: 'SimSun, STSong, serif' },
+        { name: '代码字体', value: 'Menlo, Consolas, "Courier New", monospace' }
+      ]
+    },
+    fontSize: {
+      defaultValue: 16,
+      values: [
+        { name: '12', value: 12 },
+        { name: '14', value: 14 },
+        { name: '16', value: 16 },
+        { name: '18', value: 18 },
+        { name: '20', value: 20 },
+        { name: '24', value: 24 },
+        { name: '28', value: 28 },
+        { name: '32', value: 32 }
+      ]
+    },
+    lineHeight: {
+      values: ['1', '1.25', '1.5', '1.75', '2', '2.5', '3']
+    },
+    htmlPasteConfig: {
+      pasteClean: true,
+      removeEmptyParagraphs: true
+    },
+    image: {
+      allowBase64: true,
+      defaultSize: 640,
+      bubbleMenuEnable: true
+    },
+    textSelectionBubbleMenu: {
+      enable: true,
+      items: ['ai', 'bold', 'italic', 'underline', 'strike', 'font-color', 'highlight', 'link']
+    },
     onChange(editor) {
       emit('update:modelValue', editor.getHtml())
     },
@@ -48,6 +97,10 @@ async function initEditor() {
   })
 }
 
+/**
+ * 仅在后台已配置 AI 能力时开启辅助写作。
+ * 未配置时返回空配置，保证正文编辑稳定可用。
+ */
 function buildAiConfig() {
   if (!aiEnabled) {
     return undefined
@@ -56,6 +109,24 @@ function buildAiConfig() {
   return {
     bubblePanelEnable: true,
     bubblePanelModel: 'openai',
+    commandsEnable: true,
+    bubblePanelMenus: [
+      {
+        title: '润色表达',
+        prompt: '请在不改变原意的前提下，让这段技术文章表达更自然、更专业，并保留原有 HTML 结构。',
+        icon: 'sparkles'
+      },
+      {
+        title: '补充细节',
+        prompt: '请围绕选中的技术文章片段补充必要背景、实现细节和工程注意事项，保持语气克制专业。',
+        icon: 'plus'
+      },
+      {
+        title: '提炼小标题',
+        prompt: '请为选中内容提炼一个简洁清晰的小标题，适合技术文章正文结构。',
+        icon: 'heading'
+      }
+    ],
     models: {
       openai: {
         apiKey: import.meta.env.VITE_ADMIN_AI_API_KEY,
@@ -64,6 +135,64 @@ function buildAiConfig() {
       }
     }
   }
+}
+
+const editorToolbarKeys = [
+  'undo',
+  'redo',
+  'brush',
+  'eraser',
+  'divider',
+  'heading',
+  'font-family',
+  'font-size',
+  'divider',
+  'bold',
+  'italic',
+  'underline',
+  'strike',
+  'link',
+  'code',
+  'divider',
+  'font-color',
+  'highlight',
+  'align',
+  'line-height',
+  'divider',
+  'bullet-list',
+  'ordered-list',
+  'todo',
+  'indent-decrease',
+  'indent-increase',
+  'quote',
+  'container',
+  'divider',
+  'image',
+  'table',
+  'code-block',
+  'hr',
+  'divider',
+  'fullscreen',
+  'ai'
+]
+
+/**
+ * 为新建文章提供原来的基础正文骨架。
+ * 使用导语、引用和列表组织内容，方便直接补充正文。
+ */
+function createDefaultContent() {
+  return `
+    <h2>文章导语</h2>
+    <p>在这里写清楚这篇文章要解决的问题、适合谁阅读，以及读完能获得什么。</p>
+    <blockquote><p>可以把最重要的结论或背景放在这里，形成首屏重点。</p></blockquote>
+    <h2>核心内容</h2>
+    <p>使用标题、加粗、列表、图片、表格或代码块组织正文，让读者更容易扫描和理解。</p>
+    <ul>
+      <li>关键点一：补充业务背景或技术背景。</li>
+      <li>关键点二：说明方案逻辑、实现路径或踩坑经验。</li>
+      <li>关键点三：给出结论、建议或后续行动。</li>
+    </ul>
+  `
 }
 
 watch(
@@ -75,7 +204,7 @@ watch(
 
     const currentHtml = editorInstance.getHtml()
     if ((nextValue || '') !== currentHtml) {
-      editorInstance.setContent(nextValue || '<p>请输入正文内容</p>')
+      editorInstance.setContent(nextValue || createDefaultContent())
     }
   }
 )
@@ -89,8 +218,10 @@ onBeforeUnmount(() => {
   editorInstance = null
 })
 
-// 业务目的：仅在真正进入内容编辑时加载编辑器资源，减少管理后台首页的首屏包体积。
-// 业务逻辑：首次异步导入成功后缓存 Promise 和构造器，后续弹窗多次打开都走内存复用，不重复拉取资源。
+/**
+ * 编辑器资源较重，需要按需异步加载。
+ * 首次加载后缓存运行时，后续弹窗直接复用。
+ */
 async function ensureEditorRuntime() {
   if (!editorRuntimePromise) {
     editorRuntimePromise = Promise.all([
@@ -100,6 +231,7 @@ async function ensureEditorRuntime() {
       editorConstructor = editorModule.AiEditor
     })
   }
+
   await editorRuntimePromise
 }
 </script>
@@ -107,13 +239,102 @@ async function ensureEditorRuntime() {
 <style scoped>
 .admin-rich-editor {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+
+.admin-rich-editor-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.92));
+  color: #0f172a;
+}
+
+.admin-rich-editor-head strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.admin-rich-editor-head span {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .admin-rich-editor-shell {
-  min-height: 360px;
-  border-radius: 22px;
+  min-height: 560px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 18px;
+  background: #eef2f7;
   overflow: hidden;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.16);
+}
+
+.admin-rich-editor-shell :deep(.aie-container) {
+  height: 560px;
+  border: 0;
+  background: #eef2f7;
+}
+
+.admin-rich-editor-shell :deep(aie-header) {
+  border-bottom: 1px solid #dbe3ee;
+  background: #ffffff;
+}
+
+.admin-rich-editor-shell :deep(.aie-content) {
+  background: #eef2f7;
+  padding: 28px 0 42px;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror) {
+  width: min(760px, calc(100% - 64px));
+  min-height: 430px;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 56px 64px;
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror h1),
+.admin-rich-editor-shell :deep(.ProseMirror h2),
+.admin-rich-editor-shell :deep(.ProseMirror h3) {
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror blockquote) {
+  margin: 18px 0;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  color: #334155;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror pre) {
+  border-radius: 10px;
+  padding: 16px;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror table) {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-rich-editor-shell :deep(.ProseMirror th),
+.admin-rich-editor-shell :deep(.ProseMirror td) {
+  border: 1px solid #dbe3ee;
+  padding: 10px 12px;
 }
 
 .admin-rich-editor-tip {

@@ -93,8 +93,7 @@ export const techArticles = [
     id: 'fastapi-middleware-advanced',
     category: 'backend',
     title: '开源模型应用落地-FastAPI-助力模型交互-进阶篇-中间件（四）',
-    summary:
-      '把复杂路由、鉴权、日志链路和参数校验收拢进中间件层，让模型调用链从“能跑”进入“可持续演进”。',
+    summary: '',
     essence:
       '重点拆开了中间件在推理请求里的位置，读完能直接把鉴权、请求追踪和异常处理接进现有服务。',
     highlights: ['模型接口统一鉴权', '请求追踪与日志落盘', '异常链路的统一兜底'],
@@ -312,6 +311,208 @@ export const techArticles = [
     isLiked: true,
     inHistory: true,
     featured: false
+  },
+  {
+    id: 'rust-ownership-system',
+    category: 'backend',
+    categoryLabel: '系统编程',
+    title: '深入理解 Rust 所有权系统：内存安全的哲学',
+    summary:
+      '所有权不只是一个语言特性，它是一种关于资源管理的全新思维方式。文章从零开始拆解 Rust 最核心的设计决策。',
+    subtitle:
+      '所有权不只是一个语言特性——它是一种关于资源管理的全新思维方式。本文从零开始，逐层剥开 Rust 最核心的设计决策。',
+    essence:
+      '如果你总觉得 borrow checker 像在刁难人，这篇文章会把它背后的内存安全逻辑讲清楚。',
+    highlights: ['所有权三条规则', '借用与可变引用', '生命周期标注'],
+    tags: ['Rust', '系统编程', '内存安全', '所有权', '编译器', '并发'],
+    series: 'Rust 深潜系列 · 第 3 期',
+    authorIntro:
+      '在分布式系统和底层性能优化领域耕耘 8 年，现专注于用 Rust 重构关键基础设施。相信清晰的思维比聪明的技巧更重要。',
+    author: {
+      name: '陈 Kai',
+      role: '系统工程师 · Rust 布道者',
+      initials: '陈K',
+      accent: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    },
+    coverUrl: '',
+    publishedAt: '2026-04-28',
+    readCount: 4200,
+    likeCount: 312,
+    collectCount: 186,
+    commentCount: 48,
+    readTime: '12 min',
+    followersCount: 11800,
+    isVip: true,
+    isCollected: false,
+    isLiked: true,
+    inHistory: false,
+    featured: true,
+    contentHtml: `
+      <p class="lead">
+        当你第一次遇到 Rust 的借用检查器（borrow checker）时，它看起来像一个严苛的守门人。但理解它的底层逻辑之后，你会发现这其实是编译器在帮你思考——在代码运行之前就替你排除了一整类错误。
+      </p>
+
+      <p>
+        内存安全问题长期以来是系统编程的噩梦：use-after-free、双重释放、数据竞争……这些错误不仅难以复现，还往往成为安全漏洞的根源。C 和 C++ 将内存管理的责任完全交给程序员；垃圾回收语言用运行时开销换取安全；而 Rust 选择了第三条路：<strong>通过类型系统在编译期强制执行所有权规则</strong>。
+      </p>
+
+      <h2>所有权的三条规则</h2>
+
+      <p>
+        Rust 的所有权系统建立在三条简洁的规则之上。理解这三条规则，就理解了 Rust 内存管理的全部基础：
+      </p>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">📌</span>
+        <p>
+          <strong>规则一：</strong>每个值都有且仅有一个所有者（owner）。<br>
+          <strong>规则二：</strong>同一时刻，一个值只能有一个所有者。<br>
+          <strong>规则三：</strong>当所有者离开作用域，值被自动释放（drop）。
+        </p>
+      </div>
+
+      <p>
+        这三条规则听起来简单，但它们的组合效果非常强大。让我们通过代码来感受它们：
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots">
+            <div class="dot dot-r"></div>
+            <div class="dot dot-y"></div>
+            <div class="dot dot-g"></div>
+          </div>
+          <span class="code-lang">Rust</span>
+        </div>
+        <pre><code><span class="kw">fn</span> <span class="fn">main</span>() {
+    <span class="kw">let</span> s1 = <span class="ty">String</span>::<span class="fn">from</span>(<span class="st">"hello"</span>);  <span class="cm">// s1 是这个 String 的所有者</span>
+    <span class="kw">let</span> s2 = s1;                      <span class="cm">// 所有权移交给 s2（move）</span>
+
+    <span class="cm">// println!("{}", s1);          // ❌ 编译错误！s1 已经无效</span>
+    <span class="fn">println!</span>(<span class="st">"{}"</span>, s2);               <span class="cm">// ✅ s2 有效</span>
+}   <span class="cm">// s2 离开作用域，内存被自动释放</span></code></pre>
+      </div>
+
+      <p>
+        注意第三行：<code>let s2 = s1</code> 执行的不是复制（copy），而是<strong>移动（move）</strong>。移动后，<code>s1</code> 不再有效。这正是所有权系统防止双重释放的方式——当作用域结束时，只有 <code>s2</code> 会被 drop。
+      </p>
+
+      <h2>借用：不转让所有权的访问</h2>
+
+      <p>
+        如果每次传递值都要转移所有权，代码会变得极其繁琐。Rust 提供了<strong>借用（borrowing）</strong>机制——通过引用来访问值，而不夺取所有权：
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots">
+            <div class="dot dot-r"></div>
+            <div class="dot dot-y"></div>
+            <div class="dot dot-g"></div>
+          </div>
+          <span class="code-lang">Rust</span>
+        </div>
+        <pre><code><span class="kw">fn</span> <span class="fn">calculate_length</span>(s: <span class="lf">&</span><span class="ty">String</span>) -> <span class="ty">usize</span> {
+    s.len()  <span class="cm">// 只是读取，不夺取所有权</span>
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() {
+    <span class="kw">let</span> s1 = <span class="ty">String</span>::<span class="fn">from</span>(<span class="st">"hello"</span>);
+    <span class="kw">let</span> len = <span class="fn">calculate_length</span>(<span class="lf">&</span>s1);   <span class="cm">// 传递引用</span>
+
+    <span class="fn">println!</span>(<span class="st">"'{}' 的长度是 {}"</span>, s1, len);  <span class="cm">// s1 仍然有效！</span>
+}</code></pre>
+      </div>
+
+      <h3>可变引用的独占性</h3>
+
+      <p>
+        借用规则中最精妙的一条是：<strong>在同一时刻，你只能有一个可变引用，或者任意多个不可变引用——两者不能共存。</strong>
+      </p>
+
+      <div class="article-image">
+        <div class="image-placeholder">
+          <div class="ownership-diagram">
+            <div class="mem-block">
+              <div class="mem-label">堆内存</div>
+              <div class="mem-cell owned">ptr → "hello"</div>
+              <div class="mem-cell owned">len: 5</div>
+              <div class="mem-cell owned">cap: 5</div>
+            </div>
+            <div class="arrow-group">
+              <div class="arrow-line"></div>
+              <div class="arrow-tag">move</div>
+            </div>
+            <div class="mem-block">
+              <div class="mem-label">栈: s2 (owner)</div>
+              <div class="mem-cell owned">ptr</div>
+              <div class="mem-cell owned">len: 5</div>
+              <div class="mem-cell owned">cap: 5</div>
+            </div>
+            <div class="ownership-plus">+</div>
+            <div class="mem-block">
+              <div class="mem-label">栈: s1 (invalid)</div>
+              <div class="mem-cell freed">ptr</div>
+              <div class="mem-cell freed">len: 5</div>
+              <div class="mem-cell freed">cap: 5</div>
+            </div>
+          </div>
+        </div>
+        <p class="image-caption">图 1 — 所有权移动后，原变量的栈数据失效，堆内存只由新所有者负责释放</p>
+      </div>
+
+      <p>
+        这条规则在编译期消除了数据竞争（data race）的可能性。数据竞争需要：两个或以上指针同时访问同一数据，且至少一个在写入。Rust 的规则让这三个条件永远无法同时成立。
+      </p>
+
+      <blockquote>
+        <p>"所有权系统最大的天才之处，在于它将一个运行时问题变成了一个编译期约束，而这个约束本身足够表达力强，不会成为正确程序的障碍。"</p>
+        <cite>— Niko Matsakis，Rust 核心团队</cite>
+      </blockquote>
+
+      <h2>生命周期：让借用跨函数也安全</h2>
+
+      <p>
+        当引用跨越函数边界时，借用检查器需要额外的信息来验证安全性。这就是<strong>生命周期标注（lifetime annotations）</strong>的用途——它们不改变引用的实际存活时间，只是告诉编译器不同引用之间的关系：
+      </p>
+
+      <div class="code-block">
+        <div class="code-header">
+          <div class="code-dots">
+            <div class="dot dot-r"></div>
+            <div class="dot dot-y"></div>
+            <div class="dot dot-g"></div>
+          </div>
+          <span class="code-lang">Rust</span>
+        </div>
+        <pre><code><span class="cm">// 'a 声明一个生命周期参数</span>
+<span class="cm">// 返回的引用与两个参数中较短的那个同寿</span>
+<span class="kw">fn</span> <span class="fn">longest</span><span class="lf">&lt;'a&gt;</span>(x: <span class="lf">&'a</span> <span class="ty">str</span>, y: <span class="lf">&'a</span> <span class="ty">str</span>) -> <span class="lf">&'a</span> <span class="ty">str</span> {
+    <span class="kw">if</span> x.len() > y.len() { x } <span class="kw">else</span> { y }
+}
+
+<span class="kw">fn</span> <span class="fn">main</span>() {
+    <span class="kw">let</span> s1 = <span class="ty">String</span>::<span class="fn">from</span>(<span class="st">"long string"</span>);
+    <span class="kw">let</span> result;
+    {
+        <span class="kw">let</span> s2 = <span class="ty">String</span>::<span class="fn">from</span>(<span class="st">"xyz"</span>);
+        result = <span class="fn">longest</span>(s1.as_str(), s2.as_str());
+        <span class="fn">println!</span>(<span class="st">"最长的字符串是 {}"</span>, result);
+    }   <span class="cm">// s2 在这里被释放，result 也随之无效</span>
+}</code></pre>
+      </div>
+
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚡</span>
+        <p>
+          <strong>常见误解：</strong>生命周期标注不会让引用活得更长，它只是在编译器无法自行推断时，帮助它理解多个引用之间的约束关系。大多数情况下，Rust 可以通过<strong>生命周期省略规则</strong>自动推断，你不需要手动标注。
+        </p>
+      </div>
+
+      <p>
+        理解了所有权、借用和生命周期，你就掌握了 Rust 内存安全的核心。这三个概念互相配合，构建出一个在编译期就能捕获整类内存错误的系统。随着你写更多 Rust 代码，借用检查器会从「令人沮丧的障碍」变成「值得信赖的同伴」。
+      </p>
+    `
   }
 ]
 

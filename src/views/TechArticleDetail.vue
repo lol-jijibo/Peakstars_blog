@@ -1,386 +1,514 @@
 <template>
-  <div class="article-detail-page">
-    <blog-mega-header current-page="article" />
+  <div class="article-page">
+    <div class="article-progress-bar" :style="{ width: `${scrollProgress}%` }"></div>
 
-    <main class="article-detail-main">
-      <button class="article-detail-back" type="button" @click="goBack">返回文章列表</button>
+    <header class="article-topbar">
+      <button class="article-topbar-brand" type="button" @click="goHome">
+        Peak<span>Depth</span>
+      </button>
 
-      <div v-if="loading" class="article-detail-state">文章加载中...</div>
-      <div v-else-if="error" class="article-detail-state article-detail-state--error">
-        <strong>{{ error }}</strong>
-        <button type="button" @click="router.push('/articles')">回到文章列表</button>
-      </div>
+      <nav class="article-topbar-nav" aria-label="文章导航">
+        <button type="button" @click="goArticleList">文章</button>
+        <button type="button" @click="scrollToSeries">系列</button>
+        <button type="button" @click="openCategory('frontend')">前端</button>
+        <button type="button" @click="openCategory('backend')">后端</button>
+      </nav>
 
-      <!-- 目的: 详情页主体承接文章阅读、互动和侧边信息展示。 -->
-      <!-- 逻辑: 左侧互动栏、正文和右侧作者目录三列排列，移动端自动收拢为单列。 -->
-      <section v-else-if="article" class="article-detail-layout">
-        <aside class="article-action-rail" aria-label="文章互动">
-          <button
-            class="article-action-btn article-action-btn--like"
-            :class="{ active: isLiked }"
-            type="button"
-            @click="toggleLike"
-            aria-label="点赞"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21.2 10.7 20C5.8 15.6 2.5 12.6 2.5 8.9 2.5 5.9 4.8 3.6 7.8 3.6c1.7 0 3.3.8 4.2 2 1-1.2 2.6-2 4.2-2 3 0 5.3 2.3 5.3 5.3 0 3.7-3.3 6.7-8.2 11.1L12 21.2Z" />
-            </svg>
-            <span>{{ formatCount(localLikeCount) }}</span>
-          </button>
+      <button class="article-topbar-action" type="button" @click="goArticleList">返回列表 →</button>
+    </header>
 
-          <button class="article-action-btn article-action-btn--comment" type="button" @click="scrollToComments" aria-label="评论">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4.4 4.7c1.8-1.7 4.3-2.6 7.5-2.6 3.1 0 5.6.9 7.5 2.6 1.7 1.6 2.6 3.7 2.6 6.2 0 2.5-.9 4.6-2.6 6.1-1.8 1.7-4.3 2.5-7.5 2.5-.7 0-1.3 0-1.9-.1l-5.1 2.4c-.8.4-1.6-.4-1.3-1.2l1.6-4.4C3.1 14.7 2 12.9 2 10.9c0-2.5.8-4.6 2.4-6.2Zm3.2 5.1a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4.4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Zm4.4 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4Z" />
-            </svg>
-            <span>{{ formatCount(article.commentCount) }}</span>
-          </button>
+    <div class="article-shell">
+      <main class="article-main">
+        <header class="article-header">
+          <div class="article-meta-top">
+            <span class="article-category-badge">{{ articleCategoryLabel }}</span>
+            <span class="article-series">{{ articleSeries }}</span>
+          </div>
 
-          <button
-            class="article-action-btn article-action-btn--collect"
-            :class="{ active: isCollected }"
-            type="button"
-            @click="toggleCollect"
-            aria-label="收藏"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 3.2h12c1.1 0 2 .9 2 2v15c0 .8-.9 1.3-1.5.8L12 16.5 5.5 21c-.7.5-1.5 0-1.5-.8v-15c0-1.1.9-2 2-2Z" />
-            </svg>
-            <span>{{ formatCount(localCollectCount) }}</span>
-          </button>
-        </aside>
+          <h1 class="article-title">{{ currentArticle.title }}</h1>
 
-        <article class="article-detail-content">
-          <header class="article-detail-hero">
-            <div class="article-detail-meta">
-              <span>{{ article.category === 'frontend' ? '前端文章' : '后端文章' }}</span>
-              <span>{{ article.publishedAt }}</span>
-              <span>{{ article.readTime }}</span>
+          <p class="article-subtitle">{{ articleSubtitle }}</p>
+
+          <div class="article-byline">
+            <div class="article-author-avatar">{{ authorAvatarText }}</div>
+            <div class="article-byline-text">
+              <span class="article-author-name">{{ author.name }}</span>
+              <span class="article-date-read">{{ displayPublishedAt }} · {{ displayReadTime }}</span>
             </div>
-            <h1>{{ article.title }}</h1>
-            <p>{{ article.summary }}</p>
-          </header>
 
-          <div ref="articleContentRef" class="article-detail-body" v-html="articleBody.html"></div>
-
-          <section id="article-comments" class="article-comments-panel">
-            <h2>评论</h2>
-            <p>共 {{ formatCount(article.commentCount) }} 条讨论，欢迎围绕本文的方案取舍继续交流。</p>
-          </section>
-        </article>
-
-        <aside class="article-detail-side">
-          <section class="article-author-panel">
-            <div class="article-author-profile">
-              <img v-if="authorAvatarUrl" :src="authorAvatarUrl" :alt="article.author.name" loading="lazy" />
-              <div v-else class="article-author-profile-fallback" :style="{ background: article.author.accent }">
-                {{ article.author.initials }}
+            <div class="article-stats">
+              <div class="article-stat">
+                <span class="article-stat-num">{{ displayReadCount }}</span>
+                <span class="article-stat-label">阅读</span>
               </div>
-              <div>
-                <strong>{{ article.author.name }}</strong>
-                <span>{{ article.author.role }}</span>
+              <div class="article-stat">
+                <span class="article-stat-num">{{ displayLikeCount }}</span>
+                <span class="article-stat-label">点赞</span>
+              </div>
+              <div class="article-stat">
+                <span class="article-stat-num">{{ displayCommentCount }}</span>
+                <span class="article-stat-label">评论</span>
               </div>
             </div>
+          </div>
+        </header>
 
-            <div class="article-author-stats">
-              <span><strong>{{ authorArticleCount }}</strong>文章</span>
-              <span><strong>{{ followersCount }}</strong>粉丝</span>
-              <span><strong>{{ followingCount }}</strong>关注</span>
+        <article ref="articleBodyRef" class="article-body" v-html="articleHtml"></article>
+
+        <div class="article-tags">
+          <span v-for="tag in articleTags" :key="tag" class="article-tag"># {{ tag }}</span>
+        </div>
+
+        <section class="article-author-card">
+          <div class="article-author-card-header">
+            <div class="article-author-avatar-large">{{ authorAvatarText }}</div>
+            <div>
+              <div class="article-author-card-name">{{ author.name }}</div>
+              <div class="article-author-card-role">{{ author.role }}</div>
             </div>
-          </section>
+          </div>
 
-          <section class="article-toc-panel">
-            <button class="article-toc-head" type="button" @click="isTocCollapsed = !isTocCollapsed">
-              <span>目录</span>
-              <span class="article-toc-toggle">{{ isTocCollapsed ? '展开' : '收起' }}</span>
+          <p>{{ authorIntro }}</p>
+
+          <button class="article-author-follow" type="button">关注作者</button>
+        </section>
+      </main>
+
+      <aside class="article-sidebar">
+        <section v-if="outlineItems.length" class="article-sidebar-section">
+          <h2 class="article-sidebar-title">目录</h2>
+          <ul class="article-toc-list">
+            <li
+              v-for="item in outlineItems"
+              :key="item.id"
+              class="article-toc-item"
+              :class="{
+                active: activeOutlineId === item.id,
+                sub: item.level === 'h3'
+              }"
+            >
+              <button type="button" @click="scrollToHeading(item.id)">{{ item.text }}</button>
+            </li>
+          </ul>
+        </section>
+
+        <section ref="seriesSectionRef" class="article-sidebar-section">
+          <h2 class="article-sidebar-title">系列相关</h2>
+          <button
+            v-for="(item, index) in relatedArticles"
+            :key="item.id"
+            class="article-related-item"
+            type="button"
+            @click="openArticle(item.id)"
+          >
+            <span class="article-related-num">{{ String(index + 1).padStart(2, '0') }}</span>
+            <span class="article-related-info">
+              <span class="article-related-title">{{ item.title }}</span>
+              <span class="article-related-meta">{{ item.meta }}</span>
+            </span>
+          </button>
+        </section>
+
+        <section class="article-sidebar-section article-sidebar-share">
+          <h2 class="article-sidebar-title">分享</h2>
+          <div class="article-share-list">
+            <button class="article-share-button" type="button" @click="shareToX">
+              <span class="article-share-icon article-share-icon--x">𝕏</span>
+              分享到 X
             </button>
+            <button class="article-share-button" type="button" @click="shareToLinkedIn">
+              <span class="article-share-icon article-share-icon--in">in</span>
+              分享到 LinkedIn
+            </button>
+            <button class="article-share-button" type="button" @click="copyLink">
+              <span class="article-share-icon article-share-icon--copy">⎘</span>
+              {{ copiedText }}
+            </button>
+          </div>
+        </section>
+      </aside>
+    </div>
 
-            <nav v-show="!isTocCollapsed" class="article-toc-list" aria-label="文章目录">
-              <button
-                v-for="item in articleBody.toc"
-                :key="item.id"
-                class="article-toc-item"
-                :class="[`article-toc-item--level-${item.level}`, { active: activeHeadingId === item.id }]"
-                type="button"
-                @click="scrollToHeading(item.id)"
-              >
-                {{ item.title }}
-              </button>
-            </nav>
-          </section>
-        </aside>
-      </section>
-    </main>
+    <footer class="article-footer">
+      <span class="article-footer-brand">Peak<span>Depth</span></span>
+      <span class="article-footer-copy">© 2026 PeakDepth · 深度技术内容</span>
+    </footer>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
-import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { techArticles as fallbackTechArticles } from '@/data/techArticles'
+import { techArticles as localTechArticles } from '@/data/techArticles'
 
 const route = useRoute()
 const router = useRouter()
 
-const article = ref(null)
 const techArticles = ref([])
-const loading = ref(true)
-const error = ref('')
-const isLiked = ref(false)
-const isCollected = ref(false)
-const isTocCollapsed = ref(false)
-const localLikeCount = ref(0)
-const localCollectCount = ref(0)
-const activeHeadingId = ref('')
-const articleContentRef = ref(null)
-let headingObserver = null
+const article = ref(null)
+const articleBodyRef = ref(null)
+const seriesSectionRef = ref(null)
+const outlineItems = ref([])
+const activeOutlineId = ref('')
+const scrollProgress = ref(0)
+const copiedText = ref('复制链接')
 
-// 目的: 复用文章列表作者头像资源，让详情页作者信息与推荐区视觉保持一致。
-// 逻辑: 按作者名称匹配头像，未命中时回退到作者首字母渐变头像。
-const authorAvatarMap = {
-  'Francek Chen': encodeURI('/【哲风壁纸】夏日-晴天-氛围感.png'),
-  '科技 D 人生': encodeURI('/ChatGPT Image 2026年4月23日 18_37_46.png'),
-  '自由程序员': encodeURI('/【哲风壁纸】xiaomiyu7-小米suv.png'),
-  '微笑很纯洁': encodeURI('/【哲风壁纸】公路-后视镜-城镇.png'),
-  '算法与编程之美': encodeURI('/【哲风壁纸】云彩-夜晚-夜景.png'),
-  'fTiN CAPA': '/qq.jpg'
+const defaultArticle = localTechArticles.find((item) => item.id === 'rust-ownership-system') || localTechArticles[0]
+
+/**
+ * 目的：统一详情页文章来源，兼容后台接口和前端内置参考文章。
+ * 逻辑：优先读取接口合并结果，找不到时回退到内置文章，保证参考版式始终可见。
+ */
+async function loadArticle(articleId) {
+  try {
+    const list = await getTechArticles()
+    techArticles.value = Array.isArray(list) && list.length ? list : localTechArticles
+  } catch {
+    techArticles.value = localTechArticles
+  }
+
+  article.value =
+    techArticles.value.find((item) => String(item.id) === String(articleId)) || defaultArticle
+
+  await nextTick()
+  syncOutline()
+  updateScrollState()
 }
 
-const articleBody = computed(() => createArticleBody(article.value))
+const currentArticle = computed(() => article.value || defaultArticle)
 
-const authorAvatarUrl = computed(() => authorAvatarMap[article.value?.author?.name] || '')
+const author = computed(() => ({
+  name: currentArticle.value.author?.name || currentArticle.value.authorName || 'PeakDepth',
+  role: currentArticle.value.author?.role || currentArticle.value.authorRole || '技术作者'
+}))
 
-const authorArticleCount = computed(() => {
-  if (!article.value) {
-    return 0
+const articleCategoryLabel = computed(
+  () => currentArticle.value.categoryLabel || resolveCategoryLabel(currentArticle.value.category)
+)
+
+const articleSeries = computed(() => {
+  if (currentArticle.value.series) {
+    return currentArticle.value.series
   }
 
-  return techArticles.value.filter((item) => item.author?.name === article.value.author?.name).length || 1
+  return `${articleCategoryLabel.value}专题 · ${currentArticle.value.isVip ? '深度解读' : '工程实践'}`
 })
 
-const followersCount = computed(() => {
-  if (!article.value) {
-    return '0'
+const articleSubtitle = computed(() => {
+  return (
+    currentArticle.value.subtitle ||
+    currentArticle.value.summary ||
+    currentArticle.value.essence ||
+    '围绕真实工程问题拆开背景、取舍与落地过程。'
+  )
+})
+
+const articleHtml = computed(() => {
+  if (currentArticle.value.contentHtml) {
+    return currentArticle.value.contentHtml
   }
 
-  return formatCount(Math.max(1200, article.value.readCount * 6 + article.value.likeCount * 38))
+  return buildArticleHtml(currentArticle.value)
 })
 
-const followingCount = computed(() => {
-  if (!article.value) {
-    return 0
+const articleTags = computed(() => {
+  if (Array.isArray(currentArticle.value.tags) && currentArticle.value.tags.length) {
+    return currentArticle.value.tags
   }
 
-  return Math.max(12, authorArticleCount.value * 5 + 8)
+  const fallbackTags = [
+    articleCategoryLabel.value,
+    ...(currentArticle.value.highlights || [])
+  ].filter(Boolean)
+
+  return [...new Set(fallbackTags)].slice(0, 6)
 })
 
-// 目的: 详情页直接复用文章列表接口，保证列表与详情的数据口径一致。
-// 逻辑: 先请求后端内容缓存，失败时回退本地静态数据，再用路由 id 定位当前文章。
+const authorAvatarText = computed(() => {
+  return currentArticle.value.author?.initials || buildInitials(author.value.name)
+})
+
+const authorIntro = computed(() => {
+  return (
+    currentArticle.value.authorIntro ||
+    `${author.value.name} 长期关注 ${articleCategoryLabel.value} 场景，持续记录真实项目里的判断依据与工程取舍。`
+  )
+})
+
+const displayPublishedAt = computed(() => formatLongDate(currentArticle.value.publishedAt))
+const displayReadTime = computed(() => formatReadTime(currentArticle.value.readTime))
+const displayReadCount = computed(() => formatCompactCount(currentArticle.value.readCount || 0))
+const displayLikeCount = computed(() => formatCompactCount(currentArticle.value.likeCount || 0))
+const displayCommentCount = computed(() => formatCompactCount(currentArticle.value.commentCount || 0))
+
+const relatedArticles = computed(() => {
+  const currentId = String(currentArticle.value.id)
+  const category = currentArticle.value.category
+
+  return techArticles.value
+    .filter((item) => String(item.id) !== currentId)
+    .sort((left, right) => {
+      const leftScore = Number(left.category === category) + Number(left.featured)
+      const rightScore = Number(right.category === category) + Number(right.featured)
+      return rightScore - leftScore
+    })
+    .slice(0, 3)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      meta: `${formatReadTime(item.readTime)} · ${formatCompactCount(item.readCount || 0)} 阅读`
+    }))
+})
+
 watch(
   () => route.params.id,
-  async (articleId) => {
-    await loadArticle(articleId)
+  (articleId) => {
+    loadArticle(articleId)
   },
   { immediate: true }
 )
 
-// 目的: 正文目录生成后重新绑定滚动监听，让目录颜色跟随当前阅读章节变化。
-// 逻辑: 监听目录 id 序列，等待 DOM 更新完成后用 IntersectionObserver 观察标题位置。
-watch(
-  () => articleBody.value.toc.map((item) => item.id).join('|'),
-  async () => {
-    await nextTick()
-    bindHeadingObserver()
-  }
-)
-
-onBeforeUnmount(() => {
-  if (headingObserver) {
-    headingObserver.disconnect()
-  }
+watch(articleHtml, async () => {
+  await nextTick()
+  syncOutline()
 })
 
-async function loadArticle(articleId) {
-  loading.value = true
-  error.value = ''
+onMounted(() => {
+  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+  updateScrollState()
+})
 
-  try {
-    techArticles.value = await getTechArticles()
-  } catch {
-    techArticles.value = fallbackTechArticles
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', handleWindowScroll)
+})
+
+/**
+ * 目的：根据文章正文标题生成右侧目录。
+ * 逻辑：扫描正文中的 h2 与 h3，写入稳定 id 后同步用于目录跳转与滚动高亮。
+ */
+function syncOutline() {
+  const root = articleBodyRef.value
+  if (!root) {
+    outlineItems.value = []
+    activeOutlineId.value = ''
+    return
   }
 
-  article.value = techArticles.value.find((item) => item.id === articleId) || null
-
-  if (!article.value) {
-    error.value = '没有找到这篇技术文章。'
-  } else {
-    isLiked.value = Boolean(article.value.isLiked)
-    isCollected.value = Boolean(article.value.isCollected)
-    localLikeCount.value = Number(article.value.likeCount || 0)
-    localCollectCount.value = Number(article.value.collectCount || 0)
-    activeHeadingId.value = articleBody.value.toc[0]?.id || ''
-  }
-
-  loading.value = false
-  await nextTick()
-  bindHeadingObserver()
-}
-
-// 目的: 把文章正文、摘要和亮点整理成可渲染详情内容与目录数据。
-// 逻辑: 使用 DOMParser 给 h2/h3 补稳定 id，目录直接读取标题文本，避免手写字符串切割。
-function createArticleBody(currentArticle) {
-  if (!currentArticle) {
-    return { html: '', toc: [] }
-  }
-
-  const baseHtml = buildArticleHtml(currentArticle)
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(`<div>${baseHtml}</div>`, 'text/html')
-  const headings = Array.from(doc.body.querySelectorAll('h2, h3'))
-  const toc = headings.map((node, index) => {
-    const id = `article-section-${index + 1}`
-    node.id = id
-    node.dataset.tocId = id
+  const headings = [...root.querySelectorAll('h2, h3')]
+  outlineItems.value = headings.map((heading, index) => {
+    const id = `article-outline-${index}`
+    heading.id = id
 
     return {
       id,
-      title: node.textContent?.trim() || `章节 ${index + 1}`,
-      level: node.tagName === 'H3' ? 3 : 2
+      text: heading.textContent?.trim() || `章节 ${index + 1}`,
+      level: heading.tagName.toLowerCase()
+    }
+  })
+}
+
+/**
+ * 目的：驱动顶部阅读进度条与目录激活状态。
+ * 逻辑：根据滚动位置计算正文阅读进度，并选择最靠近视口顶部的目录项作为当前章节。
+ */
+function updateScrollState() {
+  const total = document.documentElement.scrollHeight - window.innerHeight
+  scrollProgress.value = total > 0 ? Math.min((window.scrollY / total) * 100, 100) : 0
+
+  let activeId = outlineItems.value[0]?.id || ''
+  outlineItems.value.forEach((item) => {
+    const target = document.getElementById(item.id)
+    if (target && target.getBoundingClientRect().top <= 140) {
+      activeId = item.id
     }
   })
 
-  return {
-    html: doc.body.innerHTML,
-    toc
-  }
+  activeOutlineId.value = activeId
 }
 
-// 目的: 为后台正文补足详情页阅读结构，让每篇文章都有多段可追踪目录。
-// 逻辑: 核心观点使用文章精华，正文使用后台富文本，落地清单使用 highlights 字段。
-function buildArticleHtml(currentArticle) {
-  const highlights = (currentArticle.highlights || [])
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join('')
-  const contentHtml = currentArticle.contentHtml || ''
-  const categoryLabel = currentArticle.category === 'frontend' ? '前端' : '后端'
-
-  return `
-    <section>
-      <h2>核心观点</h2>
-      <p>${escapeHtml(currentArticle.essence || currentArticle.summary)}</p>
-    </section>
-    ${contentHtml}
-    <section>
-      <h2>落地清单</h2>
-      <ul>${highlights}</ul>
-    </section>
-    <section>
-      <h2>阅读建议</h2>
-      <p>这篇${categoryLabel}文章适合结合当前项目复盘：先确认问题边界，再把关键动作拆成可以验证的小步骤。</p>
-    </section>
-  `
+function handleWindowScroll() {
+  updateScrollState()
 }
 
-// 目的: 让右侧目录准确感知正文当前阅读位置。
-// 逻辑: 观察带目录标记的标题进入视口中段时更新 activeHeadingId，目录项随之变色。
-function bindHeadingObserver() {
-  if (headingObserver) {
-    headingObserver.disconnect()
-  }
-
-  const headings = articleContentRef.value?.querySelectorAll('[data-toc-id]')
-  if (!headings?.length) {
-    return
-  }
-
-  if (!('IntersectionObserver' in window)) {
-    activeHeadingId.value = headings[0].id
-    return
-  }
-
-  headingObserver = new IntersectionObserver(
-    (entries) => {
-      const visibleEntry = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0]
-
-      if (visibleEntry?.target?.id) {
-        activeHeadingId.value = visibleEntry.target.id
-      }
-    },
-    {
-      rootMargin: '-18% 0px -64% 0px',
-      threshold: [0, 0.2, 1]
-    }
-  )
-
-  headings.forEach((heading) => headingObserver.observe(heading))
+function goHome() {
+  router.push('/home')
 }
 
-// 目的: 点赞与收藏在详情页即时反馈，避免用户操作后等待远端状态。
-// 逻辑: 本地切换选中态并同步调整计数，后续可直接接入真实互动接口。
-function toggleLike() {
-  isLiked.value = !isLiked.value
-  localLikeCount.value += isLiked.value ? 1 : -1
-  localLikeCount.value = Math.max(0, localLikeCount.value)
-}
-
-function toggleCollect() {
-  isCollected.value = !isCollected.value
-  localCollectCount.value += isCollected.value ? 1 : -1
-  localCollectCount.value = Math.max(0, localCollectCount.value)
-}
-
-// 目的: 目录点击后快速回到对应章节，减少长文阅读中的定位成本。
-// 逻辑: 使用浏览器原生平滑滚动，并配合标题 scroll-margin 避开顶部导航遮挡。
-function scrollToHeading(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-// 目的: 左侧评论按钮连接到评论承接区，保留完整互动路径。
-// 逻辑: 滚动到固定评论锚点，未来接入真实评论列表时按钮行为无需调整。
-function scrollToComments() {
-  document.getElementById('article-comments')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-// 目的: 详情页提供稳定返回入口，方便用户回到文章流继续浏览。
-// 逻辑: 有浏览历史时返回上一页，否则兜底跳回技术文章列表。
-function goBack() {
-  if (window.history.length > 1) {
-    router.back()
-    return
-  }
-
+function goArticleList() {
   router.push('/articles')
 }
 
-// 目的: 统一互动数据展示格式，让大数字在侧栏和动作栏里保持简洁。
-// 逻辑: 千级与万级数字缩写，其余数字原样展示。
-function formatCount(value) {
-  const count = Number(value || 0)
+function openCategory(category) {
+  router.push({ path: '/articles', query: { category } })
+}
+
+function openArticle(articleId) {
+  router.push(`/articles/${articleId}`)
+}
+
+function scrollToSeries() {
+  seriesSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToHeading(id) {
+  const target = document.getElementById(id)
+  if (!target) {
+    return
+  }
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href)
+    copiedText.value = '链接已复制'
+    window.setTimeout(() => {
+      copiedText.value = '复制链接'
+    }, 1600)
+  } catch {
+    copiedText.value = '复制失败'
+    window.setTimeout(() => {
+      copiedText.value = '复制链接'
+    }, 1600)
+  }
+}
+
+function shareToX() {
+  const url = encodeURIComponent(window.location.href)
+  const title = encodeURIComponent(currentArticle.value.title)
+  window.open(`https://x.com/intent/tweet?text=${title}&url=${url}`, '_blank', 'noopener,noreferrer')
+}
+
+function shareToLinkedIn() {
+  const url = encodeURIComponent(window.location.href)
+  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'noopener,noreferrer')
+}
+
+function resolveCategoryLabel(category) {
+  const labelMap = {
+    frontend: '前端',
+    backend: '后端',
+    all: '全部文章',
+    history: '历史',
+    collect: '收藏',
+    like: '喜欢'
+  }
+
+  return labelMap[category] || '技术文章'
+}
+
+function formatLongDate(value) {
+  if (!value) {
+    return '2026年4月28日'
+  }
+
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) {
+    return value
+  }
+
+  return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`
+}
+
+function formatReadTime(value) {
+  const text = String(value || '').trim()
+  const minuteMatch = text.match(/(\d+)/)
+
+  if (!minuteMatch) {
+    return '8 分钟阅读'
+  }
+
+  return `${minuteMatch[1]} 分钟阅读`
+}
+
+function formatCompactCount(value) {
+  const count = Number(value) || 0
 
   if (count >= 10000) {
-    return `${(count / 10000).toFixed(1)}w`
+    return `${(count / 1000).toFixed(1).replace('.0', '')}k`
   }
 
   if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}k`
+    return `${(count / 1000).toFixed(1).replace('.0', '')}k`
   }
 
   return `${count}`
 }
 
-// 目的: 保护由摘要和亮点拼出的正文片段，避免普通文本被当作 HTML 执行。
-// 逻辑: 转义基础 HTML 特殊字符，后台富文本正文仍按可信内容渲染。
+function buildInitials(name) {
+  const text = String(name || '').trim()
+  if (!text) {
+    return 'PK'
+  }
+
+  return text.length <= 2 ? text : text.slice(0, 2)
+}
+
 function escapeHtml(value) {
   return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value)
+}
+
+/**
+ * 目的：为缺少富文本正文的文章生成统一详情页内容。
+ * 逻辑：组合摘要、亮点、配图和结论段落，让其他文章也能套用同一套杂志式排版。
+ */
+function buildArticleHtml(targetArticle) {
+  const summary = escapeHtml(targetArticle.summary || '')
+  const essence = escapeHtml(targetArticle.essence || targetArticle.summary || '')
+  const title = escapeHtml(targetArticle.title || '')
+  const coverUrl = escapeAttribute(targetArticle.coverUrl || '')
+  const categoryLabel = resolveCategoryLabel(targetArticle.category)
+  const highlightItems = (targetArticle.highlights || []).filter(Boolean)
+
+  const highlightsHtml = highlightItems.length
+    ? `
+      <div class="callout callout-info">
+        <span class="callout-icon">📌</span>
+        <p>${highlightItems
+          .map((item, index) => `<strong>重点 ${index + 1}：</strong>${escapeHtml(item)}`)
+          .join('<br>')}</p>
+      </div>
+    `
+    : ''
+
+  const imageHtml = coverUrl
+    ? `
+      <figure class="article-image">
+        <img src="${coverUrl}" alt="${title}" loading="lazy" />
+        <figcaption class="image-caption">${title}</figcaption>
+      </figure>
+    `
+    : ''
+
+  return `
+    <p class="lead">${essence || summary || '这是一篇围绕真实工程问题展开的技术文章。'}</p>
+    <p>${summary || essence || '文章从背景、方案与取舍出发，帮助你快速建立对问题的整体认识。'}</p>
+    <h2>这篇文章讲什么</h2>
+    <p>这篇内容围绕 ${escapeHtml(categoryLabel)} 场景展开，不是只给结论，而是把问题出现的原因、方案的边界以及落地时的注意点一起交代清楚。</p>
+    ${highlightsHtml}
+    <h2>核心关注点</h2>
+    <p>${essence || '文章会围绕系统设计、实现细节和后续演进三个方向，帮助你快速抓住真正值得关注的部分。'}</p>
+    ${imageHtml}
+    <h3>为什么值得细看</h3>
+    <p>相比只罗列知识点的总结，这类工程文章更有价值的地方在于，它会把实践中的取舍路径一并讲明白，让你知道为什么这样做，而不是只知道怎么做。</p>
+    <blockquote>
+      <p>"真正有帮助的技术写作，不是把知识摆出来，而是把判断过程交给读者。"</p>
+      <cite>— PeakDepth 技术编辑部</cite>
+    </blockquote>
+    <h2>适合谁读</h2>
+    <p>如果你正在处理 ${escapeHtml(categoryLabel)} 相关的项目，或者希望快速建立这类问题的工程判断框架，这篇文章会比较适合你。</p>
+  `
 }
 </script>
 
