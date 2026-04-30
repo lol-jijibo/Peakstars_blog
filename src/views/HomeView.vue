@@ -2,279 +2,310 @@
   <div class="home-page">
     <blog-mega-header current-page="home" />
 
-    <main class="homepage-main">
-      <section class="home-editorial" aria-labelledby="home-title">
-        <div class="editorial-copy">
-          <span class="editorial-kicker">Peakstars Editorial Home</span>
-          <h1 id="home-title">Peakstars_blog</h1>
-
-          <div class="editorial-manifesto" aria-live="polite">
-            <transition name="manifesto-fade" mode="out-in">
-              <p :key="activeManifesto">{{ activeManifesto }}</p>
-            </transition>
+    <main class="home-main">
+      <!-- ═══ HERO ═══ -->
+      <section class="hero" aria-label="首页主视觉">
+        <div class="hero-bg">
+          <div class="hero-grid-lines"></div>
+          <div class="hero-glow hero-glow-1"></div>
+          <div class="hero-glow hero-glow-2"></div>
+        </div>
+        <div class="hero-inner">
+          <div class="hero-badge animate-fade-up">
+            <span class="badge-dot"></span>
+            <span>面向持续精进的开发者</span>
           </div>
-
-          <p class="editorial-intro">
-            把文章页的沉浸式阅读气质提前搬到首页，用统一的版心、杂志式排版和轻量数据编排，
-            让首页既有品牌感，也能继续承接真实内容流。
+          <h1 class="hero-title animate-fade-up delay-100">
+            <span class="hero-title-accent">PeakStars</span> Blog
+          </h1>
+          <p class="hero-desc animate-fade-up delay-200">
+            技术博客与面经论坛 —— 写值得你花时间阅读的内容。<br>
+            深耕前端工程、后端架构与 AI 前沿，提供系统化学习路线与真实面试经验。
           </p>
-
-          <div class="editorial-actions">
-            <button class="editorial-primary-btn" type="button" @click="goArticles">
-              进入文章页
+          <div class="hero-actions animate-fade-up delay-300">
+            <button class="btn-primary" type="button" @click="goArticles">
+              <i class="fas fa-book-open"></i>
+              <span>探索文章</span>
             </button>
-            <button class="editorial-secondary-btn" type="button" @click="goInterview">
-              查看面经区
-            </button>
-          </div>
-
-          <ul class="editorial-stats" aria-label="首页内容概览">
-            <li v-for="item in quickStats" :key="item.label">
-              <strong>{{ item.value }}</strong>
-              <span>{{ item.label }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <aside class="editorial-stage">
-          <button
-            v-if="heroArticle"
-            class="stage-cover-card"
-            type="button"
-            :style="buildCoverStyle(heroArticle.coverUrl)"
-            @click="openArticle(heroArticle.id)"
-          >
-            <span class="stage-cover-layer"></span>
-            <div class="stage-cover-top">
-              <span class="stage-chip">{{ resolveArticleLabel(heroArticle.category) }}</span>
-              <span class="stage-meta">{{ formatReadTime(heroArticle.readTime) }}</span>
-            </div>
-            <div class="stage-cover-body">
-              <h2>{{ heroArticle.title }}</h2>
-              <p>{{ heroArticle.essence || heroArticle.summary }}</p>
-            </div>
-            <div class="stage-cover-bottom">
-              <span>{{ heroArticle.author?.name || 'Peakstars_blog' }}</span>
-              <span>{{ formatCompactCount(heroArticle.readCount) }} 阅读</span>
-            </div>
-          </button>
-
-          <div class="stage-side-grid">
-            <button
-              v-if="leadRoute"
-              class="stage-side-card"
-              type="button"
-              @click="openLearningRoute(leadRoute.slug)"
-            >
-              <span class="stage-side-label">学习路线</span>
-              <strong>{{ leadRoute.title }}</strong>
-              <p>{{ leadRoute.difficulty }} · {{ formatCompactCount(leadRoute.viewCount) }} 阅读</p>
-            </button>
-
-            <button
-              v-if="leadSignal"
-              class="stage-side-card stage-side-card--accent"
-              type="button"
-              @click="goAiHotspot"
-            >
-              <span class="stage-side-label">AI 热点</span>
-              <strong>{{ leadSignal.title }}</strong>
-              <p>热度 {{ leadSignal.heat || '--' }} · {{ formatShortDate(leadSignal.publishedAt) }}</p>
+            <button class="btn-outline" type="button" @click="goInterview">
+              <i class="fas fa-crosshairs"></i>
+              <span>面经宝典</span>
             </button>
           </div>
-        </aside>
-      </section>
-
-      <section class="home-shell">
-        <div class="home-stream">
-          <section class="home-section" aria-labelledby="featured-title">
-            <div class="section-head">
-              <span class="section-kicker">Featured Longform</span>
-              <h2 id="featured-title">首页精选长文</h2>
-              <p>文章页的阅读气质保留在首页，但入口改成更适合扫读与分流的编排方式。</p>
+          <div class="hero-stats animate-fade-up delay-300">
+            <div class="stat-item">
+              <span class="stat-num">{{ techArticles.length }}</span>
+              <span class="stat-label">技术文章</span>
             </div>
-
-            <div class="featured-grid">
-              <button
-                v-if="heroArticle"
-                class="feature-hero-card"
-                type="button"
-                :style="buildCoverStyle(heroArticle.coverUrl)"
-                @click="openArticle(heroArticle.id)"
-              >
-                <span class="feature-hero-layer"></span>
-                <div class="feature-hero-content">
-                  <span class="feature-kicker">{{ resolveArticleLabel(heroArticle.category) }}</span>
-                  <h3>{{ heroArticle.title }}</h3>
-                  <p>{{ heroArticle.summary || heroArticle.essence }}</p>
-                  <div class="feature-meta-row">
-                    <span>{{ formatShortDate(heroArticle.publishedAt) }}</span>
-                    <span>{{ formatCompactCount(heroArticle.commentCount) }} 评论</span>
-                  </div>
-                </div>
-              </button>
-
-              <div class="feature-stack">
-                <button
-                  v-for="article in featureStack"
-                  :key="article.id"
-                  class="feature-stack-card"
-                  type="button"
-                  @click="openArticle(article.id)"
-                >
-                  <span class="feature-stack-tag">{{ resolveArticleLabel(article.category) }}</span>
-                  <strong>{{ article.title }}</strong>
-                  <p>{{ article.essence || article.summary }}</p>
-                  <span class="feature-stack-meta">
-                    {{ article.author?.name || 'Peakstars_blog' }} · {{ formatCompactCount(article.readCount) }} 阅读
-                  </span>
-                </button>
-              </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num">{{ learningRoutes.length }}</span>
+              <span class="stat-label">学习路线</span>
             </div>
-          </section>
-
-          <section class="home-section" aria-labelledby="route-title">
-            <div class="section-head section-head--inline">
-              <div>
-                <span class="section-kicker">Route Ribbon</span>
-                <h2 id="route-title">结构化学习路线</h2>
-              </div>
-              <button class="section-link-btn" type="button" @click="openLearningRoute(leadRoute?.slug)">
-                直接进入
-              </button>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num">{{ aiHotspots.length }}</span>
+              <span class="stat-label">AI 热点</span>
             </div>
-
-            <div class="route-ribbon">
-              <button
-                v-for="route in routePicks"
-                :key="route.slug"
-                class="route-ribbon-card"
-                type="button"
-                :style="buildCoverStyle(route.coverUrl)"
-                @click="openLearningRoute(route.slug)"
-              >
-                <span class="route-ribbon-layer"></span>
-                <div class="route-ribbon-content">
-                  <span class="route-badge">{{ route.routeType }}</span>
-                  <h3>{{ route.title }}</h3>
-                  <p>{{ route.difficulty }}</p>
-                  <div class="route-ribbon-meta">
-                    <span>{{ formatShortDate(route.publishedAt) }}</span>
-                    <span>{{ formatCompactCount(route.likeCount) }} 点赞</span>
-                  </div>
-                </div>
-              </button>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+              <span class="stat-num">{{ popularTags.length }}+</span>
+              <span class="stat-label">技术标签</span>
             </div>
-          </section>
-
-          <section class="home-section" aria-labelledby="signal-title">
-            <div class="section-head">
-              <span class="section-kicker">Signal Board</span>
-              <h2 id="signal-title">AI 热点快照</h2>
-              <p>不把热点堆成瀑布流，而是保留三张高密度卡片，适合首页快速浏览。</p>
-            </div>
-
-            <div class="signal-board">
-              <button
-                v-for="signal in aiSignals"
-                :key="signal.id"
-                class="signal-card"
-                type="button"
-                @click="goAiHotspot"
-              >
-                <div class="signal-card-head">
-                  <span class="signal-tag">{{ signal.hotspotType }}</span>
-                  <span class="signal-heat">Heat {{ signal.heat || '--' }}</span>
-                </div>
-                <strong>{{ signal.title }}</strong>
-                <p>{{ signal.summary }}</p>
-                <div class="signal-meta-row">
-                  <span>{{ signal.authorName || 'Peakstars_blog' }}</span>
-                  <span>{{ formatShortDate(signal.publishedAt) }}</span>
-                </div>
-              </button>
-            </div>
-          </section>
+          </div>
         </div>
-
-        <aside class="home-rail">
-          <section class="rail-card">
-            <span class="rail-kicker">Daily Flow</span>
-            <h3>今日阅读动线</h3>
-            <div class="flow-list">
-              <button
-                v-if="heroArticle"
-                class="flow-item"
-                type="button"
-                @click="openArticle(heroArticle.id)"
-              >
-                <span>01</span>
-                <div>
-                  <strong>先读一篇主打长文</strong>
-                  <p>{{ heroArticle.title }}</p>
-                </div>
-              </button>
-
-              <button
-                v-if="leadRoute"
-                class="flow-item"
-                type="button"
-                @click="openLearningRoute(leadRoute.slug)"
-              >
-                <span>02</span>
-                <div>
-                  <strong>再进入完整路线</strong>
-                  <p>{{ leadRoute.title }}</p>
-                </div>
-              </button>
-
-              <button
-                v-if="leadSignal"
-                class="flow-item"
-                type="button"
-                @click="goAiHotspot"
-              >
-                <span>03</span>
-                <div>
-                  <strong>最后补充行业热点</strong>
-                  <p>{{ leadSignal.title }}</p>
-                </div>
-              </button>
-            </div>
-          </section>
-
-          <section class="rail-card">
-            <span class="rail-kicker">Theme Mode</span>
-            <h3>自由切换明暗背景</h3>
-            <p class="rail-copy">
-              当前为{{ isDarkTheme ? '暗色沉浸模式' : '亮色纸感模式' }}，首页与文章页会一起切换，保证整站视觉一致。
-            </p>
-            <button class="rail-theme-switch" type="button" @click="themeStore.toggleTheme()">
-              切换到{{ isDarkTheme ? '亮色' : '暗色' }}背景
-            </button>
-          </section>
-
-          <section class="rail-card">
-            <span class="rail-kicker">Editing Protocol</span>
-            <h3>首页编排原则</h3>
-            <ul class="protocol-list">
-              <li v-for="item in editorialProtocols" :key="item.title">
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.description }}</p>
-              </li>
-            </ul>
-          </section>
-        </aside>
       </section>
+
+      <!-- ═══ FEATURE ZONES ═══ -->
+      <section class="zones" aria-label="核心内容">
+        <div class="container">
+          <div class="section-label animate-fade-up">
+            <span class="section-label-line"></span>
+            <span class="section-label-text">核心板块</span>
+            <span class="section-label-line"></span>
+          </div>
+          <div class="zones-grid">
+            <article class="zone-card zc-tech animate-fade-up delay-100" @click="goArticles">
+              <div class="zone-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16 14L6 24L16 34" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M32 14L42 24L32 34" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M28 8L20 40" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+                </svg>
+              </div>
+              <h3 class="zone-title">技术深耕</h3>
+              <p class="zone-desc">深度技术文章，覆盖前端工程、后端架构与系统设计，每一篇都值得反复品读。</p>
+              <div class="zone-tags">
+                <span class="zone-tag">Vue 3</span>
+                <span class="zone-tag">Node.js</span>
+                <span class="zone-tag">TypeScript</span>
+              </div>
+              <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
+            </article>
+
+            <article class="zone-card zc-interview animate-fade-up delay-200" @click="goInterview">
+              <div class="zone-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="24" cy="20" r="8" stroke="currentColor" stroke-width="3"/>
+                  <path d="M12 38C12 31.373 17.373 26 24 26C30.627 26 36 31.373 36 38" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <path d="M30 12L36 6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+                  <circle cx="37" cy="5" r="2.5" fill="currentColor" opacity="0.4"/>
+                  <path d="M24 16V22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                  <path d="M21 19H27" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <h3 class="zone-title">面经宝典</h3>
+              <p class="zone-desc">真实面试经验沉淀，从简历优化到高频考点，助你从容应对每一场面试。</p>
+              <div class="zone-tags">
+                <span class="zone-tag">大厂面经</span>
+                <span class="zone-tag">高频考点</span>
+                <span class="zone-tag">真题解析</span>
+              </div>
+              <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
+            </article>
+
+            <article class="zone-card zc-ai animate-fade-up delay-300" @click="goAiHotspot">
+              <div class="zone-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="12" y="8" width="24" height="18" rx="3" stroke="currentColor" stroke-width="3"/>
+                  <path d="M18 26V32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <path d="M30 26V32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <path d="M14 32H34" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  <circle cx="20" cy="17" r="2" fill="currentColor"/>
+                  <circle cx="28" cy="17" r="2" fill="currentColor"/>
+                  <path d="M19 22C19 22 21 24 24 24C27 24 29 22 29 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M8 16L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+                  <path d="M36 12L40 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+                  <circle cx="7" cy="17" r="1.5" fill="currentColor" opacity="0.3"/>
+                  <circle cx="41" cy="17" r="1.5" fill="currentColor" opacity="0.3"/>
+                </svg>
+              </div>
+              <h3 class="zone-title">AI 前沿</h3>
+              <p class="zone-desc">追踪 AI 行业热点，解读大模型趋势与落地方案，与技术浪潮同行。</p>
+              <div class="zone-tags">
+                <span class="zone-tag">大模型</span>
+                <span class="zone-tag">AIGC</span>
+                <span class="zone-tag">LLM</span>
+              </div>
+              <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
+            </article>
+
+            <article class="zone-card zc-route animate-fade-up delay-300" @click="goArticles">
+              <div class="zone-icon">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 36C12 28 16 32 20 24C24 16 28 20 32 12C34 8 36 10 40 8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="8" cy="36" r="3" fill="currentColor" opacity="0.9"/>
+                  <circle cx="20" cy="24" r="3" fill="currentColor" opacity="0.6"/>
+                  <circle cx="32" cy="12" r="3" fill="currentColor" opacity="0.4"/>
+                  <circle cx="40" cy="8" r="2.5" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5"/>
+                  <path d="M12 38L8 36L10 32" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+                </svg>
+              </div>
+              <h3 class="zone-title">学习路线</h3>
+              <p class="zone-desc">从入门到进阶的系统化学习路径，让你不再迷茫于海量资料之中。</p>
+              <div class="zone-tags">
+                <span class="zone-tag">Java 后端</span>
+                <span class="zone-tag">全栈进阶</span>
+                <span class="zone-tag">前端体系</span>
+              </div>
+              <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ FEATURED HIGHLIGHTS ═══ -->
+      <section class="highlights" aria-label="精选内容">
+        <div class="container">
+          <div class="section-label animate-fade-up">
+            <span class="section-label-line"></span>
+            <span class="section-label-text">精选推荐</span>
+            <span class="section-label-line"></span>
+          </div>
+          <div class="highlights-grid">
+            <article
+              v-for="(article, idx) in trendingArticles"
+              :key="article.id"
+              class="highlight-card animate-fade-up"
+              :class="{ 'delay-100': idx === 0, 'delay-200': idx === 1, 'delay-300': idx === 2 }"
+              @click="openArticle(article.id)"
+            >
+              <div class="hl-cover" :style="buildCoverStyle(article.coverUrl)">
+                <span class="hl-badge">{{ resolveArticleLabel(article.category) }}</span>
+              </div>
+              <div class="hl-body">
+                <div class="hl-tags">
+                  <span v-for="tag in getArticleTags(article)" :key="tag" class="hl-tag" :class="tagColorClass(tag)">{{ tag }}</span>
+                </div>
+                <h3 class="hl-title">{{ article.title }}</h3>
+                <p class="hl-excerpt">{{ article.essence || article.summary }}</p>
+                <div class="hl-meta">
+                  <span class="hl-date">{{ formatShortDateCN(article.publishedAt) }}</span>
+                  <span class="hl-read">{{ formatReadTime(article.readTime) }}阅读</span>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="highlights-more animate-fade-up">
+            <button class="btn-outline btn-sm" type="button" @click="goArticles">
+              查看全部文章 <i class="fas fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ TECH SPHERE ═══ -->
+      <section class="tech-sphere" aria-label="技术覆盖">
+        <div class="container">
+          <div class="section-label animate-fade-up">
+            <span class="section-label-line"></span>
+            <span class="section-label-text">技术图谱</span>
+            <span class="section-label-line"></span>
+          </div>
+          <div class="sphere-grid animate-fade-up delay-100">
+            <div
+              v-for="tag in popularTags"
+              :key="tag.name"
+              class="sphere-tag"
+              :class="'sp-' + (popularTags.indexOf(tag) % 6)"
+            >
+              <span class="sphere-tag-name">{{ tag.name }}</span>
+              <span class="sphere-tag-count">{{ tag.count }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ ABOUT / PERSONAL ═══ -->
+      <section class="about-section" aria-label="关于作者">
+        <div class="container">
+          <div class="about-card animate-fade-up">
+            <div class="about-avatar-area">
+              <div class="about-avatar-ring">
+                <span class="about-avatar-text">PS</span>
+              </div>
+            </div>
+            <div class="about-content">
+              <h3 class="about-name">码客星云</h3>
+              <p class="about-role">全栈架构师 · 终身学习者 · 技术写作人</p>
+              <p class="about-bio">
+                相信技术的力量，更相信持续学习的价值。在这里记录架构设计的思考、面试准备的沉淀、AI 浪潮的观察。
+                每一篇文章都追求深度与实用性并重——不只是告诉你"怎么做"，更帮你理解"为什么"。
+              </p>
+              <div class="about-social">
+                <a href="javascript:void(0)" class="about-social-link" title="GitHub"><i class="fab fa-github"></i></a>
+                <a href="javascript:void(0)" class="about-social-link" title="Twitter"><i class="fab fa-twitter"></i></a>
+                <a href="javascript:void(0)" class="about-social-link" title="WeChat"><i class="fab fa-weixin"></i></a>
+                <a href="javascript:void(0)" class="about-social-link" title="RSS"><i class="fas fa-rss"></i></a>
+              </div>
+            </div>
+            <div class="about-theme-panel">
+              <h4 class="theme-panel-title"><i class="fas fa-palette"></i> 明暗模式</h4>
+              <p class="theme-panel-desc">{{ isDarkTheme ? '当前：暗色沉浸模式' : '当前：亮色纸感模式' }}</p>
+              <button class="btn-theme" type="button" @click="themeStore.toggleTheme()">
+                <i :class="isDarkTheme ? 'fas fa-sun' : 'fas fa-moon'"></i>
+                <span>切换到{{ isDarkTheme ? '亮色' : '暗色' }}</span>
+              </button>
+              <p class="theme-panel-note">背景色支持前后端互调配置</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ FOOTER ═══ -->
+      <footer class="home-footer" aria-label="站点底部">
+        <div class="container">
+          <div class="footer-inner">
+            <div class="footer-brand-col">
+              <div class="footer-logo">
+                <div class="footer-logo-icon"><i class="fas fa-terminal"></i></div>
+                <span class="footer-logo-text">PeakStars_blog</span>
+              </div>
+              <p class="footer-tagline">面向持续精进的开发者。技术博客与面经论坛，写值得你花时间阅读的内容。</p>
+            </div>
+            <div class="footer-links-col">
+              <h4 class="footer-col-title">内容</h4>
+              <ul class="footer-links">
+                <li><a href="javascript:void(0)" @click="goArticles">技术文章</a></li>
+                <li><a href="javascript:void(0)" @click="goInterview">面经宝典</a></li>
+                <li><a href="javascript:void(0)" @click="goAiHotspot">AI 热点</a></li>
+              </ul>
+            </div>
+            <div class="footer-links-col">
+              <h4 class="footer-col-title">话题</h4>
+              <ul class="footer-links">
+                <li><a href="javascript:void(0)" @click="goArticles">前端工程</a></li>
+                <li><a href="javascript:void(0)" @click="goArticles">后端架构</a></li>
+                <li><a href="javascript:void(0)" @click="goArticles">深度专题</a></li>
+              </ul>
+            </div>
+            <div class="footer-links-col">
+              <h4 class="footer-col-title">关于</h4>
+              <ul class="footer-links">
+                <li><a href="javascript:void(0)">关于我们</a></li>
+                <li><a href="javascript:void(0)">投稿指南</a></li>
+                <li><a href="javascript:void(0)">联系我们</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="footer-foot">
+            <span>© 2026 PeakStars_blog. 保留所有权利。</span>
+            <div class="footer-foot-links">
+              <a href="javascript:void(0)">隐私政策</a>
+              <a href="javascript:void(0)">服务条款</a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { getTechArticles, getAiHotspots } from '@/api/content'
+import { getAiHotspots, getTechArticles } from '@/api/content'
 import { getLearningRoutes } from '@/api/learningRoute'
 import { techArticles as localTechArticles } from '@/data/techArticles'
 import { aiHotspots as localAiHotspots } from '@/modules/ai/aiHotspots'
@@ -285,24 +316,7 @@ const themeStore = useThemeStore()
 const techArticles = ref([...localTechArticles])
 const learningRoutes = ref([])
 const aiHotspots = ref([...localAiHotspots])
-const activeManifestoIndex = ref(0)
-let manifestoTimer = null
 
-/**
- * 目的: 预置首页品牌宣言轮播文案
- * 逻辑: 使用静态文案维持首屏呼吸感，不新增任何后端配置字段
- */
-const heroManifestos = [
-  '把复杂技术拆成可以继续前进的阅读路径。',
-  '让首页先完成判断，再把读者送进深度正文。',
-  '同一套内容骨架，既能沉浸阅读，也能高效扫读。',
-  '首页像编辑部，文章页像正文，这两者现在连成一体。'
-]
-
-/**
- * 目的: 为学习路线接口提供首页兜底内容
- * 逻辑: 当远端接口暂不可用时，首页仍然能输出稳定的路线入口
- */
 const fallbackLearningRoutes = [
   {
     id: 'fallback-java',
@@ -330,27 +344,6 @@ const fallbackLearningRoutes = [
   }
 ]
 
-/**
- * 目的: 固定首页右侧的产品表达原则
- * 逻辑: 用少量静态协议说明首页设计思路，方便后续继续维护同一套编排逻辑
- */
-const editorialProtocols = [
-  {
-    title: '入口不做过载',
-    description: '首屏只保留长文、路线、热点三个主入口，减少维护复杂度。'
-  },
-  {
-    title: '数据全部复用',
-    description: '首页直接读取现有内容接口，不新增首页专属表或额外后台流程。'
-  },
-  {
-    title: '主题统一切换',
-    description: '首页与文章页共享同一套明暗模式状态，降低视觉维护成本。'
-  }
-]
-
-const activeManifesto = computed(() => heroManifestos[activeManifestoIndex.value])
-
 const sortedArticles = computed(() => {
   return [...techArticles.value].sort((left, right) => {
     const leftScore = Number(Boolean(left.featured)) * 100000 + Number(left.readCount || 0)
@@ -359,43 +352,23 @@ const sortedArticles = computed(() => {
   })
 })
 
-const heroArticle = computed(() => sortedArticles.value[0] || null)
-const featureStack = computed(() => sortedArticles.value.slice(1, 3))
-const routePicks = computed(() => learningRoutes.value.slice(0, 2))
-const leadRoute = computed(() => routePicks.value[0] || null)
-
-const aiSignals = computed(() => {
-  return [...aiHotspots.value]
-    .sort((left, right) => Number(right.heat || 0) - Number(left.heat || 0))
-    .slice(0, 3)
-})
-
-const leadSignal = computed(() => aiSignals.value[0] || null)
+const trendingArticles = computed(() => sortedArticles.value.slice(0, 3))
 const isDarkTheme = computed(() => themeStore.isDark.value)
 
-/**
- * 目的: 首页内容总览数字与当前模块同步
- * 逻辑: 基于现有列表长度和精选内容实时生成，不维护额外统计接口
- */
-const quickStats = computed(() => [
-  {
-    label: '文章沉淀',
-    value: `${techArticles.value.length}+`
-  },
-  {
-    label: '路线专题',
-    value: `${learningRoutes.value.length || fallbackLearningRoutes.length}`
-  },
-  {
-    label: '热点快照',
-    value: `${aiHotspots.value.length}`
+const popularTags = computed(() => {
+  const tagMap = new Map()
+  techArticles.value.forEach((a) => {
+    if (a.tags) a.tags.forEach((t) => {
+      tagMap.set(t, (tagMap.get(t) || 0) + 1)
+    })
+  })
+  if (tagMap.size === 0) {
+    const defaults = ['Vue 3', 'Node.js', 'Express', 'MySQL', '面经', '前端', '后端', '架构', 'TypeScript', 'Redis']
+    return defaults.map(name => ({ name, count: Math.floor(Math.random() * 20) + 3 }))
   }
-])
+  return [...tagMap.entries()].slice(0, 12).map(([name, count]) => ({ name, count }))
+})
 
-/**
- * 目的: 聚合首页现有模块数据
- * 逻辑: 并行拉取文章、路线与热点，任一失败时回退本地兜底，保证首页始终可渲染
- */
 async function loadHomeData() {
   const [articleResult, routeResult, aiResult] = await Promise.allSettled([
     getTechArticles(),
@@ -419,100 +392,59 @@ async function loadHomeData() {
       : [...localAiHotspots]
 }
 
-function goArticles() {
-  router.push('/articles')
+function goArticles() { router.push('/articles') }
+function goInterview() { router.push('/interview') }
+function goAiHotspot() { router.push('/ai-hotspot') }
+function openArticle(articleId) { router.push(`/articles/${articleId}`) }
+
+function resolveArticleLabel(category) {
+  const labelMap = { frontend: '前端工程', backend: '后端架构', vip: '深度专题' }
+  return labelMap[category] || '技术文章'
 }
 
-function goInterview() {
-  router.push('/interview')
+function getArticleTags(article) {
+  if (article.tags && article.tags.length) return article.tags.slice(0, 2)
+  const tag = resolveArticleLabel(article.category)
+  return [tag]
 }
 
-function goAiHotspot() {
-  router.push('/ai-hotspot')
-}
-
-function openArticle(articleId) {
-  router.push(`/articles/${articleId}`)
-}
-
-function openLearningRoute(slug) {
-  if (!slug) {
-    return
+function tagColorClass(tag) {
+  const map = {
+    '前端工程': 'tc-blue',
+    '后端架构': 'tc-orange',
+    '深度专题': 'tc-green',
+    'Vue 3': 'tc-green',
+    'React': 'tc-cyan',
+    'Node.js': 'tc-green',
+    'TypeScript': 'tc-blue',
+    'Docker': 'tc-blue',
+    'DevOps': 'tc-red',
+    '性能优化': 'tc-purple',
+    'SSG': 'tc-green',
+    'Redis': 'tc-red'
   }
-
-  router.push(`/learning-route/${slug}`)
-}
-
-function showNextManifesto() {
-  activeManifestoIndex.value = (activeManifestoIndex.value + 1) % heroManifestos.length
-}
-
-function startManifestoTimer() {
-  if (manifestoTimer) {
-    window.clearInterval(manifestoTimer)
-  }
-
-  manifestoTimer = window.setInterval(showNextManifesto, 3200)
+  return map[tag] || 'tc-cyan'
 }
 
 function buildCoverStyle(coverUrl) {
   const safeCover = coverUrl || '/peakstars-blog-icon.jpg'
-  return {
-    backgroundImage: `linear-gradient(180deg, rgba(7, 13, 24, 0.08), rgba(7, 13, 24, 0.82)), url("${safeCover}")`
-  }
-}
-
-function resolveArticleLabel(category) {
-  const labelMap = {
-    frontend: '前端工程',
-    backend: '后端架构',
-    vip: '深度专题'
-  }
-
-  return labelMap[category] || '技术文章'
-}
-
-function formatCompactCount(value) {
-  const count = Number(value || 0)
-
-  if (count >= 10000) {
-    return `${(count / 10000).toFixed(1).replace('.0', '')}w`
-  }
-
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace('.0', '')}k`
-  }
-
-  return `${count}`
+  return { backgroundImage: `url("${safeCover}")` }
 }
 
 function formatReadTime(value) {
   const text = String(value || '').trim()
   const minuteMatch = text.match(/(\d+)/)
-  return minuteMatch ? `${minuteMatch[1]} min` : '8 min'
+  return minuteMatch ? `${minuteMatch[1]}分钟` : '8分钟'
 }
 
-function formatShortDate(value) {
+function formatShortDateCN(value) {
   const text = String(value || '')
   const match = text.match(/(\d{4})-(\d{2})-(\d{2})/)
-
-  if (!match) {
-    return text || '--'
-  }
-
-  return `${match[2]}/${match[3]}`
+  if (!match) return text || '--'
+  return `${match[1]}-${match[2]}-${match[3]}`
 }
 
-onMounted(() => {
-  loadHomeData()
-  startManifestoTimer()
-})
-
-onBeforeUnmount(() => {
-  if (manifestoTimer) {
-    window.clearInterval(manifestoTimer)
-  }
-})
+onMounted(() => { loadHomeData() })
 </script>
 
 <style scoped src="../styles/views/HomeView.css"></style>
