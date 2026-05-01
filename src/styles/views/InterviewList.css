@@ -1,437 +1,377 @@
-/* 页面整体背景：延续面经页的深色氛围与层次感�?*/
+/* ═══════════════════════════════════════
+   INTERVIEW LIST — 面经列表页
+   深色沉浸背景 + 卡片网格布局
+═══════════════════════════════════════ */
+
+/* ── 页面容器 ── */
 .interview-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(108, 99, 255, 0.18), transparent 34%),
-    radial-gradient(circle at 85% 18%, rgba(90, 200, 250, 0.16), transparent 26%),
-    linear-gradient(180deg, #161d43 0%, #202a59 42%, #1b244d 100%);
+    radial-gradient(circle at 15% 10%, rgba(108, 99, 255, 0.18), transparent 34%),
+    radial-gradient(circle at 85% 30%, rgba(90, 200, 250, 0.14), transparent 28%),
+    linear-gradient(180deg, #0f0c29 0%, #302b63 40%, #24243e 100%);
   color: #eef4ff;
 }
 
-/* 进入加载层：保留首次进入面经页时的过渡效果�?*/
-.forum-entry-loader {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background:
-    radial-gradient(circle at 18% 20%, rgba(108, 99, 255, 0.2), transparent 28%),
-    radial-gradient(circle at 82% 78%, rgba(90, 200, 250, 0.18), transparent 24%),
-    linear-gradient(135deg, rgba(15, 12, 41, 0.86), rgba(48, 43, 99, 0.82), rgba(36, 36, 62, 0.8));
-  backdrop-filter: blur(18px) saturate(130%);
-}
-
-.forum-entry-card {
-  width: min(100%, 520px);
-  padding: 32px 28px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: 0 24px 70px rgba(8, 15, 48, 0.34);
-}
-
-.forum-entry-kicker {
-  margin-bottom: 12px;
-  color: #8fd8ff;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.forum-entry-title {
-  margin: 0;
-  color: #eef4ff;
-  font-size: clamp(26px, 4vw, 34px);
-  line-height: 1.2;
-}
-
-.forum-entry-subtitle {
-  margin: 14px 0 24px;
-  color: rgba(232, 238, 255, 0.72);
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.forum-entry-progress-shell {
-  height: 14px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 6px rgba(8, 15, 48, 0.22);
-}
-
-.forum-entry-progress-bar {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #5ac8fa 0%, #6c63ff 48%, #9fdfff 100%);
-  box-shadow: 0 0 24px rgba(90, 200, 250, 0.34);
-  transition: width 0.18s ease;
-}
-
-.forum-entry-progress-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 14px;
-  color: rgba(232, 238, 255, 0.74);
-  font-size: 14px;
-}
-
-.forum-entry-progress-meta strong {
-  color: #ffffff;
-  font-size: 20px;
-}
-
-.forum-loader-fade-enter-active,
-.forum-loader-fade-leave-active {
-  transition: opacity 0.22s ease;
-}
-
-.forum-loader-fade-enter-from,
-.forum-loader-fade-leave-to {
-  opacity: 0;
-}
-
-/* 主内容容器：顶部不再单独留小区域，主体直接进入分类与内容布局�?*/
+/* ── 主容器 ── */
 .interview-main {
-  width: min(1480px, calc(100% - 40px));
+  width: min(1280px, calc(100% - 48px));
   margin: 0 auto;
   padding: 32px 0 88px;
-}
-
-.interview-content {
   display: grid;
-}
-
-/* 主体布局：左侧分类，右侧帖子内容，自适应跟随屏幕变化�?*/
-.interview-module-body {
-  display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
-  align-items: start;
   gap: 28px;
 }
 
-/* 分类侧栏：大屏吸附，小屏恢复自然流�?*/
-.topic-sidebar {
-  position: sticky;
-  top: 24px;
-  align-self: start;
+/* ═══════════════════════════════════════
+   STATS BAR — 顶部统计卡片
+═══════════════════════════════════════ */
+.int-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
 }
 
-.topic-basket {
-  overflow: hidden;
-  border: 1px solid rgba(92, 130, 198, 0.22);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(13, 24, 56, 0.96), rgba(12, 21, 48, 0.92));
-  box-shadow: 0 24px 60px rgba(4, 10, 30, 0.26);
+.int-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  backdrop-filter: blur(12px) saturate(120%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  animation: intFadeUp 0.5s ease-out both;
 }
+.int-stat-card:nth-child(1) { animation-delay: 0ms; }
+.int-stat-card:nth-child(2) { animation-delay: 80ms; }
+.int-stat-card:nth-child(3) { animation-delay: 160ms; }
+.int-stat-card:nth-child(4) { animation-delay: 240ms; }
 
-/* 分类头部：保留说明，帮助用户理解左侧入口�?*/
-.topic-basket-head {
-  padding: 24px 20px 14px;
-  border-bottom: 1px solid rgba(143, 216, 255, 0.08);
-}
-
-.topic-basket-kicker,
-.feed-kicker {
-  display: inline-flex;
-  margin-bottom: 12px;
-  color: #8fd8ff;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.topic-basket-head h3,
-.interview-feed-head h2 {
-  margin: 0;
-  font-size: clamp(24px, 3vw, 30px);
-  color: #f4f7ff;
-}
-
-.topic-basket-head p,
-.interview-feed-head p {
-  margin: 12px 0 0;
-  color: rgba(188, 210, 248, 0.66);
-  line-height: 1.7;
-}
-
-/* 搜索区：保留数据库帖子检索能力�?*/
-.topic-search {
-  padding: 18px 20px 10px;
-}
-
-.search-input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(80, 124, 196, 0.28);
+.int-stat-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
   border-radius: 14px;
-  font-size: 14px;
-  outline: none;
-  background: rgba(23, 39, 79, 0.88);
-  color: #eaf1ff;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-
-.search-input::placeholder {
-  color: rgba(174, 200, 238, 0.46);
-}
-
-.search-input:focus {
-  border-color: rgba(90, 200, 250, 0.46);
-  box-shadow: 0 0 0 4px rgba(90, 200, 250, 0.12);
-  background: rgba(27, 45, 90, 0.96);
-}
-
-/* 分类列表：保持分组和主题按钮排布�?*/
-.topic-groups {
-  display: grid;
-  gap: 0;
-  padding: 8px 0 16px;
-}
-
-.topic-group {
-  display: grid;
-  gap: 0;
-}
-
-.topic-group-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 14px 18px;
-  border: none;
-  background: transparent;
-  color: #f6f9ff;
-  font-size: 16px;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.topic-group-title:hover {
-  background: rgba(64, 89, 142, 0.18);
-}
-
-.topic-group-title.active {
-  background: rgba(116, 132, 160, 0.26);
-}
-
-.topic-group-arrow {
-  color: #45c6ff;
   font-size: 18px;
-  line-height: 1;
+}
+.int-stat-icon--blue  { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+.int-stat-icon--purple { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.int-stat-icon--orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
+.int-stat-icon--green  { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+
+.int-stat-copy {
+  min-width: 0;
+}
+.int-stat-copy strong {
+  display: block;
+  font-size: 1.625rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+.int-stat-copy span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: rgba(232, 238, 255, 0.62);
 }
 
-.topic-group-tags {
-  display: grid;
-  gap: 6px;
-  padding: 0 12px 12px;
+/* ═══════════════════════════════════════
+   SEARCH BAR — 搜索框
+═══════════════════════════════════════ */
+.int-search-section {
+  animation: intFadeUp 0.5s ease-out both;
+  animation-delay: 100ms;
 }
 
-.topic-pill {
+.int-search-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 11px 14px;
+  gap: 12px;
+  padding: 0 20px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.int-search-bar:focus-within {
+  border-color: rgba(90, 200, 250, 0.4);
+  box-shadow: 0 0 0 4px rgba(90, 200, 250, 0.08);
+}
+
+.int-search-icon {
+  flex-shrink: 0;
+  color: rgba(232, 238, 255, 0.35);
+  font-size: 15px;
+}
+
+.int-search-input {
+  flex: 1;
   border: none;
-  border-radius: 12px;
   background: transparent;
-  color: #38c7ff;
+  color: #eef4ff;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+.int-search-input::placeholder {
+  color: rgba(232, 238, 255, 0.30);
+}
+
+/* ═══════════════════════════════════════
+   CATEGORY TABS — 分类筛选
+═══════════════════════════════════════ */
+.int-category-section {
+  animation: intFadeUp 0.5s ease-out both;
+  animation-delay: 150ms;
+}
+
+.int-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.int-cat-tab {
+  padding: 8px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 238, 255, 0.65);
   font-size: 14px;
-  text-align: left;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.int-cat-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef4ff;
+}
+.int-cat-tab.active {
+  background: linear-gradient(135deg, rgba(108, 99, 255, 0.3), rgba(59, 130, 246, 0.25));
+  border-color: rgba(108, 99, 255, 0.35);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(108, 99, 255, 0.15);
+}
+
+/* ── 二级分类 ── */
+.int-sub-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.int-sub-pill {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(232, 238, 255, 0.50);
+  font-size: 13px;
+  font-weight: 400;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
 }
-
-.topic-pill::after {
-  content: '>';
-  color: rgba(56, 199, 255, 0.8);
-  font-size: 15px;
-  line-height: 1;
+.int-sub-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 238, 255, 0.75);
+}
+.int-sub-pill.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: #93bbff;
 }
 
-.topic-pill:hover {
-  background: rgba(34, 54, 101, 0.54);
-  color: #7fddff;
+/* ═══════════════════════════════════════
+   CARDS GRID — 面经卡片
+═══════════════════════════════════════ */
+.int-card-section {
+  min-height: 200px;
 }
 
-.topic-pill.active {
-  background: rgba(116, 132, 160, 0.32);
-  color: #ffffff;
-}
-
-.topic-pill.active::after {
-  color: #9fe6ff;
-}
-
-/* 内容区：恢复真实帖子内容，并让标题与卡片一起自适应�?*/
-.interview-feed {
-  min-width: 0;
+.int-card-grid {
   display: grid;
-  gap: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 18px;
 }
 
-.interview-feed-head {
-  padding: 28px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at top right, rgba(90, 200, 250, 0.14), transparent 22%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-  box-shadow: 0 22px 60px rgba(6, 10, 24, 0.18);
-  backdrop-filter: blur(18px) saturate(130%);
-}
-
-.interview-list {
+/* ── Loading ── */
+.int-loading {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: 20px;
+  justify-items: center;
+  gap: 14px;
+  padding: 80px 0;
+  color: rgba(232, 238, 255, 0.6);
+  font-size: 14px;
+}
+.int-loading-spin {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #8fd8ff;
+  border-radius: 50%;
+  animation: intSpin 0.8s linear infinite;
 }
 
-/* 内容状态：统一加载、报错和空态的展示�?*/
-.empty-tip,
-.loading-tip,
-.error-tip {
+/* ── Error ── */
+.int-error {
   text-align: center;
-  padding: 72px 0;
+  padding: 60px 0;
+  color: rgba(232, 238, 255, 0.6);
+  font-size: 14px;
+}
+.int-retry-btn {
+  margin-top: 14px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5ac8fa, #6c63ff);
+  color: #ffffff;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(90, 200, 250, 0.15);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.int-retry-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(90, 200, 250, 0.22);
 }
 
-.empty-tip,
-.loading-tip {
-  color: rgba(232, 238, 255, 0.7);
-  font-size: 15px;
+/* ── Empty ── */
+.int-empty {
+  text-align: center;
+  padding: 60px 0;
+  color: rgba(232, 238, 255, 0.45);
 }
-
-.error-tip {
-  color: #9fdfff;
+.int-empty i {
+  display: block;
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+.int-empty p {
   font-size: 14px;
 }
 
-.loading-tip {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
+/* ═══════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════ */
+@keyframes intFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.loading-spin {
-  width: 22px;
-  height: 22px;
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  border-top-color: #8fd8ff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+@keyframes intSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-.retry-btn {
-  padding: 11px 18px;
-  border: none;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #5ac8fa, #6c63ff);
-  color: #ffffff;
-  box-shadow: 0 18px 30px rgba(90, 200, 250, 0.16);
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+/* ═══════════════════════════════════════
+   DARK THEME — 暗色适配（本页恒为深色）
+═══════════════════════════════════════ */
+html[data-theme='light'] .interview-page {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(59, 130, 246, 0.08), transparent 34%),
+    radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.06), transparent 28%),
+    linear-gradient(180deg, #f0f4ff 0%, #e8eefa 100%);
+  color: #1e293b;
 }
 
-.retry-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 22px 34px rgba(90, 200, 250, 0.22);
+html[data-theme='light'] .int-stat-copy strong { color: #0f172a; }
+html[data-theme='light'] .int-stat-copy span { color: #64748b; }
+
+html[data-theme='light'] .int-search-bar {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+html[data-theme='light'] .int-search-input { color: #1e293b; }
+html[data-theme='light'] .int-search-input::placeholder { color: rgba(0, 0, 0, 0.25); }
+html[data-theme='light'] .int-search-icon { color: rgba(0, 0, 0, 0.2); }
+
+html[data-theme='light'] .int-cat-tab {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+  color: rgba(30, 41, 59, 0.55);
+}
+html[data-theme='light'] .int-cat-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+html[data-theme='light'] .int-cat-tab.active {
+  background: linear-gradient(135deg, rgba(108, 99, 255, 0.12), rgba(59, 130, 246, 0.10));
+  border-color: rgba(108, 99, 255, 0.2);
+  color: #4f46e5;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
+html[data-theme='light'] .int-sub-pill {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.05);
+  color: rgba(30, 41, 59, 0.45);
+}
+html[data-theme='light'] .int-sub-pill:hover {
+  color: rgba(30, 41, 59, 0.65);
+}
+html[data-theme='light'] .int-sub-pill.active {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #2563eb;
+}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .int-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
-
-  to {
-    transform: rotate(360deg);
-  }
 }
 
-/* 中屏适配：收紧版心与双栏宽度�?*/
-@media (max-width: 1180px) {
-  .interview-main {
-    width: min(100%, calc(100% - 32px));
-    padding-top: 24px;
-  }
-
-  .interview-module-body {
-    grid-template-columns: 240px minmax(0, 1fr);
-    gap: 22px;
-  }
-}
-
-/* 小屏适配：分类和帖子内容改为单列自适应�?*/
 @media (max-width: 768px) {
   .interview-main {
     width: min(100%, calc(100% - 24px));
     padding: 20px 0 72px;
+    gap: 20px;
   }
 
-  .interview-module-body {
+  .int-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .int-stat-card {
+    padding: 14px 16px;
+    border-radius: 16px;
+    gap: 12px;
+  }
+  .int-stat-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+  .int-stat-copy strong {
+    font-size: 1.25rem;
+  }
+
+  .int-card-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
 
-  .topic-sidebar {
-    position: static;
+  .int-category-tabs {
+    gap: 6px;
   }
-
-  .topic-basket,
-  .interview-feed-head {
-    border-radius: 24px;
+  .int-cat-tab {
+    padding: 6px 14px;
+    font-size: 13px;
   }
-
-  .interview-feed-head {
-    padding: 22px 20px;
-  }
-
-  .interview-list {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .empty-tip,
-  .loading-tip,
-  .error-tip {
-    padding: 48px 0;
-  }
-}
-
-html[data-theme='light'] .interview-page {
-  /* Ŀ��: ��ɫģʽ�±�֤�����б�ҳ�ɶ��ԡ� */
-  /* �߼�: ����������Ҫ�����л���ǳɫ��ϵ��������ɫ��������ɫ���������ѹ�ȸС� */
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 34%),
-    radial-gradient(circle at 85% 18%, rgba(16, 185, 129, 0.1), transparent 26%),
-    linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
-  color: #132238;
-}
-
-html[data-theme='light'] .interview-page h1,
-html[data-theme='light'] .interview-page h2,
-html[data-theme='light'] .interview-page h3,
-html[data-theme='light'] .interview-page strong,
-html[data-theme='light'] .interview-page .title,
-html[data-theme='light'] .interview-page .card-title {
-  /* Ŀ��: ͳһ�����б�ҳ������ʾ�� */
-  /* �߼�: ֱ��ʹ����ɫ����ɫ��ȷ���㼶������ */
-  color: #132238;
-}
-
-html[data-theme='light'] .interview-page p,
-html[data-theme='light'] .interview-page span,
-html[data-theme='light'] .interview-page li,
-html[data-theme='light'] .interview-page .subtitle,
-html[data-theme='light'] .interview-page .meta {
-  color: #607086;
 }

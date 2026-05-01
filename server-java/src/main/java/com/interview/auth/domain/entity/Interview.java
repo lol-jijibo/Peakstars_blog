@@ -6,8 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 业务目的：承接面经主表的持久化字段，供 MyBatis 直接映射 interview 表记录。
- * 业务逻辑：实体保留数据库原始字段，具体前端展示所需的公司、分类、标签等关联信息由 Service 层通过 JOIN 查询组装。
+ * 承接面经主表的持久化字段，供 MyBatis 直接映射 interview 表记录。
+ * 实体保留数据库原始字段，公司、分类、标签等关联信息由 Service 层通过 JOIN 查询组装。
  */
 @Getter
 @Setter
@@ -25,6 +25,8 @@ public class Interview {
     private Integer collects;
     private LocalDate publishDate;
     private Integer status;
+    private String difficulty;
+    private String tagList;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

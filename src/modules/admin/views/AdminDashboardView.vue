@@ -397,16 +397,26 @@
               type="text"
               placeholder="例如 2026.08"
             />
-            <select v-else v-model="draftForm.track" class="form-input">
+            <select v-else-if="currentType === 'interview'" v-model="draftForm.category" class="form-input">
+              <option value="frontend">前端</option>
+              <option value="java">Java 后端</option>
+            </select>
+            <select v-else-if="currentType === 'ai'" v-model="draftForm.track" class="form-input">
               <option value="agent">Agent</option>
               <option value="multimodal">多模态</option>
               <option value="infra">基础设施</option>
             </select>
+            <div v-else class="form-input-placeholder">—</div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">状态</label>
-            <select v-model="draftForm.visualStatus" class="form-input">
+            <label class="form-label">{{ currentType === 'interview' ? '难度' : '状态' }}</label>
+            <select v-if="currentType === 'interview'" v-model="draftForm.difficulty" class="form-input">
+              <option value="easy">基础</option>
+              <option value="medium">中等</option>
+              <option value="hard">困难</option>
+            </select>
+            <select v-else v-model="draftForm.visualStatus" class="form-input">
               <option value="published">已发布</option>
               <option value="draft">草稿</option>
               <option value="review">重点关注</option>
@@ -486,6 +496,7 @@ const sidebarEmojiMap = {
   tech: '📝',
   world: '📰',
   ai: '✨',
+  interview: '🎙️',
   analytics: '📊',
   comment: '💬',
   create: '🆕',
@@ -551,6 +562,27 @@ const moduleOptions = computed(() => [
       comments: '讨论量',
       focus: '今日热点'
     }
+  },
+  {
+    key: 'interview',
+    icon: '面',
+    badge: `${resolveModuleCount('interview')}`,
+    navLabel: '面试管理',
+    topbarTitle: '面试管理',
+    shortLabel: '面试',
+    panelTitle: '最新面经',
+    sideTitle: '面试分类',
+    formCategoryLabel: '分类',
+    formTagLabel: '标签',
+    formTagPlaceholder: '例如 Java, 集合框架, JVM',
+    statLabels: {
+      total: '面经总数',
+      views: '总阅读量',
+      comments: '收藏数',
+      focus: '高收藏'
+    },
+    focusCount: moduleSummary.value.featuredCount,
+    focusHint: '↗ 高收藏内容持续受关注'
   }
 ])
 
@@ -558,7 +590,7 @@ const analyticsSectionRef = ref(null)
 const tableSectionRef = ref(null)
 const activitySectionRef = ref(null)
 const commentSectionRef = ref(null)
-const contentSectionKeys = ['tech', 'world', 'ai']
+const contentSectionKeys = ['tech', 'world', 'ai', 'interview']
 const routeSection = computed(() => String(route.params.section || 'tech'))
 const isContentPage = computed(() => contentSectionKeys.includes(routeSection.value))
 const isStatsPage = computed(() => routeSection.value === 'stats')
@@ -671,6 +703,15 @@ const filterTabs = computed(() => {
     ]
   }
 
+  if (currentType.value === 'interview') {
+    return [
+      { key: 'all', label: '全部' },
+      { key: 'easy', label: '基础' },
+      { key: 'medium', label: '中等' },
+      { key: 'hard', label: '困难' }
+    ]
+  }
+
   return [
     { key: 'all', label: '全部' },
     { key: 'recommended', label: '推荐' },
@@ -694,6 +735,7 @@ const filteredRecords = computed(() => {
       record.authorName,
       record.issueLabel,
       record.track,
+      record.difficulty,
       ...(record.highlights || []),
       ...(record.tags || [])
     ]
@@ -775,6 +817,15 @@ const sideCategoryItems = computed(() => {
     }))
   }
 
+  if (currentType.value === 'interview') {
+    return [
+      { name: '基础难度', count: countBy(currentRecords.value, (item) => item.track === 'easy'), color: '#4ade80' },
+      { name: '中等难度', count: countBy(currentRecords.value, (item) => item.track === 'medium'), color: '#facc15' },
+      { name: '困难难度', count: countBy(currentRecords.value, (item) => item.track === 'hard'), color: '#f87171' },
+      { name: '面经合计', count: currentRecords.value.length, color: '#7ab0e0' }
+    ]
+  }
+
   return [
     { name: 'Agent 落地', count: countBy(currentRecords.value, (item) => item.track === 'agent'), color: '#e8c97e' },
     { name: '多模态交互', count: countBy(currentRecords.value, (item) => item.track === 'multimodal'), color: '#7ab0e0' },
@@ -795,7 +846,7 @@ const hotContentRankings = computed(() => {
 })
 
 const progressInfo = computed(() => {
-  const targetMap = { tech: 20, world: 6, ai: 10 }
+  const targetMap = { tech: 20, world: 6, ai: 10, interview: 10 }
   const target = targetMap[currentType.value] || 10
   const current = moduleSummary.value.currentMonthCount
   const percent = Math.min(100, Math.round((current / target) * 100))
@@ -861,6 +912,14 @@ function matchFilter(record, filterKey) {
     }[filterKey]
   }
 
+  if (currentType.value === 'interview') {
+    return {
+      easy: record.track === 'easy',
+      medium: record.track === 'medium',
+      hard: record.track === 'hard'
+    }[filterKey]
+  }
+
   return {
     recommended: Boolean(record.recommended),
     today: Boolean(record.today),
@@ -875,6 +934,9 @@ function resolveMeta(record) {
   if (record.type === 'world') {
     return `${record.publishedAt || '--'} / ${record.issueLabel || '未设置期号'}`
   }
+  if (record.type === 'interview') {
+    return `${record.publishedAt || '--'} / ${(record.tags || []).slice(0, 3).join(', ') || '无标签'}`
+  }
   return `${record.publishedAt || '--'} / ${record.authorName || '匿名来源'}`
 }
 
@@ -884,6 +946,9 @@ function resolveCategory(record) {
   }
   if (record.type === 'world') {
     return record.issueLabel || '期刊'
+  }
+  if (record.type === 'interview') {
+    return record.category || '综合'
   }
   return record.track || 'AI'
 }
@@ -907,6 +972,12 @@ function resolveStatus(record) {
       return { label: '持续关注', className: 'badge-review' }
     }
     return { label: '常规期号', className: 'badge-draft' }
+  }
+
+  if (record.type === 'interview') {
+    const diffMap = { easy: '基础', medium: '中等', hard: '困难' }
+    const diff = diffMap[record.track] || '基础'
+    return { label: diff, className: record.track === 'hard' ? 'badge-review' : record.track === 'medium' ? 'badge-published' : 'badge-draft' }
   }
 
   if (record.today) {
@@ -964,6 +1035,9 @@ function isFocusRecord(record) {
   }
   if (record.type === 'world') {
     return Number(record.recommendation || 0) >= 80
+  }
+  if (record.type === 'interview') {
+    return record.track === 'hard' || Number(record.collectCount || 0) >= 10
   }
   return record.today || record.recommended
 }
@@ -1090,6 +1164,7 @@ function createEmptyDraft() {
     issueLabel: '',
     recommendation: 80,
     track: 'agent',
+    difficulty: 'easy',
     heat: 80,
     featured: false,
     vip: false,
@@ -1103,10 +1178,11 @@ function createEmptyDraft() {
 }
 
 function createDraftFromRecord(record) {
+  const isInterview = record.type === 'interview'
   return {
     id: record.id || '',
     title: record.title || '',
-    category: record.category || 'frontend',
+    category: isInterview ? mapInterviewCategory(record.category) : (record.category || 'frontend'),
     summary: record.summary || '',
     authorName: record.authorName || '',
     coverUrl: record.coverUrl || '/peakstars-blog-icon.jpg',
@@ -1114,7 +1190,8 @@ function createDraftFromRecord(record) {
     publishedAt: normalizeDateTimeLocal(record.publishedAt),
     issueLabel: record.issueLabel || '',
     recommendation: Number(record.recommendation || 80),
-    track: record.track || 'agent',
+    track: isInterview ? (record.track || 'easy') : (record.track || 'agent'),
+    difficulty: isInterview ? (record.track || 'easy') : 'easy',
     heat: Number(record.heat || 80),
     featured: Boolean(record.featured),
     vip: Boolean(record.vip),
@@ -1125,6 +1202,12 @@ function createDraftFromRecord(record) {
     tagsText: (record.tags || []).join(', '),
     visualStatus: inferVisualStatus(record)
   }
+}
+
+function mapInterviewCategory(category) {
+  if (category === '前端' || category === 'frontend') return 'frontend'
+  if (category === 'Java' || category === 'java' || category === 'Java 后端') return 'java'
+  return 'frontend'
 }
 
 // 业务目的：在页面完全照模板收口后，保存请求仍要兼容现有后台三类内容接口。
@@ -1176,6 +1259,23 @@ function buildSavePayload(form, type) {
       coverSummary: form.summary,
       coverFooter: '专题 / 深读 / 评论',
       coverUrl: form.coverUrl,
+      contentHtml: form.contentHtml
+    }
+  }
+
+  if (type === 'interview') {
+    return {
+      id: form.id || '',
+      title: form.title,
+      summary: form.summary,
+      authorName: form.authorName || '后台编辑',
+      category: form.category || 'frontend',
+      track: form.difficulty || 'easy',
+      tags: splitCommaText(form.tagsText),
+      publishedAt: normalizeDateTimePayload(form.publishedAt),
+      viewCount: 0,
+      likeCount: 0,
+      collectCount: 0,
       contentHtml: form.contentHtml
     }
   }
@@ -1326,6 +1426,9 @@ function inferVisualStatus(record) {
   }
   if (record.type === 'world') {
     return Number(record.recommendation || 0) >= 80 ? 'review' : 'published'
+  }
+  if (record.type === 'interview') {
+    return record.track === 'hard' ? 'review' : 'published'
   }
   if (record.today) {
     return 'review'

@@ -91,6 +91,33 @@
     <result column="created_at" property="createdAt"/>
   </resultMap>
 
+  <resultMap id="InterviewAdminResultMap" type="com.interview.auth.domain.entity.Interview">
+    <id column="id" property="id"/>
+    <result column="title" property="title"/>
+    <result column="author" property="author"/>
+    <result column="summary" property="summary"/>
+    <result column="content" property="content"/>
+    <result column="views" property="views"/>
+    <result column="likes" property="likes"/>
+    <result column="collects" property="collects"/>
+    <result column="publish_date" property="publishDate"/>
+    <result column="difficulty" property="difficulty"/>
+    <result column="tag_list" property="tagList"/>
+    <result column="company_id" property="companyId"/>
+    <result column="category_id" property="categoryId"/>
+    <result column="status" property="status"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="countPublishedInterviews" resultType="java.lang.Integer">
+    SELECT COUNT(*) FROM interview WHERE status = 1
+  </select>
+
+  <select id="sumInterviewViews" resultType="java.lang.Integer">
+    SELECT COALESCE(SUM(views), 0) FROM interview WHERE status = 1
+  </select>
+
   <select id="countPublishedTechArticles" resultType="java.lang.Integer">
     SELECT COUNT(*) FROM tech_article WHERE status = 1
   </select>
@@ -369,6 +396,44 @@
     UPDATE ai_hotspot
     SET status = 0, updated_at = CURRENT_TIMESTAMP
     WHERE hotspot_key = #{hotspotKey} AND status = 1
+  </update>
+
+  <select id="findAllInterviews" resultMap="InterviewAdminResultMap">
+    SELECT *
+    FROM interview
+    WHERE status = 1
+    ORDER BY publish_date DESC, created_at DESC
+  </select>
+
+  <insert id="saveInterview" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO interview (
+      company_id, category_id, title, author, summary, content,
+      views, likes, collects, publish_date, difficulty, tag_list, status
+    ) VALUES (
+      #{companyId}, #{categoryId}, #{title}, #{author}, #{summary}, #{content},
+      #{views}, #{likes}, #{collects}, #{publishDate}, #{difficulty}, #{tagList}, #{status}
+    )
+    ON DUPLICATE KEY UPDATE
+      company_id = VALUES(company_id),
+      category_id = VALUES(category_id),
+      title = VALUES(title),
+      author = VALUES(author),
+      summary = VALUES(summary),
+      content = VALUES(content),
+      views = VALUES(views),
+      likes = VALUES(likes),
+      collects = VALUES(collects),
+      publish_date = VALUES(publish_date),
+      difficulty = VALUES(difficulty),
+      tag_list = VALUES(tag_list),
+      status = VALUES(status),
+      updated_at = CURRENT_TIMESTAMP
+  </insert>
+
+  <update id="disableInterview">
+    UPDATE interview
+    SET status = 0, updated_at = CURRENT_TIMESTAMP
+    WHERE id = #{interviewId} AND status = 1
   </update>
 
   <insert id="insertContentEditLog" useGeneratedKeys="true" keyProperty="id">

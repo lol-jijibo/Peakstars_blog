@@ -84,7 +84,7 @@ const routes = [
     redirect: '/admin/tech'
   },
   {
-    path: '/admin/:section(tech|world|ai|stats|comment)',
+    path: '/admin/:section(tech|world|ai|interview|stats|comment)',
     component: () => import('@/modules/admin/views/AdminDashboardView.vue'),
     meta: { title: '管理后台', requiresAuth: false }
   }

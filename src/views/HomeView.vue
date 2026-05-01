@@ -38,9 +38,9 @@
               <span class="stat-label">技术文章</span>
             </div>
             <div class="stat-divider"></div>
-            <div class="stat-item">
-              <span class="stat-num">{{ learningRoutes.length }}</span>
-              <span class="stat-label">学习路线</span>
+            <div class="stat-item stat-item-enroll">
+              <span class="stat-num">{{ routeEnrollCount }}</span>
+              <span class="stat-label stat-label--enroll">注册人数</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -314,6 +314,7 @@ const themeStore = useThemeStore()
 const techArticles = ref([])
 const learningRoutes = ref([])
 const aiHotspots = ref([])
+const routeEnrollCount = ref(62) // TODO: 后续接入后端 API 返回实际注册人数
 
 const sortedArticles = computed(() => {
   return [...techArticles.value].sort((left, right) => {

@@ -2,6 +2,7 @@ package com.interview.auth.admin.mapper;
 
 import com.interview.auth.admin.entity.ContentEditLog;
 import com.interview.auth.domain.entity.AiHotspot;
+import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
 import java.util.List;
@@ -52,6 +53,16 @@ public interface AdminMapper {
     int disableWorldNewsIssue(@Param("issueKey") String issueKey);
 
     int disableAiHotspot(@Param("hotspotKey") String hotspotKey);
+
+    Integer countPublishedInterviews();
+
+    Integer sumInterviewViews();
+
+    List<Interview> findAllInterviews();
+
+    int saveInterview(Interview interview);
+
+    int disableInterview(@Param("interviewId") Integer interviewId);
 
     int insertContentEditLog(ContentEditLog log);
 }

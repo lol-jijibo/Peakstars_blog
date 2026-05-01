@@ -18,13 +18,15 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
   const contentMap = ref({
     tech: [],
     world: [],
-    ai: []
+    ai: [],
+    interview: []
   })
   const loadingMap = ref({
     dashboard: false,
     tech: false,
     world: false,
-    ai: false
+    ai: false,
+    interview: false
   })
   const saving = ref(false)
   const errorMessage = ref('')
