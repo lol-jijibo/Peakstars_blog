@@ -21,8 +21,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 业务目的：对外暴露后台管理页所需的心跳、仪表盘、内容 CRUD 和批量导入接口。
- * 业务逻辑：Controller 只负责接参和包装统一响应结构，具体数据处理交给 AdminService。
+ * 对外暴露后台管理页所需的心跳、仪表盘、内容 CRUD 和批量导入接口。
+ * Controller 只负责接参和包装统一响应结构，具体数据处理交给 AdminService。
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -32,8 +32,8 @@ public class AdminController {
     private final AdminService adminService;
 
     /**
-     * 业务目的：记录后台当前访问者的心跳，驱动在线人数实时统计。
-     * 业务逻辑：前端会定时发送 clientId，后端据此维护短周期在线会话。
+     * 记录后台当前访问者的心跳，驱动在线人数实时统计。
+     * 前端会定时发送 clientId，后端据此维护短周期在线会话。
      */
     @PostMapping("/heartbeat")
     public ApiResponse<Void> heartbeat(@Valid @RequestBody AdminHeartbeatRequest request) {
@@ -42,8 +42,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：获取后台首页仪表盘聚合数据。
-     * 业务逻辑：统一返回指标卡片、趋势图、模块统计和最近编辑，减少前端首屏请求数量。
+     * 获取后台首页仪表盘聚合数据。
+     * 统一返回指标卡片、趋势图、模块统计和最近编辑，减少前端首屏请求数量。
      */
     @GetMapping("/dashboard")
     public ApiResponse<AdminDashboardResponse> getDashboard() {
@@ -51,8 +51,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：按模块读取后台内容管理列表。
-     * 业务逻辑：type 决定读取技术文章、看天下或 AI 热点，返回结果统一映射成后台记录结构。
+     * 按模块读取后台内容管理列表。
+     * type 决定读取技术文章、看天下或 AI 热点，返回结果统一映射成后台记录结构。
      */
     @GetMapping("/content")
     public ApiResponse<List<AdminContentRecordResponse>> listContent(@RequestParam String type) {
@@ -60,8 +60,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：新增指定模块的一条内容记录。
-     * 业务逻辑：后端会按模块规则生成业务主键并落库，同时记录一条编辑日志。
+     * 新增指定模块的一条内容记录。
+     * 后端会按模块规则生成业务主键并落库，同时记录一条编辑日志。
      */
     @PostMapping("/content")
     public ApiResponse<AdminContentRecordResponse> createContent(
@@ -72,8 +72,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：更新指定模块的一条内容记录。
-     * 业务逻辑：通过路径上的业务主键定位记录，再按请求体内容执行幂等更新。
+     * 更新指定模块的一条内容记录。
+     * 通过路径上的业务主键定位记录，再按请求体内容执行幂等更新。
      */
     @PutMapping("/content/{contentKey}")
     public ApiResponse<AdminContentRecordResponse> updateContent(
@@ -85,8 +85,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：处理管理台的 Excel 批量导入保存。
-     * 业务逻辑：前端先把 XLSX 转成标准记录数组，再统一提交到该接口执行批量写入。
+     * 处理管理台的 Excel 批量导入保存。
+     * 前端先把 XLSX 转成标准记录数组，再统一提交到该接口执行批量写入。
      */
     @PostMapping("/content/batch")
     public ApiResponse<List<AdminContentRecordResponse>> batchSaveContent(
@@ -97,8 +97,8 @@ public class AdminController {
     }
 
     /**
-     * 业务目的：下线指定模块的一条内容记录。
-     * 业务逻辑：删除采用软删除方案，只更新 status 并同步写入编辑日志。
+     * 下线指定模块的一条内容记录。
+     * 删除采用软删除方案，只更新 status 并同步写入编辑日志。
      */
     @DeleteMapping("/content/{contentKey}")
     public ApiResponse<Void> deleteContent(@RequestParam String type, @PathVariable String contentKey) {

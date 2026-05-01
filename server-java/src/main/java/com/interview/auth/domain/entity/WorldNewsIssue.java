@@ -6,8 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 业务目的：承接看天下期刊表的持久化字段，供后端统一查询频道页数据。
- * 业务逻辑：实体只负责保留数据库原始列，排序与裁剪由 Mapper / Service 按频道展示要求处理。
+ * 承接看天下期刊表的持久化字段，供后端统一查询频道页数据。
+ * 实体只负责保留数据库原始列，排序与裁剪由 Mapper / Service 按频道展示要求处理。
  */
 @Getter
 @Setter

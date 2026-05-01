@@ -21,8 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 业务目的：实现面经模块的全部业务逻辑，包括列表查询、详情获取、点赞/收藏和分类查询。
- * 业务逻辑：通过 MyBatis Mapper 获取原始数据后做字段映射和标签数组拆分，
+ * 实现面经模块的全部业务逻辑，包括列表查询、详情获取、点赞/收藏和分类查询。
+ * 通过 MyBatis Mapper 获取原始数据后做字段映射和标签数组拆分，
  *         保证 Controller 层拿到的是可直接返回给前端的标准化结构。
  */
 @Service
@@ -34,8 +34,8 @@ public class InterviewServiceImpl implements InterviewService {
     private final InterviewMapper interviewMapper;
 
     /**
-     * 业务目的：按分类、关键词和分页参数查询面经列表。
-     * 业务逻辑：先查总数和列表，再将每行的 tagsStr 逗号字符串拆分成 List<String>，
+     * 按分类、关键词和分页参数查询面经列表。
+     * 先查总数和列表，再将每行的 tagsStr 逗号字符串拆分成 List<String>，
      *         最后包装为 PageResult 返回。已处理空列表和空标签的边界。
      */
     @Override
@@ -56,8 +56,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：根据面经 ID 获取完整详情。
-     * 业务逻辑：如果面经不存在（查询结果为 null 或空）则抛 BusinessException。
+     * 根据面经 ID 获取完整详情。
+     * 如果面经不存在（查询结果为 null 或空）则抛 BusinessException。
      *         查询到数据后异步增加浏览量，不阻塞返回。标签字符串在 Service 层拆分为数组。
      */
     @Override
@@ -74,8 +74,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：为指定面经执行点赞操作。
-     * 业务逻辑：使用原子 UPDATE 自增点赞数。如果影响行数为 0 表示面经不存在，抛异常。
+     * 为指定面经执行点赞操作。
+     * 使用原子 UPDATE 自增点赞数。如果影响行数为 0 表示面经不存在，抛异常。
      *         更新后重新查询返回最新点赞数。
      */
     @Override
@@ -90,8 +90,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：为指定面经执行收藏操作。
-     * 业务逻辑：与 likeInterview 相同模式，使用原子 UPDATE 并返回最新收藏数。
+     * 为指定面经执行收藏操作。
+     * 与 likeInterview 相同模式，使用原子 UPDATE 并返回最新收藏数。
      */
     @Override
     @Transactional
@@ -105,8 +105,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：获取面经分类列表。
-     * 业务逻辑：直接返回所有分类，按 sort_order 升序排列，无需额外过滤。
+     * 获取面经分类列表。
+     * 直接返回所有分类，按 sort_order 升序排列，无需额外过滤。
      */
     @Override
     public List<CategoryResponse> listCategories() {
@@ -117,8 +117,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：把面经列表的 Map 行数据转换成前端消费的 InterviewListResponse 对象。
-     * 业务逻辑：标签从数据库的逗号分隔字符串拆分为 List<String>，
+     * 把面经列表的 Map 行数据转换成前端消费的 InterviewListResponse 对象。
+     * 标签从数据库的逗号分隔字符串拆分为 List<String>，
      *         日期转换为 yyyy-MM-dd 字符串，已处理 null 和空字符串的边界。
      */
     @SuppressWarnings("unchecked")
@@ -142,8 +142,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：把面经详情的 Map 行数据转换成前端消费的 InterviewDetailResponse 对象。
-     * 业务逻辑：在列表字段基础上增加 content 和 companyDesc，标签和日期处理与列表一致。
+     * 把面经详情的 Map 行数据转换成前端消费的 InterviewDetailResponse 对象。
+     * 在列表字段基础上增加 content 和 companyDesc，标签和日期处理与列表一致。
      */
     @SuppressWarnings("unchecked")
     private InterviewDetailResponse toInterviewDetailResponse(Map<String, Object> row) {
@@ -168,8 +168,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：把 Category 实体转换成前端消费的结构。
-     * 业务逻辑：直接透传 id / code / name 三个字段，与现有前端 getCategories 接口对齐。
+     * 把 Category 实体转换成前端消费的结构。
+     * 直接透传 id / code / name 三个字段，与现有前端 getCategories 接口对齐。
      */
     private CategoryResponse toCategoryResponse(Category category) {
         CategoryResponse resp = new CategoryResponse();
@@ -180,8 +180,8 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     /**
-     * 业务目的：把数据库中的逗号分隔标签字符串拆分成 List&lt;String&gt;。
-     * 业务逻辑：统一在 Service 层处理空字符串和 null 的边界，避免 Controller 和 View 层重复解析。
+     * 把数据库中的逗号分隔标签字符串拆分成 List&lt;String&gt;。
+     * 统一在 Service 层处理空字符串和 null 的边界，避免 Controller 和 View 层重复解析。
      */
     private List<String> splitTags(String tagsStr) {
         if (tagsStr == null || tagsStr.isBlank()) {

@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 业务目的：承接技术文章表的持久化字段，供 MyBatis 直接映射数据库记录。
- * 业务逻辑：实体保留作者、亮点和展示状态等原始字段，具体数组拆分与前端结构转换交给 Service 层完成。
+ * 承接技术文章表的持久化字段，供 MyBatis 直接映射数据库记录。
+ * 实体保留作者、亮点和展示状态等原始字段，具体数组拆分与前端结构转换交给 Service 层完成。
  */
 @Getter
 @Setter

@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 业务目的：对外暴露面经模块的全部接口，包括面经列表/详情/点赞/收藏和分类查询。
- * 业务逻辑：Controller 只负责 HTTP 层参数接收和统一响应包装，具体查询与转换交给 InterviewService。
+ * 对外暴露面经模块的全部接口，包括面经列表/详情/点赞/收藏和分类查询。
+ * Controller 只负责 HTTP 层参数接收和统一响应包装，具体查询与转换交给 InterviewService。
  *          面经模块以前由 Node.js Express 服务承载，迁移到 Java 后端后接口路径和返回结构保持完全一致，
  *          前端只需修改 BASE_URL 即可无痛切换。
  */
@@ -28,8 +28,8 @@ public class InterviewController {
     private final InterviewService interviewService;
 
     /**
-     * 业务目的：提供面经列表接口，支持分类筛选、关键词搜索和分页。
-     * 业务逻辑：category 传 all 或不传表示不过滤，keyword 可空，page 和 pageSize 有默认值。
+     * 提供面经列表接口，支持分类筛选、关键词搜索和分页。
+     * category 传 all 或不传表示不过滤，keyword 可空，page 和 pageSize 有默认值。
      *          返回统一的分页结构 { list, total, page, pageSize }，兼容现有前端 getInterviews 消费逻辑。
      *
      * @param category 分类编码（all / frontend / java）
@@ -49,8 +49,8 @@ public class InterviewController {
     }
 
     /**
-     * 业务目的：提供面经详情接口，包含正文内容和公司描述。
-     * 业务逻辑：路径参数 id 为面经主键，不存在时返回 404 错误响应。
+     * 提供面经详情接口，包含正文内容和公司描述。
+     * 路径参数 id 为面经主键，不存在时返回 404 错误响应。
      *          调用后台时会自动异步增加该面经的浏览量。
      *
      * @param id 面经 ID
@@ -62,8 +62,8 @@ public class InterviewController {
     }
 
     /**
-     * 业务目的：提供面经点赞接口，自增点赞数并返回最新值。
-     * 业务逻辑：使用原子递增保证并发安全，返回 { likes: number } 与现有前端 likeInterview 消费逻辑一致。
+     * 提供面经点赞接口，自增点赞数并返回最新值。
+     * 使用原子递增保证并发安全，返回 { likes: number } 与现有前端 likeInterview 消费逻辑一致。
      *
      * @param id 面经 ID
      * @return 最新点赞数
@@ -74,8 +74,8 @@ public class InterviewController {
     }
 
     /**
-     * 业务目的：提供面经收藏接口，自增收藏数并返回最新值。
-     * 业务逻辑：使用原子递增保证并发安全，返回 { collects: number } 与现有前端 collectInterview 消费逻辑一致。
+     * 提供面经收藏接口，自增收藏数并返回最新值。
+     * 使用原子递增保证并发安全，返回 { collects: number } 与现有前端 collectInterview 消费逻辑一致。
      *
      * @param id 面经 ID
      * @return 最新收藏数

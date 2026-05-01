@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 业务目的：承载面经详情页的前端展示结构，包含正文内容和公司描述。
- * 业务逻辑：继承列表项字段的基础上增加 content 和 companyDesc，确保详情页与列表页共用一致的展示字段定义。
+ * 承载面经详情页的前端展示结构，包含正文内容和公司描述。
+ * 继承列表项字段的基础上增加 content 和 companyDesc，确保详情页与列表页共用一致的展示字段定义。
  */
 @Getter
 @Setter
