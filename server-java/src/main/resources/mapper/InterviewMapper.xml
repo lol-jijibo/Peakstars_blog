@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.auth.infrastructure.mapper.InterviewMapper">
+
+  <!--
+    业务目的：面经列表查询，通过 LEFT JOIN 一次拿到公司名称、分类信息和标签聚合字符串。
+    业务逻辑：标签使用 GROUP_CONCAT 聚合成逗号分隔字符串，在 Service 层拆分为 List<String>，
+            避免对每篇面经执行一次 N+1 查询。动态 WHERE 条件按 category 和 keyword 做过滤。
+  -->
+  <select id="findInterviewList" resultType="java.util.Map">
+    SELECT
+      i.id,
+      i.title,
+      i.author,
+      i.summary,
+      i.views,
+      i.likes,
+      i.collects,
+      i.publish_date AS `date`,
+      c.code          AS category,
+      c.name          AS categoryName,
+      co.name         AS companyName,
+      co.avatar_text  AS avatar,
+      co.avatar_color AS avatarColor,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.id ASC SEPARATOR ',') AS tagsStr
+    FROM interview i
+    JOIN category c   ON i.category_id = c.id
+    JOIN company  co  ON i.company_id  = co.id
+    LEFT JOIN interview_tag it ON i.id = it.interview_id
+    LEFT JOIN tag t         ON it.tag_id = t.id
+    WHERE i.status = 1
+    <if test="category != null and category != 'all' and category != ''">
+      AND c.code = #{category}
+    </if>
+    <if test="keyword != null and keyword != ''">
+      AND (i.title LIKE CONCAT('%', #{keyword}, '%')
+        OR i.author LIKE CONCAT('%', #{keyword}, '%')
+        OR i.summary LIKE CONCAT('%', #{keyword}, '%'))
+    </if>
+    GROUP BY i.id, i.title, i.author, i.summary, i.views, i.likes, i.collects,
+             i.publish_date, c.code, c.name, co.name, co.avatar_text, co.avatar_color
+    ORDER BY i.publish_date DESC, i.likes DESC
+    LIMIT #{pageSize} OFFSET #{offset}
+  </select>
+
+  <!--
+    业务目的：面经列表总数查询，与 findInterviewList 保持相同过滤条件。
+    业务逻辑：使用 COUNT(*) 子查询，保证分页总数准确。
+  -->
+  <select id="countInterviews" resultType="long">
+    SELECT COUNT(*)
+    FROM interview i
+    JOIN category c ON i.category_id = c.id
+    WHERE i.status = 1
+    <if test="category != null and category != 'all' and category != ''">
+      AND c.code = #{category}
+    </if>
+    <if test="keyword != null and keyword != ''">
+      AND (i.title LIKE CONCAT('%', #{keyword}, '%')
+        OR i.author LIKE CONCAT('%', #{keyword}, '%')
+        OR i.summary LIKE CONCAT('%', #{keyword}, '%'))
+    </if>
+  </select>
+
+  <!--
+    业务目的：面经详情查询，包含正文内容和公司简介。
+    业务逻辑：除了列表字段外，额外查询 i.content 和 co.description，标签同样做 GROUP_CONCAT 聚合。
+  -->
+  <select id="findInterviewDetail" resultType="java.util.Map">
+    SELECT
+      i.id,
+      i.title,
+      i.author,
+      i.summary,
+      i.content,
+      i.views,
+      i.likes,
+      i.collects,
+      i.publish_date AS `date`,
+      c.code          AS category,
+      c.name          AS categoryName,
+      co.name         AS companyName,
+      co.avatar_text  AS avatar,
+      co.avatar_color AS avatarColor,
+      co.description  AS companyDesc,
+      GROUP_CONCAT(DISTINCT t.name ORDER BY t.id ASC SEPARATOR ',') AS tagsStr
+    FROM interview i
+    JOIN category c   ON i.category_id = c.id
+    JOIN company  co  ON i.company_id  = co.id
+    LEFT JOIN interview_tag it ON i.id = it.interview_id
+    LEFT JOIN tag t         ON it.tag_id = t.id
+    WHERE i.id = #{id} AND i.status = 1
+    GROUP BY i.id, i.title, i.author, i.summary, i.content, i.views, i.likes, i.collects,
+             i.publish_date, c.code, c.name, co.name, co.avatar_text, co.avatar_color, co.description
+  </select>
+
+  <!--
+    业务目的：原子自增面经浏览量，在详情页加载时异步调用。
+    业务逻辑：使用原子 UPDATE 保证计数的准确性，不阻塞详情页主查询返回。
+  -->
+  <update id="incrementViews">
+    UPDATE interview
+    SET views = views + 1
+    WHERE id = #{id} AND status = 1
+  </update>
+
+  <!--
+    业务目的：原子自增面经点赞数。
+    业务逻辑：使用 UPDATE ... SET likes = likes + 1 保证并发安全，
+            无需先 SELECT 再 UPDATE。
+  -->
+  <update id="incrementLikes">
+    UPDATE interview
+    SET likes = likes + 1
+    WHERE id = #{id} AND status = 1
+  </update>
+
+  <!--
+    业务目的：原子自增面经收藏数。
+    业务逻辑：与 incrementLikes 保持一致的并发更新策略。
+  -->
+  <update id="incrementCollects">
+    UPDATE interview
+    SET collects = collects + 1
+    WHERE id = #{id} AND status = 1
+  </update>
+
+  <!--
+    业务目的：查询面经当前点赞和收藏数。
+    业务逻辑：只读 likes 和 collects 两个字段，轻量查询用于返回最新数值。
+  -->
+  <select id="findLikesAndCollects" resultType="com.interview.auth.domain.entity.Interview">
+    SELECT id, likes, collects
+    FROM interview
+    WHERE id = #{id}
+  </select>
+
+  <!--
+    业务目的：查询所有已发布面经分类。
+    业务逻辑：支持 map-underscore-to-camel-case，sort_order 自动映射为 sortOrder。
+  -->
+  <select id="findAllCategories" resultType="com.interview.auth.domain.entity.Category">
+    SELECT id, code, name, sort_order
+    FROM category
+    ORDER BY sort_order ASC
+  </select>
+
+</mapper>

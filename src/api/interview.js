@@ -1,6 +1,7 @@
 // API 基础地址配置
-// 开发时指向本地后端，生产时改为实际部署地址
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
+// 开发时通过 Vite 代理转发到 Java 后端（localhost:8080），生产时改为实际部署地址
+// 与 content.js、learningRoute.js、admin.js 保持一致的 baseUrl 策略
+const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
 /**
  * 通用请求封装

@@ -1,6 +1,13 @@
 <template>
   <div class="app-container">
-    <router-view />
+    <router-view v-slot="{ Component, route }">
+      <transition
+        :name="route.meta.animation || 'page-fade'"
+        mode="out-in"
+      >
+        <component :is="Component" :key="route.path" />
+      </transition>
+    </router-view>
     <forum-entry-loader
       :visible="entryTransitionLoaderState.visible"
       :kicker="entryTransitionLoaderState.kicker"

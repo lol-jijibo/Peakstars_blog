@@ -23,7 +23,7 @@ const routes = [
   {
     path: '/articles',
     component: () => import('@/views/TechArticleList.vue'),
-    meta: { title: '技术文章', requiresAuth: true }
+    meta: { title: '技术文章', requiresAuth: true, animation: 'page-slide-left' }
   },
   {
     path: '/articles/:id',
@@ -33,12 +33,12 @@ const routes = [
   {
     path: '/world',
     component: () => import('@/modules/world/WorldNewsView.vue'),
-    meta: { title: '看天下', requiresAuth: true }
+    meta: { title: '看天下', requiresAuth: true, animation: 'page-scale-in' }
   },
   {
     path: '/ai-hotspot',
     component: () => import('@/modules/ai/AiHotspotView.vue'),
-    meta: { title: 'AI 热点', requiresAuth: true }
+    meta: { title: 'AI 热点', requiresAuth: true, animation: 'page-rotate-in' }
   },
   {
     path: '/auth',
@@ -52,7 +52,7 @@ const routes = [
   {
     path: '/interview',
     component: () => import('@/views/InterviewList.vue'),
-    meta: { title: '内容列表', requiresAuth: true }
+    meta: { title: '内容列表', requiresAuth: true, animation: 'page-blur-in' }
   },
   {
     path: '/interview/:id',

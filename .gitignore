@@ -3,6 +3,10 @@ dist/
 
 # Dependencies
 node_modules/
+server/node_modules/
+
+# Lock files (should not be tracked)
+server/package-lock.json
 
 # IDE files
 .idea/

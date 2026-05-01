@@ -53,9 +53,11 @@
                   <div class="ai-feed-cover-shell">
                     <img
                       class="ai-feed-cover"
+                      :class="{ loaded: aiCoverLoadedMap[hotspot.id] }"
                       :src="hotspot.coverUrl"
                       :alt="hotspot.title"
                       loading="lazy"
+                      @load="onAiCoverLoad(hotspot.id)"
                     />
                   </div>
                 </article>
@@ -122,6 +124,7 @@ import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
+const aiCoverLoadedMap = ref({})
 // 业务目的：维护热点列表当前选中的资讯标签，先用前端状态模拟后端栏目切换。
 // 输入输出：输入用户点击的标签 key，输出当前列表应该渲染的热点分组。
 // 关键逻辑：标签配置与当前选中值拆开维护，后续接 MySQL 时只需替换数据来源，不用改交互层。
@@ -206,6 +209,10 @@ function switchRankingPage() {
     return
   }
   rankingPage.value = (rankingPage.value + 1) % rankingGroups.value.length
+}
+
+function onAiCoverLoad(id) {
+  aiCoverLoadedMap.value = { ...aiCoverLoadedMap.value, [id]: true }
 }
 
 // 业务目的：把浏览人数统一格式化为 k 单位，贴近资讯流列表的阅读数据显示方式。
