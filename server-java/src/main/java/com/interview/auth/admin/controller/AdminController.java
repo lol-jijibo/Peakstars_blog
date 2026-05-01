@@ -2,9 +2,11 @@ package com.interview.auth.admin.controller;
 
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
+import com.interview.auth.admin.dto.request.AdminDraftUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminHeartbeatRequest;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
+import com.interview.auth.admin.dto.response.AdminDraftResponse;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.ApiResponse;
 import jakarta.validation.Valid;
@@ -104,5 +106,35 @@ public class AdminController {
     public ApiResponse<Void> deleteContent(@RequestParam String type, @PathVariable String contentKey) {
         adminService.deleteContent(type, contentKey);
         return ApiResponse.success("Content removed", null);
+    }
+
+    // ── 草稿管理 ──────────────────────────────────────────
+
+    /**
+     * 按模块列出全部草稿，返回给前端「待编辑」表格展示。
+     * 按更新时间倒序排列，最新的草稿排在最前面。
+     */
+    @GetMapping("/draft")
+    public ApiResponse<List<AdminDraftResponse>> listDrafts(@RequestParam String type) {
+        return ApiResponse.success(adminService.listDrafts(type));
+    }
+
+    /**
+     * 创建或更新草稿（按 draftKey 幂等写入）。
+     * 前端在新增或编辑过程中点击「保存草稿」或触发自动保存时调用此接口。
+     */
+    @PostMapping("/draft")
+    public ApiResponse<AdminDraftResponse> saveDraft(@Valid @RequestBody AdminDraftUpsertRequest request) {
+        return ApiResponse.success(adminService.saveDraft(request));
+    }
+
+    /**
+     * 删除指定草稿。
+     * 草稿发布成功或用户手动删除时调用，直接从 content_draft 表物理删除。
+     */
+    @DeleteMapping("/draft/{draftKey}")
+    public ApiResponse<Void> deleteDraft(@PathVariable String draftKey) {
+        adminService.deleteDraft(draftKey);
+        return ApiResponse.success("Draft removed", null);
     }
 }

@@ -31,6 +31,8 @@ const aiEnabled = Boolean(import.meta.env.VITE_ADMIN_AI_MODEL && import.meta.env
 let editorInstance = null
 let editorConstructor = null
 let editorRuntimePromise = null
+let exitCodeBlockExtension = null
+let exitListExtension = null
 
 /**
  * 统一承接后台正文编辑与内容回填。
@@ -92,6 +94,14 @@ async function initEditor() {
     },
     onChange(editor) {
       emit('update:modelValue', editor.getHtml())
+    },
+    onCreateBefore: (editor, extensions) => {
+      if (exitCodeBlockExtension) {
+        extensions.push(exitCodeBlockExtension)
+      }
+      if (exitListExtension) {
+        extensions.push(exitListExtension)
+      }
     },
     ai: buildAiConfig()
   })
@@ -177,22 +187,10 @@ const editorToolbarKeys = [
 ]
 
 /**
- * 为新建文章提供原来的基础正文骨架。
- * 使用导语、引用和列表组织内容，方便直接补充正文。
+ * 编辑器内置 placeholder 已支持灰色占位文字，此处返回空内容即可。
  */
 function createDefaultContent() {
-  return `
-    <h2>文章导语</h2>
-    <p>在这里写清楚这篇文章要解决的问题、适合谁阅读，以及读完能获得什么。</p>
-    <blockquote><p>可以把最重要的结论或背景放在这里，形成首屏重点。</p></blockquote>
-    <h2>核心内容</h2>
-    <p>使用标题、加粗、列表、图片、表格或代码块组织正文，让读者更容易扫描和理解。</p>
-    <ul>
-      <li>关键点一：补充业务背景或技术背景。</li>
-      <li>关键点二：说明方案逻辑、实现路径或踩坑经验。</li>
-      <li>关键点三：给出结论、建议或后续行动。</li>
-    </ul>
-  `
+  return ''
 }
 
 watch(
@@ -221,14 +219,92 @@ onBeforeUnmount(() => {
 /**
  * 编辑器资源较重，需要按需异步加载。
  * 首次加载后缓存运行时，后续弹窗直接复用。
+ * 同时加载 @tiptap/core 用于创建自定义键盘扩展。
  */
 async function ensureEditorRuntime() {
   if (!editorRuntimePromise) {
     editorRuntimePromise = Promise.all([
       import('aieditor'),
-      import('aieditor/dist/style.css')
-    ]).then(([editorModule]) => {
+      import('aieditor/dist/style.css'),
+      import('@tiptap/core')
+    ]).then(([editorModule, _, tiptapCore]) => {
       editorConstructor = editorModule.AiEditor
+
+      // 创建自定义扩展：在代码块中按 Ctrl+Enter / Cmd+Enter 退出代码块
+      const { Extension } = tiptapCore
+      exitCodeBlockExtension = Extension.create({
+        name: 'aiExitCodeBlock',
+        addKeyboardShortcuts() {
+          return {
+            'Mod-Enter': ({ editor }) => {
+              const { selection } = editor.state
+              const { $from } = selection
+              const node = $from.node()
+              if (node.type.name === 'codeBlock') {
+                return editor.commands.exitCode()
+              }
+              return false
+            },
+          }
+        },
+      })
+
+      // 创建自定义扩展：在有序/无序列表中按 Ctrl+Enter / Cmd+Enter 退出列表
+      // 同时处理标准 Enter 在空列表项上退出列表
+      exitListExtension = Extension.create({
+        name: 'aiExitList',
+        addKeyboardShortcuts() {
+          return {
+            'Mod-Enter': ({ editor }) => {
+              const { selection } = editor.state
+              const { $from } = selection
+              for (let depth = $from.depth; depth > 0; depth -= 1) {
+                if ($from.node(depth).type.name === 'listItem') {
+                  return editor.chain().liftListItem('listItem').run()
+                }
+              }
+              return false
+            },
+            'Shift-Enter': ({ editor }) => {
+              const { selection } = editor.state
+              const { $from } = selection
+              for (let depth = $from.depth; depth > 0; depth -= 1) {
+                const nodeAtDepth = $from.node(depth)
+                if (nodeAtDepth.type.name === 'listItem') {
+                  // Shift+Enter 在列表项内做软换行，但如果是空列表项则退出列表
+                  if (nodeAtDepth.textContent.length === 0) {
+                    return editor.chain().liftListItem('listItem').run()
+                  }
+                  return editor.commands.enter()
+                }
+              }
+              return false
+            },
+            Enter: ({ editor }) => {
+              const { selection } = editor.state
+              const { $from, empty } = selection
+              if (!empty) {
+                return false
+              }
+              for (let depth = $from.depth; depth > 0; depth -= 1) {
+                const nodeAtDepth = $from.node(depth)
+                if (nodeAtDepth.type.name === 'listItem') {
+                  const parent = $from.node(depth - 1)
+                  if (parent.type.name !== 'orderedList' && parent.type.name !== 'bulletList') {
+                    return false
+                  }
+                  // 空列表项上按 Enter 直接退出列表
+                  if (nodeAtDepth.textContent.length === 0) {
+                    return editor.chain().liftListItem('listItem').run()
+                  }
+                  break
+                }
+              }
+              return false
+            },
+          }
+        },
+      })
     })
   }
 
@@ -324,6 +400,79 @@ async function ensureEditorRuntime() {
   padding: 16px;
   background: #0f172a;
   color: #e5e7eb;
+}
+
+/* 修复代码块在深色背景上的高亮冲突 —— AiEditor 自带的 light 主题 hljs 会叠加浅色背景 */
+.admin-rich-editor-shell :deep(.ProseMirror pre code) {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .aie-codeblock-wrapper) {
+  background: #0f172a;
+}
+
+/* 覆盖 hljs 浅色背景，使其在深色 pre 中正确显示 */
+.admin-rich-editor-shell :deep(.aie-container .hljs) {
+  background: transparent;
+  color: #e5e7eb;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-comment),
+.admin-rich-editor-shell :deep(.aie-container .hljs-quote) {
+  color: #8b949e;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-doctag),
+.admin-rich-editor-shell :deep(.aie-container .hljs-keyword),
+.admin-rich-editor-shell :deep(.aie-container .hljs-formula) {
+  color: #c678dd;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-section),
+.admin-rich-editor-shell :deep(.aie-container .hljs-name),
+.admin-rich-editor-shell :deep(.aie-container .hljs-selector-tag),
+.admin-rich-editor-shell :deep(.aie-container .hljs-subst) {
+  color: #e06c75;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-literal) {
+  color: #56b6c2;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-string),
+.admin-rich-editor-shell :deep(.aie-container .hljs-regexp),
+.admin-rich-editor-shell :deep(.aie-container .hljs-addition),
+.admin-rich-editor-shell :deep(.aie-container .hljs-attribute),
+.admin-rich-editor-shell :deep(.aie-container .hljs-meta .hljs-string) {
+  color: #98c379;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-attr),
+.admin-rich-editor-shell :deep(.aie-container .hljs-variable),
+.admin-rich-editor-shell :deep(.aie-container .hljs-template-variable),
+.admin-rich-editor-shell :deep(.aie-container .hljs-type),
+.admin-rich-editor-shell :deep(.aie-container .hljs-selector-class),
+.admin-rich-editor-shell :deep(.aie-container .hljs-selector-attr),
+.admin-rich-editor-shell :deep(.aie-container .hljs-selector-pseudo),
+.admin-rich-editor-shell :deep(.aie-container .hljs-number) {
+  color: #d19a66;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-symbol),
+.admin-rich-editor-shell :deep(.aie-container .hljs-bullet),
+.admin-rich-editor-shell :deep(.aie-container .hljs-link),
+.admin-rich-editor-shell :deep(.aie-container .hljs-meta),
+.admin-rich-editor-shell :deep(.aie-container .hljs-selector-id),
+.admin-rich-editor-shell :deep(.aie-container .hljs-title) {
+  color: #61aeee;
+}
+
+.admin-rich-editor-shell :deep(.aie-container .hljs-built_in),
+.admin-rich-editor-shell :deep(.aie-container .hljs-title.class_),
+.admin-rich-editor-shell :deep(.aie-container .hljs-class .hljs-title) {
+  color: #e6c07b;
 }
 
 .admin-rich-editor-shell :deep(.ProseMirror table) {

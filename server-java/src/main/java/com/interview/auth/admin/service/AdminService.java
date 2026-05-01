@@ -2,12 +2,14 @@ package com.interview.auth.admin.service;
 
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
+import com.interview.auth.admin.dto.request.AdminDraftUpsertRequest;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
+import com.interview.auth.admin.dto.response.AdminDraftResponse;
 import java.util.List;
 
 /**
- * 对外统一提供后台管理台的仪表盘、心跳、内容 CRUD 和批量导入能力。
+ * 对外统一提供后台管理台的仪表盘、心跳、内容 CRUD、批量导入和草稿管理能力。
  * Service 层负责不同内容模块的字段适配和实时指标拼装，Controller 只负责组织 HTTP 响应。
  */
 public interface AdminService {
@@ -47,4 +49,12 @@ public interface AdminService {
      * 采用软删除方式只更新 status，保留历史记录与编辑日志，方便后续恢复。
      */
     void deleteContent(String type, String contentKey);
+
+    // ── 草稿管理 ──────────────────────────────────────────
+
+    List<AdminDraftResponse> listDrafts(String contentType);
+
+    AdminDraftResponse saveDraft(AdminDraftUpsertRequest request);
+
+    void deleteDraft(String draftKey);
 }

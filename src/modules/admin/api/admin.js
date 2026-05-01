@@ -60,3 +60,22 @@ export function deleteAdminContent(type, contentKey) {
     method: 'DELETE'
   })
 }
+
+// ── 草稿管理 ──────────────────────────────────────────
+
+export function listAdminDrafts(type) {
+  return request(`/api/admin/draft?type=${encodeURIComponent(type)}`)
+}
+
+export function saveAdminDraft(params) {
+  return request('/api/admin/draft', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  })
+}
+
+export function deleteAdminDraft(draftKey) {
+  return request(`/api/admin/draft/${encodeURIComponent(draftKey)}`, {
+    method: 'DELETE'
+  })
+}

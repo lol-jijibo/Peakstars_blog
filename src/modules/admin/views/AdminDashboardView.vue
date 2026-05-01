@@ -1,5 +1,28 @@
 <template>
   <div class="admin-console-page">
+    <div class="toast-container">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast"
+        :class="['toast-' + toast.type, { 'toast-leaving': toast.leaving }]"
+        @click="dismissToast(toast.id)"
+      >
+        <span class="toast-icon">{{ toast.icon }}</span>
+        <span class="toast-text">{{ toast.message }}</span>
+      </div>
+    </div>
+
+    <div v-if="confirmVisible" class="confirm-overlay" @click.self="cancelConfirm">
+      <div class="confirm-dialog">
+        <div class="confirm-title">{{ confirmTitle }}</div>
+        <div class="confirm-body">{{ confirmMessage }}</div>
+        <div class="confirm-actions">
+          <button class="btn btn-ghost" type="button" @click="cancelConfirm">取消</button>
+          <button class="btn btn-primary" type="button" style="background:var(--red);color:#fff" @click="resolveConfirm">确认</button>
+        </div>
+      </div>
+    </div>
     <input
       ref="fileInputRef"
       type="file"
@@ -211,7 +234,7 @@
                   </tr>
                 </thead>
                 <tbody v-if="filteredRecords.length">
-                  <tr v-for="record in filteredRecords" :key="`${record.type}-${record.id}`">
+                  <tr v-for="record in filteredRecords" :key="`${record.type}-${record.id}`" :class="{ 'draft-row': record._isLocalDraft }">
                     <td>
                       <div class="post-title-cell">
                         <span class="post-title">{{ record.title }}</span>
@@ -219,17 +242,25 @@
                       </div>
                     </td>
                     <td>
-                      <span class="tag">{{ resolveCategory(record) }}</span>
+                      <span class="tag" :class="{ 'tag-draft': record._isLocalDraft }">{{ record._isLocalDraft ? '草稿' : resolveCategory(record) }}</span>
                     </td>
                     <td>
-                      <span class="badge" :class="resolveStatus(record).className">{{ resolveStatus(record).label }}</span>
+                      <span v-if="record._isLocalDraft" class="badge badge-draft">{{ formatDraftTime(record._savedAt) }}</span>
+                      <span v-else class="badge" :class="resolveStatus(record).className">{{ resolveStatus(record).label }}</span>
                     </td>
-                    <td class="mono-cell">{{ resolveReadValue(record) }}</td>
+                    <td v-if="record._isLocalDraft" class="mono-cell">{{ (record.contentHtml || '').replace(/<[^>]*>/g, '').length }} 字</td>
+                    <td v-else class="mono-cell">{{ resolveReadValue(record) }}</td>
                     <td>
                       <div class="row-actions">
-                        <button class="icon-btn" type="button" title="编辑" @click="openEditDialog(record)">编</button>
-                        <button class="icon-btn" type="button" title="刷新" @click="refreshCurrentType">预</button>
-                        <button class="icon-btn del" type="button" title="删除" @click="removeRecord(record)">删</button>
+                        <template v-if="record._isLocalDraft">
+                          <button class="icon-btn" type="button" title="继续编辑" @click="restoreDraft(record)">✏</button>
+                          <button class="icon-btn del" type="button" title="删除草稿" @click="removeDraftRecord(record)">删</button>
+                        </template>
+                        <template v-else>
+                          <button class="icon-btn" type="button" title="编辑" @click="openEditDialog(record)">编</button>
+                          <button class="icon-btn" type="button" title="刷新" @click="refreshCurrentType">预</button>
+                          <button class="icon-btn del" type="button" title="删除" @click="removeRecord(record)">删</button>
+                        </template>
                       </div>
                     </td>
                   </tr>
@@ -463,6 +494,9 @@
 
         <div class="modal-footer">
           <button class="btn btn-ghost" type="button" @click="closeDialog">取消</button>
+          <button class="btn btn-save-draft" type="button" :disabled="saving" @click="saveDraftLocally">
+            💾 保存草稿
+          </button>
           <button class="btn btn-primary" type="button" :disabled="saving" @click="submitDraft">
             {{ isEditing ? '保存修改' : '发布内容' }}
           </button>
@@ -477,6 +511,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch }
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminConsoleStore } from '@/modules/admin/stores/adminConsole'
+import { listAdminDrafts, saveAdminDraft, deleteAdminDraft } from '@/modules/admin/api/admin'
 import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
 import AdminModuleChart from '@/modules/admin/components/AdminModuleChart.vue'
 import AdminCommentChart from '@/modules/admin/components/AdminCommentChart.vue'
@@ -590,6 +625,61 @@ const analyticsSectionRef = ref(null)
 const tableSectionRef = ref(null)
 const activitySectionRef = ref(null)
 const commentSectionRef = ref(null)
+const draftVersion = ref(0)
+const drafts = ref([])
+const toasts = ref([])
+let toastIdCounter = 0
+
+function showToast(message, type = 'success', duration = 1500) {
+  const id = ++toastIdCounter
+  const icon = { success: '✓', error: '✕', info: 'ℹ' }[type] || 'ℹ'
+  toasts.value.push({ id, message, type, icon, leaving: false })
+  if (duration > 0) {
+    setTimeout(() => {
+      const toast = toasts.value.find((t) => t.id === id)
+      if (toast) toast.leaving = true
+      setTimeout(() => dismissToast(id), 300)
+    }, duration)
+  }
+}
+
+function dismissToast(id) {
+  const toast = toasts.value.find((t) => t.id === id)
+  if (toast && !toast.leaving) {
+    toast.leaving = true
+    setTimeout(() => {
+      toasts.value = toasts.value.filter((t) => t.id !== id)
+    }, 300)
+    return
+  }
+  toasts.value = toasts.value.filter((t) => t.id !== id)
+}
+
+// ── 自定义确认框 ──────────────────────────────────────
+
+const confirmVisible = ref(false)
+const confirmTitle = ref('')
+const confirmMessage = ref('')
+let confirmResolver = null
+
+function showConfirm(title, message) {
+  return new Promise((resolve) => {
+    confirmTitle.value = title
+    confirmMessage.value = message
+    confirmVisible.value = true
+    confirmResolver = resolve
+  })
+}
+
+function resolveConfirm() {
+  confirmVisible.value = false
+  if (confirmResolver) confirmResolver(true)
+}
+
+function cancelConfirm() {
+  confirmVisible.value = false
+  if (confirmResolver) confirmResolver(false)
+}
 const contentSectionKeys = ['tech', 'world', 'ai', 'interview']
 const routeSection = computed(() => String(route.params.section || 'tech'))
 const isContentPage = computed(() => contentSectionKeys.includes(routeSection.value))
@@ -685,42 +775,68 @@ const moduleSummary = computed(() => {
 })
 
 const filterTabs = computed(() => {
+  draftVersion.value // eslint-disable-line no-unused-expressions
+  const draftCount = drafts.value.length
+  const totalCount = currentRecords.value.length
+  const draftTab = { key: 'draft', label: `待编辑${draftCount ? ` (${draftCount})` : ''}` }
+  const allTab = { key: 'all', label: `全部${totalCount ? ` (${totalCount})` : ''}` }
+
   if (currentType.value === 'tech') {
     return [
-      { key: 'all', label: '全部' },
+      allTab,
       { key: 'featured', label: '精选' },
       { key: 'vip', label: 'VIP' },
-      { key: 'history', label: '最近浏览' }
+      { key: 'history', label: '最近浏览' },
+      draftTab
     ]
   }
 
   if (currentType.value === 'world') {
     return [
-      { key: 'all', label: '全部' },
+      allTab,
       { key: 'recommended', label: '高推荐' },
       { key: 'latest', label: '最新期号' },
-      { key: 'cover', label: '封面重点' }
+      { key: 'cover', label: '封面重点' },
+      draftTab
     ]
   }
 
   if (currentType.value === 'interview') {
     return [
-      { key: 'all', label: '全部' },
+      allTab,
       { key: 'easy', label: '基础' },
       { key: 'medium', label: '中等' },
-      { key: 'hard', label: '困难' }
+      { key: 'hard', label: '困难' },
+      draftTab
     ]
   }
 
   return [
-    { key: 'all', label: '全部' },
+    allTab,
     { key: 'recommended', label: '推荐' },
     { key: 'today', label: '今日热点' },
-    { key: 'high-heat', label: '高热度' }
+    { key: 'high-heat', label: '高热度' },
+    draftTab
   ]
 })
 
 const filteredRecords = computed(() => {
+  draftVersion.value // eslint-disable-line no-unused-expressions
+  if (currentFilter.value === 'draft') {
+    return drafts.value.map((d) => ({
+      ...d.formData,
+      _draftId: d.draftKey,
+      _type: d.contentType,
+      _savedAt: d.savedAt,
+      _isLocalDraft: true,
+      id: d.draftKey,
+      type: d.contentType,
+      title: d.title,
+      contentHtml: d.formData?.contentHtml || '',
+      summary: d.formData?.summary || ''
+    }))
+  }
+
   const baseList = currentRecords.value.filter((record) => matchFilter(record, currentFilter.value))
   const searchValue = keyword.value.trim().toLowerCase()
   if (!searchValue) {
@@ -859,17 +975,109 @@ const progressInfo = computed(() => {
   }
 })
 
+// ── 草稿管理（MySQL 存储） ─────────────────────────────
+
+async function loadDrafts(type) {
+  try {
+    drafts.value = await listAdminDrafts(type)
+    draftVersion.value += 1
+  } catch {
+    drafts.value = []
+  }
+}
+
+let autoSaveTimer = null
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(async () => {
+    if (!dialogVisible.value) return
+    const hasTitle = draftForm.title.trim().length > 0
+    const hasContent = (draftForm.contentHtml || '').replace(/<[^>]*>/g, '').trim().length > 0
+    if (!hasTitle && !hasContent) return
+    await saveDraftToServer(false)
+  }, 2000)
+}
+
+async function saveDraftToServer(showToast = true) {
+  const type = currentType.value
+  const data = { ...draftForm }
+  delete data._draftId
+  const params = {
+    draftKey: draftForm._draftId || '',
+    contentType: type,
+    title: draftForm.title || '',
+    contentHtml: draftForm.contentHtml || '',
+    data
+  }
+  try {
+    const saved = await saveAdminDraft(params)
+    draftForm._draftId = saved.draftKey
+    await loadDrafts(type)
+    if (showToast) {
+      showToast('草稿已保存', 'success')
+    }
+  } catch (e) {
+    if (showToast) {
+      showToast('草稿保存失败: ' + (e.message || '网络错误'), 'error')
+    }
+  }
+}
+
+watch(
+  () => [draftForm.title, draftForm.contentHtml, draftForm.summary],
+  () => {
+    if (dialogVisible.value) {
+      scheduleAutoSave()
+    }
+  },
+  { deep: true }
+)
+
+async function saveDraftLocally() {
+  await saveDraftToServer(true)
+}
+
+function restoreDraft(draft) {
+  isEditing.value = false
+  // draft 来自 filteredRecords，字段已从 d.formData 展开到顶层
+  const restored = { ...draft }
+  delete restored._draftId
+  delete restored._type
+  delete restored._savedAt
+  delete restored._isLocalDraft
+  delete restored.id
+  delete restored.type
+  Object.assign(draftForm, createEmptyDraft(), restored)
+  draftForm._draftId = draft._draftId
+  dialogVisible.value = true
+}
+
+async function removeDraftRecord(draft) {
+  const confirmed = await showConfirm('删除草稿', `确认删除草稿《${draft.title || '无标题'}》吗？`)
+  if (!confirmed) return
+  try {
+    await deleteAdminDraft(draft._draftId)
+    loadDrafts(currentType.value)
+    showToast('草稿已删除', 'success')
+  } catch {
+    showToast('删除草稿失败', 'error')
+  }
+}
+
 watch(routeSection, (nextSection) => {
   keyword.value = ''
   currentFilter.value = 'all'
   if (contentSectionKeys.includes(nextSection)) {
     currentType.value = nextSection
+    loadDrafts(nextSection)
   }
   adminStore.stopRealtime()
   adminStore.startRealtime(contentSectionKeys.includes(nextSection) ? nextSection : undefined)
 }, { immediate: true })
 
 onBeforeUnmount(() => {
+  clearTimeout(autoSaveTimer)
   adminStore.stopRealtime()
 })
 
@@ -1111,15 +1319,24 @@ function closeDialog() {
 async function submitDraft() {
   const payload = buildSavePayload(draftForm, currentType.value)
   await adminStore.saveContent(currentType.value, payload)
+  // 发布成功后清除草稿
+  if (draftForm._draftId) {
+    try {
+      await deleteAdminDraft(draftForm._draftId)
+    } catch {
+      // 草稿删除失败不影响发布
+    }
+    await loadDrafts(currentType.value)
+  }
   closeDialog()
+  showToast(isEditing.value ? '修改已保存' : '发布成功', 'success')
 }
 
 async function removeRecord(record) {
-  const confirmed = window.confirm(`确认删除《${record.title}》吗？`)
-  if (!confirmed) {
-    return
-  }
+  const confirmed = await showConfirm('删除内容', `确认删除《${record.title}》吗？`)
+  if (!confirmed) return
   await adminStore.removeContent(record.type, record.id)
+  showToast('内容已删除', 'success')
 }
 
 function triggerImport() {
@@ -1159,7 +1376,7 @@ function createEmptyDraft() {
     summary: '',
     authorName: '',
     coverUrl: '/peakstars-blog-icon.jpg',
-    contentHtml: '<p>请输入正文内容</p>',
+    contentHtml: '',
     publishedAt: formatDateTimeLocal(new Date()),
     issueLabel: '',
     recommendation: 80,
@@ -1186,7 +1403,7 @@ function createDraftFromRecord(record) {
     summary: record.summary || '',
     authorName: record.authorName || '',
     coverUrl: record.coverUrl || '/peakstars-blog-icon.jpg',
-    contentHtml: record.contentHtml || '<p>请输入正文内容</p>',
+    contentHtml: record.contentHtml || '',
     publishedAt: normalizeDateTimeLocal(record.publishedAt),
     issueLabel: record.issueLabel || '',
     recommendation: Number(record.recommendation || 80),
@@ -1469,6 +1686,20 @@ function formatDateTimeLocal(date) {
   const hour = String(currentDate.getHours()).padStart(2, '0')
   const minute = String(currentDate.getMinutes()).padStart(2, '0')
   return `${year}-${month}-${day}T${hour}:${minute}`
+}
+
+function formatDraftTime(rawTime) {
+  if (!rawTime) return '刚刚'
+  const saved = new Date(rawTime.replace(' ', 'T'))
+  const diffMs = Date.now() - saved.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return `${diffMin} 分钟前`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour} 小时前`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 7) return `${diffDay} 天前`
+  return saved.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
 // 业务目的：模板视觉保持一致的前提下，仍保留批量导入导出能力，避免后台运营能力倒退。

@@ -407,10 +407,10 @@
 
   <insert id="saveInterview" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO interview (
-      company_id, category_id, title, author, summary, content,
+      id, company_id, category_id, title, author, summary, content,
       views, likes, collects, publish_date, difficulty, tag_list, status
     ) VALUES (
-      #{companyId}, #{categoryId}, #{title}, #{author}, #{summary}, #{content},
+      #{id}, #{companyId}, #{categoryId}, #{title}, #{author}, #{summary}, #{content},
       #{views}, #{likes}, #{collects}, #{publishDate}, #{difficulty}, #{tagList}, #{status}
     )
     ON DUPLICATE KEY UPDATE
@@ -451,4 +451,44 @@
       #{contentTitle}
     )
   </insert>
+
+  <!-- ── 草稿管理 ──────────────────────────────────────── -->
+
+  <resultMap id="ContentDraftResultMap" type="com.interview.auth.admin.entity.ContentDraft">
+    <id column="id" property="id"/>
+    <result column="draft_key" property="draftKey"/>
+    <result column="content_type" property="contentType"/>
+    <result column="title" property="title"/>
+    <result column="content_html" property="contentHtml"/>
+    <result column="extra_json" property="extraJson"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="findDraftsByType" resultMap="ContentDraftResultMap">
+    SELECT id, draft_key, content_type, title, content_html, extra_json, created_at, updated_at
+    FROM content_draft
+    WHERE content_type = #{contentType}
+    ORDER BY updated_at DESC
+  </select>
+
+  <select id="findDraftByKey" resultMap="ContentDraftResultMap">
+    SELECT id, draft_key, content_type, title, content_html, extra_json, created_at, updated_at
+    FROM content_draft
+    WHERE draft_key = #{draftKey}
+  </select>
+
+  <insert id="upsertDraft">
+    INSERT INTO content_draft (draft_key, content_type, title, content_html, extra_json)
+    VALUES (#{draftKey}, #{contentType}, #{title}, #{contentHtml}, #{extraJson})
+    ON DUPLICATE KEY UPDATE
+      title       = VALUES(title),
+      content_html = VALUES(content_html),
+      extra_json  = VALUES(extra_json),
+      updated_at  = CURRENT_TIMESTAMP
+  </insert>
+
+  <delete id="deleteDraft">
+    DELETE FROM content_draft WHERE draft_key = #{draftKey}
+  </delete>
 </mapper>

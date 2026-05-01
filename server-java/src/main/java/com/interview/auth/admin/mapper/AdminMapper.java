@@ -1,5 +1,6 @@
 package com.interview.auth.admin.mapper;
 
+import com.interview.auth.admin.entity.ContentDraft;
 import com.interview.auth.admin.entity.ContentEditLog;
 import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.Interview;
@@ -65,4 +66,13 @@ public interface AdminMapper {
     int disableInterview(@Param("interviewId") Integer interviewId);
 
     int insertContentEditLog(ContentEditLog log);
+
+    // ── 草稿管理 ──────────────────────────────────────────
+    List<ContentDraft> findDraftsByType(@Param("contentType") String contentType);
+
+    ContentDraft findDraftByKey(@Param("draftKey") String draftKey);
+
+    int upsertDraft(ContentDraft draft);
+
+    int deleteDraft(@Param("draftKey") String draftKey);
 }

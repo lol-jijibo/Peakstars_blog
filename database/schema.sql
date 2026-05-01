@@ -146,6 +146,33 @@ CREATE TABLE IF NOT EXISTS `tech_article` (
 -- 业务目的：兼容老环境已存在表结构的场景，给后台富文本编辑补齐正文 HTML 字段。
 -- 业务逻辑：通过 information_schema 判断字段是否存在，仅在缺失时执行 ALTER，避免重复执行报错。
 -- ------------------------------------------------------------
+SET @content_draft_exists = (
+  SELECT COUNT(*)
+  FROM information_schema.TABLES
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'content_draft'
+);
+SET @content_draft_sql = IF(
+  @content_draft_exists = 0,
+  'CREATE TABLE IF NOT EXISTS `content_draft` (
+    `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT   COMMENT ''草稿主键ID'',
+    `draft_key`     VARCHAR(64)     NOT NULL                  COMMENT ''草稿唯一标识（前端生成）'',
+    `content_type`  VARCHAR(32)     NOT NULL DEFAULT ''''       COMMENT ''内容类型，tech/world/ai/interview'',
+    `title`         VARCHAR(255)    NOT NULL DEFAULT ''''       COMMENT ''草稿标题'',
+    `content_html`  MEDIUMTEXT      NOT NULL                  COMMENT ''正文富文本 HTML'',
+    `extra_json`    TEXT            NOT NULL                  COMMENT ''其余表单字段 JSON'',
+    `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_draft_key` (`draft_key`),
+    KEY `idx_content_type` (`content_type`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT=''后台草稿表''',
+  'SELECT 1'
+);
+PREPARE content_draft_stmt FROM @content_draft_sql;
+EXECUTE content_draft_stmt;
+DEALLOCATE PREPARE content_draft_stmt;
+
 SET @tech_article_content_html_exists = (
   SELECT COUNT(*)
   FROM information_schema.COLUMNS

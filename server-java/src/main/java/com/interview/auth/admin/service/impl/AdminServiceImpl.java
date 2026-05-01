@@ -2,13 +2,16 @@ package com.interview.auth.admin.service.impl;
 
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
+import com.interview.auth.admin.dto.request.AdminDraftUpsertRequest;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminCommentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
+import com.interview.auth.admin.dto.response.AdminDraftResponse;
 import com.interview.auth.admin.dto.response.AdminModuleStatResponse;
 import com.interview.auth.admin.dto.response.AdminRecentEditResponse;
 import com.interview.auth.admin.dto.response.AdminSummaryResponse;
 import com.interview.auth.admin.dto.response.AdminTrendPointResponse;
+import com.interview.auth.admin.entity.ContentDraft;
 import com.interview.auth.admin.entity.ContentEditLog;
 import com.interview.auth.admin.mapper.AdminMapper;
 import com.interview.auth.admin.service.AdminService;
@@ -17,6 +20,8 @@ import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -28,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,6 +63,7 @@ public class AdminServiceImpl implements AdminService {
     private static final DateTimeFormatter DATE_ONLY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIME_LABEL_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final Duration ONLINE_EXPIRE_WINDOW = Duration.ofSeconds(75);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Duration SNAPSHOT_MIN_INTERVAL = Duration.ofSeconds(20);
     private static final int MAX_TREND_POINTS = 12;
 
@@ -1008,6 +1015,79 @@ public class AdminServiceImpl implements AdminService {
     private String wrapParagraph(String text) {
         String safeText = defaultString(text, "请在此输入内容");
         return "<p>" + safeText + "</p>";
+    }
+
+    // ── 草稿管理实现 ──────────────────────────────────────
+
+    @Override
+    public List<AdminDraftResponse> listDrafts(String contentType) {
+        List<ContentDraft> entities = adminMapper.findDraftsByType(contentType);
+        List<AdminDraftResponse> result = new ArrayList<>();
+        for (ContentDraft entity : entities) {
+            result.add(toDraftResponse(entity));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public AdminDraftResponse saveDraft(AdminDraftUpsertRequest request) {
+        ContentDraft entity = new ContentDraft();
+
+        String draftKey = request.getDraftKey();
+        if (draftKey == null || draftKey.isBlank()) {
+            draftKey = "draft_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        }
+        entity.setDraftKey(draftKey);
+        entity.setContentType(request.getContentType());
+        entity.setTitle(defaultString(request.getTitle(), ""));
+        entity.setContentHtml(defaultString(request.getContentHtml(), ""));
+
+        // 将 data map 转为 JSON 字符串存入 extra_json
+        Map<String, Object> data = request.getData();
+        try {
+            entity.setExtraJson(data != null ? OBJECT_MAPPER.writeValueAsString(data) : "{}");
+        } catch (Exception e) {
+            entity.setExtraJson("{}");
+        }
+
+        adminMapper.upsertDraft(entity);
+        return toDraftResponse(entity);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDraft(String draftKey) {
+        adminMapper.deleteDraft(draftKey);
+    }
+
+    /**
+     * 将 ContentDraft 实体转换为前端响应 DTO。
+     */
+    private AdminDraftResponse toDraftResponse(ContentDraft entity) {
+        AdminDraftResponse resp = new AdminDraftResponse();
+        resp.setDraftKey(entity.getDraftKey());
+        resp.setContentType(entity.getContentType());
+        resp.setTitle(entity.getTitle());
+
+        LocalDateTime savedAt = entity.getUpdatedAt() != null ? entity.getUpdatedAt() : entity.getCreatedAt();
+        resp.setSavedAt(savedAt != null ? savedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "");
+
+        // 解析 extra_json 为 Map
+        Map<String, Object> formData = new HashMap<>();
+        if (entity.getExtraJson() != null && !entity.getExtraJson().isBlank()) {
+            try {
+                formData = OBJECT_MAPPER.readValue(entity.getExtraJson(), new TypeReference<Map<String, Object>>() {});
+            } catch (Exception ignored) {
+                // 解析失败时返回空 map
+            }
+        }
+        // 显式覆盖几个常用字段
+        formData.put("title", entity.getTitle());
+        formData.put("contentHtml", entity.getContentHtml());
+        resp.setFormData(formData);
+
+        return resp;
     }
 
     /**
