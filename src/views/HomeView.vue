@@ -307,42 +307,13 @@ import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import { getAiHotspots, getTechArticles } from '@/api/content'
 import { getLearningRoutes } from '@/api/learningRoute'
-import { techArticles as localTechArticles } from '@/data/techArticles'
-import { aiHotspots as localAiHotspots } from '@/modules/ai/aiHotspots'
 import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const themeStore = useThemeStore()
-const techArticles = ref([...localTechArticles])
+const techArticles = ref([])
 const learningRoutes = ref([])
-const aiHotspots = ref([...localAiHotspots])
-
-const fallbackLearningRoutes = [
-  {
-    id: 'fallback-java',
-    slug: 'java-backend-roadmap',
-    routeType: 'java',
-    title: 'Java 后端工程师成长路线',
-    coverUrl: '/【哲风壁纸】xiaomiyu7-小米suv.png',
-    publishedAt: '2026-04-23 10:00',
-    difficulty: '进阶路线',
-    viewCount: 2846,
-    commentCount: 36,
-    likeCount: 528
-  },
-  {
-    id: 'fallback-fullstack',
-    slug: 'fullstack-roadmap',
-    routeType: 'fullstack',
-    title: '全栈开发者进阶路线',
-    coverUrl: '/【哲风壁纸】夏日-晴天-氛围感.png',
-    publishedAt: '2026-04-23 11:20',
-    difficulty: '系统路线',
-    viewCount: 1938,
-    commentCount: 24,
-    likeCount: 416
-  }
-]
+const aiHotspots = ref([])
 
 const sortedArticles = computed(() => {
   return [...techArticles.value].sort((left, right) => {
@@ -376,20 +347,17 @@ async function loadHomeData() {
     getAiHotspots()
   ])
 
-  techArticles.value =
-    articleResult.status === 'fulfilled' && Array.isArray(articleResult.value) && articleResult.value.length
-      ? articleResult.value
-      : [...localTechArticles]
+  if (articleResult.status === 'fulfilled' && Array.isArray(articleResult.value)) {
+    techArticles.value = articleResult.value
+  }
 
-  learningRoutes.value =
-    routeResult.status === 'fulfilled' && Array.isArray(routeResult.value) && routeResult.value.length
-      ? routeResult.value
-      : [...fallbackLearningRoutes]
+  if (routeResult.status === 'fulfilled' && Array.isArray(routeResult.value)) {
+    learningRoutes.value = routeResult.value
+  }
 
-  aiHotspots.value =
-    aiResult.status === 'fulfilled' && Array.isArray(aiResult.value) && aiResult.value.length
-      ? aiResult.value
-      : [...localAiHotspots]
+  if (aiResult.status === 'fulfilled' && Array.isArray(aiResult.value)) {
+    aiHotspots.value = aiResult.value
+  }
 }
 
 function goArticles() { router.push('/articles') }

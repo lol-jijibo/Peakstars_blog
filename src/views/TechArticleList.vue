@@ -319,11 +319,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
-import {
-  recommendedAuthors,
-  techArticleCategories,
-  techArticles as localTechArticles
-} from '@/data/techArticles'
+import { recommendedAuthors, techArticleCategories } from '@/data/techCategories'
 
 const route = useRoute()
 const router = useRouter()
@@ -488,9 +484,9 @@ const topicTagCloud = computed(() => {
 async function loadArticles() {
   try {
     const list = await getTechArticles()
-    techArticles.value = Array.isArray(list) && list.length ? list : localTechArticles
+    techArticles.value = Array.isArray(list) ? list : []
   } catch {
-    techArticles.value = localTechArticles
+    techArticles.value = []
   }
 }
 

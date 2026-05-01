@@ -115,7 +115,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { recommendedAuthors, techArticles } from '@/data/techArticles'
+import { recommendedAuthors } from '@/data/techCategories'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -131,12 +131,12 @@ const navTabs = [
 ]
 
 const followingAuthors = recommendedAuthors.slice(0, 3)
-const recentArticles = techArticles.filter((article) => article.inHistory).slice(0, 3)
+const recentArticles = []
+const collectedCount = 0
+const likedCount = 0
+const recentCount = 0
 
 const currentUser = computed(() => authStore.currentUser.value)
-const collectedCount = techArticles.filter((article) => article.isCollected).length
-const likedCount = techArticles.filter((article) => article.isLiked).length
-const recentCount = techArticles.filter((article) => article.inHistory).length
 
 const displayName = computed(() => {
   const user = currentUser.value

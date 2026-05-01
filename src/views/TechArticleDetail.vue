@@ -140,7 +140,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
-import { techArticles as localTechArticles } from '@/data/techArticles'
 
 const route = useRoute()
 const router = useRouter()
@@ -154,29 +153,26 @@ const activeOutlineId = ref('')
 const scrollProgress = ref(0)
 const copiedText = ref('复制链接')
 
-const defaultArticle = localTechArticles.find((item) => item.id === 'rust-ownership-system') || localTechArticles[0]
-
 /**
- * 目的：统一详情页文章来源，兼容后台接口和前端内置参考文章。
- * 逻辑：优先读取接口合并结果，找不到时回退到内置文章，保证参考版式始终可见。
+ * 目的：统一详情页文章来源，仅从后端 MySQL 加载。
+ * 逻辑：优先读取接口合并结果，找不到时尝试加载全部文章后再查找。
  */
 async function loadArticle(articleId) {
   try {
     const list = await getTechArticles()
-    techArticles.value = Array.isArray(list) && list.length ? list : localTechArticles
+    techArticles.value = Array.isArray(list) ? list : []
+    article.value = techArticles.value.find((item) => String(item.id) === String(articleId)) || null
   } catch {
-    techArticles.value = localTechArticles
+    techArticles.value = []
+    article.value = null
   }
-
-  article.value =
-    techArticles.value.find((item) => String(item.id) === String(articleId)) || defaultArticle
 
   await nextTick()
   syncOutline()
   updateScrollState()
 }
 
-const currentArticle = computed(() => article.value || defaultArticle)
+const currentArticle = computed(() => article.value || {})
 
 const author = computed(() => ({
   name: currentArticle.value.author?.name || currentArticle.value.authorName || 'PeakDepth',
