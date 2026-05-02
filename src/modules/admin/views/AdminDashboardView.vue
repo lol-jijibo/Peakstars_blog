@@ -999,7 +999,11 @@ function scheduleAutoSave() {
   }, 2000)
 }
 
-async function saveDraftToServer(showToast = true) {
+/**
+ * 持久化后台草稿
+ * 统一提交草稿并按需触发页面提示，避免提示函数被同名参数覆盖
+ */
+async function saveDraftToServer(shouldShowToast = true) {
   const type = currentType.value
   const data = { ...draftForm }
   delete data._draftId
@@ -1014,11 +1018,11 @@ async function saveDraftToServer(showToast = true) {
     const saved = await saveAdminDraft(params)
     draftForm._draftId = saved.draftKey
     await loadDrafts(type)
-    if (showToast) {
+    if (shouldShowToast) {
       showToast('草稿已保存', 'success')
     }
   } catch (e) {
-    if (showToast) {
+    if (shouldShowToast) {
       showToast('草稿保存失败: ' + (e.message || '网络错误'), 'error')
     }
   }
@@ -1036,6 +1040,11 @@ watch(
 
 async function saveDraftLocally() {
   await saveDraftToServer(true)
+  if (!isEditing.value) {
+    setTimeout(() => {
+      closeDialog()
+    }, 1000)
+  }
 }
 
 function restoreDraft(draft) {

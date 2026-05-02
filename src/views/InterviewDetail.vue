@@ -1,92 +1,140 @@
 <template>
   <div class="detail-page">
-    <header class="detail-header">
-      <button class="back-btn" @click="goBack">
-        <span class="back-icon">‹</span>
-      </button>
-      <span class="header-title">面经详情</span>
-      <div class="header-right">
-        <button class="return-login-btn" @click="goMine">我的</button>
-        <button class="like-btn" @click="toggleLike" :class="{ liked: isLiked }">
-          {{ isLiked ? '❤️' : '🤍' }}
-        </button>
-      </div>
-    </header>
-
-    <div v-if="loading" class="loading-state">加载中...</div>
-    <div v-else-if="error" class="error-state">
+    <div v-if="loading" class="detail-loading">加载中...</div>
+    <div v-else-if="error" class="detail-error">
       <p>{{ error }}</p>
-      <button @click="$router.push('/interview')" class="back-home-btn">返回列表</button>
+      <button @click="$router.push('/interview')" class="detail-error-btn">返回题库列表</button>
     </div>
 
-    <main v-else-if="interview" class="detail-main">
-      <div class="detail-hero">
-        <h1 class="detail-title">{{ interview.title }}</h1>
-        <div class="detail-stats">
-          <span>{{ interview.date }}</span>
-          <span class="dot">·</span>
-          <span>{{ interview.views }} 浏览</span>
-          <span class="dot">·</span>
-          <span>{{ interview.likes }} 点赞</span>
-        </div>
-
-        <div class="author-row">
-          <div class="avatar" :style="{ background: interview.avatarColor }">
-            {{ interview.avatar }}
+    <div v-else-if="interview" class="detail-shell">
+      <aside class="detail-left">
+        <div class="detail-left-head">
+          <div class="detail-left-title-row">
+            <span class="detail-left-menu">☰</span>
+            <span class="detail-left-title">题目列表</span>
           </div>
-          <span class="author-name">{{ interview.author }}</span>
-          <span class="cat-badge" :class="interview.category">
-            {{ interview.category === 'java' ? 'Java 后端' : '前端' }}
-          </span>
+          <button class="detail-left-collapse" type="button" @click="goBack">‹</button>
         </div>
 
-        <div class="tags-row">
-          <span v-for="tag in interview.tags" :key="tag" class="tag">{{ tag }}</span>
+        <div class="detail-left-search">
+          <input
+            v-model.trim="questionKeyword"
+            class="detail-left-search-input"
+            type="text"
+            placeholder="搜索题目"
+          />
         </div>
-      </div>
 
-      <div class="divider"></div>
+        <nav class="detail-left-list">
+          <a
+            v-for="item in filteredRelatedArticles"
+            :key="item.id"
+            class="detail-left-item"
+            :class="{ active: String(item.id) === interviewId }"
+            @click.prevent="goDetail(item.id)"
+          >
+            <span class="detail-left-text">{{ item.title }}</span>
+          </a>
+        </nav>
+      </aside>
 
-      <div class="detail-content">
-        <div
-          v-for="(block, idx) in contentBlocks"
-          :key="idx"
-          :class="block.type"
-          v-html="block.html"
-        ></div>
-      </div>
+      <main class="detail-main">
+        <button class="detail-back-link" type="button" @click="goBack">← 返回题库列表</button>
 
-      <div class="detail-actions">
-        <button class="action-btn like-action" @click="toggleLike" :class="{ liked: isLiked }">
-          <span>{{ isLiked ? '❤️' : '🤍' }}</span>
-          <span>点赞 {{ localLikes }}</span>
-        </button>
-        <button
-          class="action-btn collect-action"
-          @click="toggleCollect"
-          :class="{ collected: isCollected }"
-        >
-          <span>{{ isCollected ? '⭐' : '☆' }}</span>
-          <span>{{ isCollected ? '已收藏' : '收藏' }}</span>
-        </button>
-        <button class="action-btn share-action" @click="copyLink">
-          <span>🔗</span>
-          <span>{{ copyTip }}</span>
-        </button>
-      </div>
-    </main>
+        <section class="detail-question-card">
+          <h1 class="detail-title">{{ interview.title }}</h1>
 
-    <div v-else class="not-found">
+          <div class="detail-tags">
+            <span class="detail-level-badge">{{ resolveLevelLabel(interview) }}</span>
+            <span class="detail-tag">{{ resolveCategoryLabel(interview.category) }}</span>
+            <span
+              v-for="tag in interview.tags"
+              :key="tag"
+              class="detail-tag"
+            >
+              {{ tag }}
+            </span>
+          </div>
+
+          <div class="detail-meta-row">
+            <button class="detail-meta-action" type="button" @click="toggleCollect">
+              <span>{{ isCollected ? '★' : '☆' }}</span>
+              <span>{{ isCollected ? '已收藏' : '标记' }}</span>
+            </button>
+            <button class="detail-meta-action" type="button" @click="toggleLike">
+              <span>{{ isLiked ? '👍' : '👍🏻' }}</span>
+              <span>{{ localLikes }}</span>
+            </button>
+            <span class="detail-meta-item">👁 {{ interview.views }}</span>
+            <button class="detail-meta-action" type="button" @click="copyLink">
+              <span>🔗</span>
+              <span>{{ copyTip }}</span>
+            </button>
+          </div>
+        </section>
+
+        <article ref="detailContentRef" class="detail-content-card" @click="handleCodeBlockAction" @change="handleCodeBlockAction">
+          <section class="detail-answer-block">
+            <h2
+              v-if="summaryBlock"
+              :id="summaryBlock.id"
+              class="detail-section-title detail-section-title--highlight"
+            >
+              {{ summaryBlock.title }}
+            </h2>
+            <div
+              v-if="summaryBlock"
+              class="detail-section-body"
+              v-html="summaryBlock.html"
+            ></div>
+          </section>
+
+          <section
+            v-for="section in analysisBlocks"
+            :key="section.id"
+            class="detail-analysis-block"
+          >
+            <h2 :id="section.id" class="detail-section-title">
+              {{ section.title }}
+            </h2>
+            <div class="detail-section-body" v-html="section.html"></div>
+          </section>
+        </article>
+      </main>
+
+      <aside class="detail-right" v-if="outlineItems.length">
+        <div class="detail-right-wrap">
+          <div class="detail-right-head">
+            <span class="detail-right-title">目录</span>
+            <button class="detail-right-fold" type="button" @click="scrollToTop">‹</button>
+          </div>
+          <nav class="detail-right-toc">
+            <a
+              v-for="item in outlineItems"
+              :key="item.id"
+              :href="'#' + item.id"
+              class="detail-right-link"
+              :class="{ active: activeOutlineId === item.id, sub: item.level > 2 }"
+              @click.prevent="scrollToHeading(item.id)"
+            >
+              <span class="detail-right-text">{{ item.text }}</span>
+            </a>
+          </nav>
+        </div>
+      </aside>
+    </div>
+
+    <div v-else class="detail-not-found">
       <p>面经不存在</p>
-      <button @click="goBack" class="back-home-btn">返回列表</button>
+      <button @click="goBack" class="detail-error-btn">返回题库列表</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { collectInterview, getInterviewDetail, likeInterview } from '@/api/interview.js'
+import { collectInterview, getInterviewDetail, getInterviews, likeInterview } from '@/api/interview.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -97,23 +145,263 @@ const error = ref('')
 const isLiked = ref(false)
 const isCollected = ref(false)
 const localLikes = ref(0)
-const copyTip = ref('分享')
+const copyTip = ref('复制链接')
+const activeOutlineId = ref('')
+const outlineItems = ref([])
+const relatedArticles = ref([])
+const questionKeyword = ref('')
+const detailContentRef = ref(null)
+const detailPageClass = 'interview-detail-page'
+const codeBlockLanguages = ['auto', 'java', 'javascript', 'json', 'xml', 'sql', 'bash', 'text']
+const codeLanguageLabelMap = {
+  auto: 'auto',
+  java: 'java',
+  javascript: 'javascript',
+  json: 'json',
+  xml: 'xml',
+  sql: 'sql',
+  bash: 'bash',
+  text: 'text'
+}
+
+const interviewId = computed(() => String(route.params.id))
+
+/**
+ * 统一承接题库详情内容
+ * 把纯文本面经拆成摘要区与分析区，映射为更贴近题库知识页的结构化版式
+ */
+const normalizedSections = computed(() => {
+  const content = interview.value?.content || ''
+  if (!content.trim()) {
+    return []
+  }
+
+  if (content.trim().startsWith('<')) {
+    return [
+      {
+        id: 'outline-summary',
+        title: '精选回答',
+        level: 2,
+        html: enhanceCodeBlocks(content)
+      }
+    ]
+  }
+
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const sections = []
+  let currentSection = null
+  let paragraphBuffer = []
+
+  const flushParagraph = () => {
+    if (!currentSection || paragraphBuffer.length === 0) {
+      return
+    }
+    currentSection.parts.push(`<p>${styleInline(paragraphBuffer.join(' '))}</p>`)
+    paragraphBuffer = []
+  }
+
+  const pushSection = (title, level = 2) => {
+    flushParagraph()
+    currentSection = {
+      id: `outline-${sections.length + 1}`,
+      title,
+      level,
+      parts: []
+    }
+    sections.push(currentSection)
+  }
+
+  pushSection('精选回答', 2)
+
+  lines.forEach((line) => {
+    const normalizedLine = line.replace(/\*+/g, '*')
+
+    if (normalizedLine.startsWith('### ')) {
+      flushParagraph()
+      if (!currentSection) {
+        pushSection(normalizedLine.replace(/^### /, ''), 3)
+        return
+      }
+      currentSection.parts.push(
+        `<h3 class="detail-inline-heading">${styleInline(normalizedLine.replace(/^### /, ''))}</h3>`
+      )
+      return
+    }
+
+    if (normalizedLine.startsWith('**') && normalizedLine.endsWith('**')) {
+      const title = normalizedLine.replace(/^\*\*/, '').replace(/\*\*$/, '').trim()
+      if (title && title !== '精选回答') {
+        pushSection(title, sections.length === 0 ? 2 : 2)
+      }
+      return
+    }
+
+    if (/^\d+\./.test(normalizedLine) || /^-\s/.test(normalizedLine)) {
+      flushParagraph()
+      if (!currentSection) {
+        pushSection('扩展分析', 2)
+      }
+      currentSection.parts.push(
+        `<p class="detail-list-item">${styleInline(
+          normalizedLine.replace(/^\d+\.\s*/, '').replace(/^-\s*/, '')
+        )}</p>`
+      )
+      return
+    }
+
+    paragraphBuffer.push(normalizedLine)
+  })
+
+  flushParagraph()
+
+  return sections
+    .map((section) => ({
+      ...section,
+      html: enhanceCodeBlocks(section.parts.join(''))
+    }))
+    .filter((section) => section.html.trim())
+})
+
+const summaryBlock = computed(() => normalizedSections.value[0] || null)
+const analysisBlocks = computed(() => normalizedSections.value.slice(1))
+
+/**
+ * 生成左侧题目筛选列表
+ * 始终把当前题目置顶，剩余题目按关键字做本地过滤，保持题库浏览体验
+ */
+const filteredRelatedArticles = computed(() => {
+  const current = interview.value
+    ? [{
+        id: interview.value.id,
+        title: interview.value.title
+      }]
+    : []
+
+  const keyword = questionKeyword.value.toLowerCase()
+  const rest = relatedArticles.value.filter((item) => {
+    if (!keyword) {
+      return true
+    }
+    return String(item.title || '').toLowerCase().includes(keyword)
+  })
+
+  const merged = [...current, ...rest]
+  const used = new Set()
+
+  return merged.filter((item) => {
+    const key = String(item.id)
+    if (used.has(key)) {
+      return false
+    }
+    used.add(key)
+    return !keyword || String(item.title || '').toLowerCase().includes(keyword) || key === interviewId.value
+  })
+})
 
 onMounted(async () => {
+  applyDetailPageShell()
+  await fetchDetail()
+  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+  updateScrollState()
+})
+
+onBeforeUnmount(() => {
+  clearDetailPageShell()
+  window.removeEventListener('scroll', handleWindowScroll)
+})
+
+/**
+ * 标记当前详情页为独立白底模式
+ * 通过给 body 挂载专属类名，精准覆盖全局深色主题外壳背景，不影响其他页面
+ */
+function applyDetailPageShell() {
+  document.body.classList.add(detailPageClass)
+}
+
+/**
+ * 退出详情页时清理白底模式标记
+ * 避免离开页面后全局壳层继续沿用详情页的白色背景
+ */
+function clearDetailPageShell() {
+  document.body.classList.remove(detailPageClass)
+}
+
+async function fetchDetail() {
+  loading.value = true
+  error.value = ''
+
   try {
     const data = await getInterviewDetail(route.params.id)
     interview.value = data
     localLikes.value = data.likes ?? 0
+    await loadRelatedArticles()
+    syncOutline()
+    await nextTick()
+    bootstrapCodeBlocks()
+    updateScrollState()
   } catch {
     error.value = '面经加载失败，请检查后端服务是否已经启动。'
   } finally {
     loading.value = false
   }
-})
+}
+
+async function loadRelatedArticles() {
+  try {
+    const result = await getInterviews({ pageSize: 18 })
+    relatedArticles.value = (result.list || []).filter((item) => String(item.id) !== interviewId.value)
+  } catch {
+    relatedArticles.value = []
+  }
+}
+
+/**
+ * 同步右侧目录结构
+ * 目录来源于页面拆分后的块级章节，保证滚动定位与布局标题完全一致
+ */
+function syncOutline() {
+  outlineItems.value = normalizedSections.value.map((section, index) => ({
+    id: section.id,
+    text: section.title,
+    level: section.level,
+    index: index + 1
+  }))
+  activeOutlineId.value = outlineItems.value[0]?.id || ''
+}
+
+function updateScrollState() {
+  let activeId = outlineItems.value[0]?.id || ''
+  outlineItems.value.forEach((item) => {
+    const target = document.getElementById(item.id)
+    if (target && target.getBoundingClientRect().top <= 160) {
+      activeId = item.id
+    }
+  })
+  activeOutlineId.value = activeId
+}
+
+function handleWindowScroll() {
+  updateScrollState()
+}
+
+function scrollToHeading(id) {
+  const target = document.getElementById(id)
+  if (!target) {
+    return
+  }
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 async function toggleLike() {
   isLiked.value = !isLiked.value
-
   if (isLiked.value) {
     try {
       const result = await likeInterview(route.params.id)
@@ -123,41 +411,35 @@ async function toggleLike() {
     }
     return
   }
-
   localLikes.value = Math.max(0, localLikes.value - 1)
 }
 
 async function toggleCollect() {
   isCollected.value = !isCollected.value
-
   if (!isCollected.value) {
     return
   }
-
   try {
     await collectInterview(route.params.id)
   } catch {
-    // 收藏接口失败时保留本地状态，避免打断阅读体验。
+    // 收藏接口失败时保留前端交互状态
+    // 避免用户重复点击造成页面感知抖动
   }
 }
 
 function copyLink() {
   const url = window.location.href
-
-  navigator.clipboard
-    .writeText(url)
-    .then(() => {
-      copyTip.value = '已复制'
-      window.setTimeout(() => {
-        copyTip.value = '分享'
-      }, 2000)
-    })
-    .catch(() => {
-      copyTip.value = '已复制'
-      window.setTimeout(() => {
-        copyTip.value = '分享'
-      }, 2000)
-    })
+  navigator.clipboard.writeText(url).then(() => {
+    copyTip.value = '已复制'
+    window.setTimeout(() => {
+      copyTip.value = '复制链接'
+    }, 2000)
+  }).catch(() => {
+    copyTip.value = '已复制'
+    window.setTimeout(() => {
+      copyTip.value = '复制链接'
+    }, 2000)
+  })
 }
 
 function goBack() {
@@ -165,44 +447,408 @@ function goBack() {
     router.back()
     return
   }
-
   router.push('/interview')
 }
 
-function goMine() {
-  router.push('/mine')
+async function goDetail(id) {
+  if (String(id) === interviewId.value) {
+    return
+  }
+  await router.push(`/interview/${id}`)
+  await fetchDetail()
 }
 
-const contentBlocks = computed(() => {
-  if (!interview.value) return []
-
-  const lines = interview.value.content.split('\n')
-  const blocks = []
-
-  for (const line of lines) {
-    if (!line.trim()) continue
-
-    if (line.startsWith('**') && line.endsWith('**') && line.indexOf('**', 2) === line.length - 2) {
-      blocks.push({ type: 'block-heading', html: line.replace(/\*\*/g, '') })
-      continue
-    }
-
-    if (/^\d+\./.test(line) || /^-\s/.test(line)) {
-      const text = line.replace(/^\d+\.\s?/, '').replace(/^-\s/, '')
-      blocks.push({ type: 'block-item', html: styleInline(text) })
-      continue
-    }
-
-    blocks.push({ type: 'block-para', html: styleInline(line) })
+function resolveCategoryLabel(category) {
+  if (category === 'java') {
+    return 'Java'
   }
+  if (category === 'frontend') {
+    return '前端'
+  }
+  return '面经'
+}
 
-  return blocks
-})
+function resolveLevelLabel(data) {
+  const viewCount = Number(data?.views || 0)
+  if (viewCount >= 3500) {
+    return '困难'
+  }
+  if (viewCount >= 2200) {
+    return '中等'
+  }
+  return '简单'
+}
+
+/**
+ * 目的：为代码块添加语言标签和复制按钮，显示在右上角。
+ * 逻辑：匹配所有 <pre> 标签，包裹成带右上角工具栏的深色代码卡片。
+ */
+function enhanceCodeBlocks(html) {
+  if (/<figure\s+class="code-block"/i.test(html)) return html
+
+  return html.replace(
+    /<pre([^>]*)>([\s\S]*?)<\/pre>/gi,
+    (_, preAttrs = '', preContent = '') => {
+      const codeMatch = preContent.match(/<code(?:[^>]*class="([^"]*?)")?[^>]*>([\s\S]*?)<\/code>/i)
+      const sourceLanguage = resolveCodeLanguage(codeMatch?.[1] || '') || 'auto'
+      const rawCode = decodeHtml(codeMatch?.[2] || preContent.replace(/<[^>]+>/g, ''))
+      return [
+        `<figure class="code-block" data-source-language="${encodeAttribute(sourceLanguage)}" data-current-language="auto">`,
+        '<div class="code-toolbar">',
+        `<label class="code-lang-select-wrap"><span class="code-lang-caret">▼</span><select class="code-lang-select" data-code-action="switch-language">${buildLanguageOptions(sourceLanguage)}</select></label>`,
+        '<button type="button" class="code-copy-btn" data-code-action="copy-code">复制代码</button>',
+        '</div>',
+        `<pre${preAttrs}><code class="language-${sourceLanguage}" data-raw-code="${encodeAttribute(rawCode)}">${encodeHtml(rawCode)}</code></pre>`,
+        '</figure>'
+      ].join('')
+    }
+  )
+}
 
 function styleInline(text) {
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
+}
+
+/**
+ * 初始化详情页代码块交互
+ * 统一在内容渲染完成后设置默认语言并补充首屏语法高亮
+ */
+function bootstrapCodeBlocks() {
+  const container = detailContentRef.value
+  if (!container) {
+    return
+  }
+
+  container.querySelectorAll('.code-block').forEach((block) => {
+    applyLanguageToCodeBlock(block, block.dataset.currentLanguage || 'auto')
+  })
+}
+
+/**
+ * 响应代码块工具栏操作
+ * 通过事件委托统一处理语言切换与复制动作，降低富文本节点维护成本
+ */
+function handleCodeBlockAction(event) {
+  if (event.target.matches('.code-lang-select')) {
+    const codeBlock = event.target.closest('.code-block')
+    if (codeBlock) {
+      applyLanguageToCodeBlock(codeBlock, event.target.value || 'auto')
+    }
+    return
+  }
+
+  const actionTarget = event.target.closest('[data-code-action]')
+  if (!actionTarget || !detailContentRef.value?.contains(actionTarget)) {
+    return
+  }
+
+  const codeBlock = actionTarget.closest('.code-block')
+  if (!codeBlock) {
+    return
+  }
+
+  const action = actionTarget.dataset.codeAction
+  if (action === 'switch-language') {
+    applyLanguageToCodeBlock(codeBlock, actionTarget.dataset.language || 'auto')
+    return
+  }
+
+  if (action === 'copy-code') {
+    copyCodeBlock(codeBlock, actionTarget)
+  }
+}
+
+/**
+ * 切换代码块展示语言
+ * 根据选中的语言重新着色源码，并同步工具栏按钮状态
+ */
+function applyLanguageToCodeBlock(codeBlock, language) {
+  const codeElement = codeBlock.querySelector('code')
+  if (!codeElement) {
+    return
+  }
+
+  const rawCode = decodeHtml(codeElement.dataset.rawCode || '')
+  const detectedLanguage = detectLanguage(rawCode, codeBlock.dataset.sourceLanguage || codeElement.className)
+  const renderLanguage = language === 'auto' ? detectedLanguage : language
+
+  codeElement.innerHTML = highlightCode(rawCode, renderLanguage)
+  codeElement.className = `language-${renderLanguage}`
+  codeElement.dataset.activeLanguage = renderLanguage
+  codeBlock.dataset.currentLanguage = language
+  syncLanguageButtons(codeBlock, language, renderLanguage)
+}
+
+/**
+ * 同步语言按钮的选中反馈
+ * 让 Auto 按钮同时提示当前实际识别出的语言，方便用户判断效果
+ */
+function syncLanguageButtons(codeBlock, selectedLanguage, activeLanguage) {
+  const selectElement = codeBlock.querySelector('.code-lang-select')
+  if (selectElement) {
+    updateLanguageOptions(selectElement, codeBlock.dataset.sourceLanguage || activeLanguage, activeLanguage)
+    selectElement.value = selectedLanguage
+    selectElement.dataset.activeLanguage = activeLanguage
+  }
+}
+
+/**
+ * 复制代码块原始内容
+ * 始终写入未高亮源码，避免复制结果混入样式标签
+ */
+function copyCodeBlock(codeBlock, trigger) {
+  const codeElement = codeBlock.querySelector('code')
+  const rawCode = decodeHtml(codeElement?.dataset.rawCode || codeElement?.textContent || '')
+  const resetText = () => {
+    window.setTimeout(() => {
+      trigger.textContent = '复制'
+    }, 1600)
+  }
+
+  navigator.clipboard.writeText(rawCode).then(() => {
+    trigger.textContent = '已复制'
+    resetText()
+  }).catch(() => {
+    trigger.textContent = '复制失败'
+    resetText()
+  })
+}
+
+/**
+ * 自动识别代码块语言
+ * 优先沿用原始 class 标记，再根据典型语法特征做轻量匹配
+ */
+function detectLanguage(code, sourceLanguage) {
+  const normalizedSource = resolveCodeLanguage(sourceLanguage)
+  if (normalizedSource && normalizedSource !== 'auto') {
+    return normalizedSource
+  }
+
+  const content = code.trim()
+  if (!content) {
+    return 'text'
+  }
+
+  if (/^\s*[{[]/.test(content) && /"\s*:/.test(content)) {
+    return 'json'
+  }
+
+  if (/<\/?[a-z][\w:-]*[\s>]/i.test(content) || /^<\?xml/i.test(content)) {
+    return 'xml'
+  }
+
+  if (/\b(select|insert|update|delete|from|where|order\s+by|group\s+by|join)\b/i.test(content)) {
+    return 'sql'
+  }
+
+  if (/\b(public|private|protected|class|interface|implements|extends|System\.out)\b/.test(content)) {
+    return 'java'
+  }
+
+  if (/\b(const|let|var|function|=>|import\s+.+from|export\s+default)\b/.test(content)) {
+    return 'javascript'
+  }
+
+  if (/^\s*(#!\/bin\/bash|#!\/bin\/sh|echo\s+|npm\s+|pnpm\s+|yarn\s+)/m.test(content)) {
+    return 'bash'
+  }
+
+  return 'text'
+}
+
+/**
+ * 生成指定语言的高亮代码内容
+ * 采用零依赖轻量规则，满足语言切换后的即时高亮反馈
+ */
+function highlightCode(code, language) {
+  const normalizedLanguage = resolveCodeLanguage(language) || 'text'
+  if (normalizedLanguage === 'text') {
+    return encodeHtml(code)
+  }
+
+  return applySyntaxRules(encodeHtml(code), normalizedLanguage)
+}
+
+/**
+ * 应用语言级语法着色规则
+ * 先保护注释与字符串，再补充关键字和函数等 token 样式
+ */
+function applySyntaxRules(escapedCode, language) {
+  if (language === 'xml') {
+    return escapedCode
+      .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="token-comment">$1</span>')
+      .replace(/(&lt;\/?)([\w:-]+)/g, '$1<span class="token-keyword">$2</span>')
+      .replace(/([\w:-]+)(=)(&quot;.*?&quot;|&#39;.*?&#39;)/g, '<span class="token-property">$1</span>$2<span class="token-string">$3</span>')
+  }
+
+  if (language === 'json') {
+    return escapedCode
+      .replace(/(&quot;[^&]*?&quot;)(\s*:)/g, '<span class="token-property">$1</span>$2')
+      .replace(/(:\s*)(&quot;.*?&quot;)/g, '$1<span class="token-string">$2</span>')
+      .replace(/\b(true|false|null)\b/g, '<span class="token-keyword">$1</span>')
+      .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>')
+  }
+
+  let content = escapedCode
+  const placeholders = []
+  const reserveToken = (pattern, className) => {
+    content = content.replace(pattern, (match) => {
+      const key = `§§TOKEN_${placeholders.length}§§`
+      placeholders.push({
+        key,
+        value: `<span class="${className}">${match}</span>`
+      })
+      return key
+    })
+  }
+
+  if (language === 'java' || language === 'javascript') {
+    reserveToken(/\/\/[^\n\r]*|\/\*[\s\S]*?\*\//g, 'token-comment')
+  }
+
+  if (language === 'sql') {
+    reserveToken(/--[^\n\r]*|\/\*[\s\S]*?\*\//g, 'token-comment')
+  }
+
+  if (language === 'bash') {
+    reserveToken(/#[^\n\r]*/g, 'token-comment')
+  }
+
+  reserveToken(/&quot;[\s\S]*?&quot;|&#39;[\s\S]*?&#39;|`[^`]*`/g, 'token-string')
+
+  const keywordPatterns = {
+    java: /\b(package|import|public|private|protected|class|static|final|void|new|return|if|else|switch|case|break|continue|for|while|try|catch|finally|throw|throws|extends|implements|interface|enum|this|super|null|true|false)\b/g,
+    javascript: /\b(import|from|export|default|const|let|var|function|return|if|else|switch|case|break|continue|for|while|try|catch|finally|throw|new|class|extends|async|await|null|true|false|typeof)\b/g,
+    sql: /\b(select|from|where|and|or|order|by|group|having|limit|offset|insert|into|values|update|set|delete|left|right|inner|join|on|as|distinct|count|sum|max|min|case|when|then|else|end)\b/gi,
+    bash: /\b(if|then|else|fi|for|in|do|done|case|esac|function|echo|export|sudo|cd|ls|cat|grep|find|npm|pnpm|yarn)\b/g
+  }
+
+  const typePatterns = {
+    java: /\b(String|Integer|Long|Boolean|Double|Float|List|Map|Set|HashMap|ArrayList|Object|int|long|double|float|boolean|char|byte|short|void)\b/g,
+    javascript: /\b(Array|Object|Promise|Map|Set|Date|RegExp|string|number|boolean|undefined)\b/g,
+    sql: /\b(varchar|char|text|int|bigint|decimal|datetime|timestamp|json)\b/gi
+  }
+
+  content = content
+    .replace(keywordPatterns[language] || /$^/g, '<span class="token-keyword">$1</span>')
+    .replace(typePatterns[language] || /$^/g, '<span class="token-type">$1</span>')
+    .replace(/@[\w$]+/g, '<span class="token-type">$&</span>')
+    .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>')
+    .replace(/\b([A-Za-z_$][\w$]*)(?=\s*\()/g, '<span class="token-function">$1</span>')
+    .replace(/\.([A-Za-z_$][\w$]*)/g, '.<span class="token-property">$1</span>')
+
+  placeholders.forEach((item) => {
+    content = content.replace(item.key, item.value)
+  })
+
+  return content
+}
+
+/**
+ * 标准化代码语言名称
+ * 兼容常见别名写法，保证自动识别与手动切换使用同一套语言值
+ */
+function resolveCodeLanguage(language) {
+  const rawLanguage = String(language || '')
+    .replace(/^language-/i, '')
+    .trim()
+    .toLowerCase()
+
+  if (!rawLanguage) {
+    return ''
+  }
+
+  const languageMap = {
+    auto: 'auto',
+    java: 'java',
+    js: 'javascript',
+    jsx: 'javascript',
+    javascript: 'javascript',
+    json: 'json',
+    xml: 'xml',
+    html: 'xml',
+    vue: 'xml',
+    sql: 'sql',
+    sh: 'bash',
+    shell: 'bash',
+    bash: 'bash',
+    text: 'text',
+    plaintext: 'text',
+    txt: 'text'
+  }
+
+  return languageMap[rawLanguage] || ''
+}
+
+/**
+ * 统一语言按钮展示文案
+ * 使用紧凑大写标签，让工具栏信息在深色代码块上更清晰
+ */
+function formatLanguageLabel(language) {
+  const normalizedLanguage = resolveCodeLanguage(language) || 'text'
+  return codeLanguageLabelMap[normalizedLanguage] || normalizedLanguage
+}
+
+/**
+ * 生成语言下拉选项
+ * 保持工具栏为单入口切换样式，贴近参考图中的语言选择体验
+ */
+function buildLanguageOptions(sourceLanguage) {
+  return codeBlockLanguages.map((language) => {
+    const label = language === 'auto'
+      ? `auto (${formatLanguageLabel(sourceLanguage || 'text')})`
+      : formatLanguageLabel(language)
+    return `<option value="${language}">${label}</option>`
+  }).join('')
+}
+
+/**
+ * 刷新语言下拉选项文案
+ * 在自动识别和手动切换后同步提示当前语言，避免下拉内容与高亮状态脱节
+ */
+function updateLanguageOptions(selectElement, sourceLanguage, activeLanguage) {
+  Array.from(selectElement.options).forEach((option) => {
+    const optionLanguage = option.value || 'auto'
+    option.textContent = optionLanguage === 'auto'
+      ? `auto (${formatLanguageLabel(activeLanguage || sourceLanguage || 'text')})`
+      : formatLanguageLabel(optionLanguage)
+  })
+}
+
+/**
+ * 转义代码文本中的特殊字符
+ * 保证源码插入富文本节点后按文本显示，不破坏详情页结构
+ */
+function encodeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * 还原代码文本中的实体字符
+ * 支撑源码复制和语言切换时读取真实内容，避免重复转义
+ */
+function decodeHtml(value) {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, '\'')
+    .replace(/&amp;/g, '&')
+}
+
+/**
+ * 转义代码属性值
+ * 让原始代码安全保存在 data 属性里，便于后续切换语言时复用
+ */
+function encodeAttribute(value) {
+  return encodeHtml(value).replace(/\r?\n/g, '&#10;')
 }
 </script>
 

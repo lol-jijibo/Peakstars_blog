@@ -49,7 +49,7 @@ async function initEditor() {
     content: props.modelValue || createDefaultContent(),
     placeholder: props.placeholder,
     lang: 'zh',
-    theme: 'light',
+    theme: 'light', 
     toolbarSize: 'medium',
     toolbarTipEnable: true,
     draggable: true,
@@ -233,7 +233,7 @@ async function ensureEditorRuntime() {
       // 创建自定义扩展：在代码块中按 Ctrl+Enter / Cmd+Enter 退出代码块
       const { Extension } = tiptapCore
       exitCodeBlockExtension = Extension.create({
-        name: 'aiExitCodeBlock',
+        name: 'aiExitCodeBlock',  
         addKeyboardShortcuts() {
           return {
             'Mod-Enter': ({ editor }) => {

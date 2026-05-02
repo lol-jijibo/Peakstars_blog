@@ -7,7 +7,9 @@ spring:
   profiles:
     active: dev
   datasource:
-    url: jdbc:mysql://localhost:3306/interview_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
+    # 兼容本地 MySQL 8 默认认证握手
+    # 在开发环境关闭 SSL 时显式允许拉取公钥，避免接口查询阶段拿不到 JDBC 连接
+    url: jdbc:mysql://localhost:3306/interview_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: lixuF123456
     driver-class-name: com.mysql.cj.jdbc.Driver

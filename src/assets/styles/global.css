@@ -140,6 +140,30 @@ html[data-theme='dark'] .detail-page {
   color: #eef4ff;
 }
 
+/**
+ * 让面经详情页外层壳子保持纯白背景
+ * 通过 body 专属类名同时覆盖 html、body、应用容器与详情页根节点的深色主题底色
+ */
+html:has(body.interview-detail-page),
+body.interview-detail-page,
+body.interview-detail-page #app,
+body.interview-detail-page .app-container,
+body.interview-detail-page .detail-page {
+  background: #ffffff !important;
+}
+
+/**
+ * 兜底覆盖深色主题下详情页文本配色
+ * 只在详情页专属模式下恢复浅色页面语义，避免继续吃到 dark 主题的深色壳层规则
+ */
+html[data-theme='dark'] body.interview-detail-page,
+html[data-theme='dark'] body.interview-detail-page #app,
+html[data-theme='dark'] body.interview-detail-page .app-container,
+html[data-theme='dark'] body.interview-detail-page .detail-page {
+  background: #ffffff !important;
+  color: #1f2d3d !important;
+}
+
 html[data-theme='dark'] .profile-copy p,
 html[data-theme='dark'] .section-head p,
 html[data-theme='dark'] .follow-copy p,
