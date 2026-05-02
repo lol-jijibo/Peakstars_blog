@@ -9,9 +9,11 @@ USE interview_db;
 -- 分类
 -- ------------------------------------------------------------
 INSERT INTO `category` (`code`, `name`, `sort_order`) VALUES
-('all',      '全部',      0),
-('frontend', '前端',      1),
-('java',     'Java后端',  2)
+('all',      '全部',        0),
+('frontend', '前端',        1),
+('java',     'Java后端',    2),
+('agent',    'Agent开发',   3),
+('llm',      '大模型原理',  4)
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 -- ------------------------------------------------------------

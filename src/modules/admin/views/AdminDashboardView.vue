@@ -431,6 +431,8 @@
             <select v-else-if="currentType === 'interview'" v-model="draftForm.category" class="form-input">
               <option value="frontend">前端</option>
               <option value="java">Java 后端</option>
+              <option value="agent">Agent开发</option>
+              <option value="llm">大模型原理</option>
             </select>
             <select v-else-if="currentType === 'ai'" v-model="draftForm.track" class="form-input">
               <option value="agent">Agent</option>
@@ -1165,7 +1167,13 @@ function resolveCategory(record) {
     return record.issueLabel || '期刊'
   }
   if (record.type === 'interview') {
-    return record.category || '综合'
+    const interviewCategoryMap = {
+      frontend: '前端',
+      java: 'Java后端',
+      agent: 'Agent开发',
+      llm: '大模型原理'
+    }
+    return interviewCategoryMap[record.category] || record.category || '综合'
   }
   return record.track || 'AI'
 }
@@ -1433,6 +1441,8 @@ function createDraftFromRecord(record) {
 function mapInterviewCategory(category) {
   if (category === '前端' || category === 'frontend') return 'frontend'
   if (category === 'Java' || category === 'java' || category === 'Java 后端') return 'java'
+  if (category === 'Agent开发' || category === 'agent') return 'agent'
+  if (category === '大模型原理' || category === 'llm') return 'llm'
   return 'frontend'
 }
 

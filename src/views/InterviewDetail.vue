@@ -152,16 +152,20 @@ const relatedArticles = ref([])
 const questionKeyword = ref('')
 const detailContentRef = ref(null)
 const detailPageClass = 'interview-detail-page'
-const codeBlockLanguages = ['auto', 'java', 'javascript', 'json', 'xml', 'sql', 'bash', 'text']
+const codeBlockLanguages = ['auto', 'java', 'javascript', 'typescript', 'python', 'json', 'xml', 'sql', 'bash', 'css', 'yaml', 'text']
 const codeLanguageLabelMap = {
-  auto: 'auto',
-  java: 'java',
-  javascript: 'javascript',
-  json: 'json',
-  xml: 'xml',
-  sql: 'sql',
-  bash: 'bash',
-  text: 'text'
+  auto: '自动识别',
+  java: 'Java',
+  javascript: 'JavaScript',
+  typescript: 'TypeScript',
+  python: 'Python',
+  json: 'JSON',
+  xml: 'XML / HTML',
+  sql: 'SQL',
+  bash: 'Bash',
+  css: 'CSS',
+  yaml: 'YAML',
+  text: '纯文本'
 }
 
 const interviewId = computed(() => String(route.params.id))
@@ -465,6 +469,12 @@ function resolveCategoryLabel(category) {
   if (category === 'frontend') {
     return '前端'
   }
+  if (category === 'agent') {
+    return 'Agent开发'
+  }
+  if (category === 'llm') {
+    return '大模型原理'
+  }
   return '面经'
 }
 
@@ -489,13 +499,17 @@ function enhanceCodeBlocks(html) {
   return html.replace(
     /<pre([^>]*)>([\s\S]*?)<\/pre>/gi,
     (_, preAttrs = '', preContent = '') => {
-      const codeMatch = preContent.match(/<code(?:[^>]*class="([^"]*?)")?[^>]*>([\s\S]*?)<\/code>/i)
-      const sourceLanguage = resolveCodeLanguage(codeMatch?.[1] || '') || 'auto'
+      const codeMatch = preContent.match(/<code([^>]*)>([\s\S]*?)<\/code>/i)
+      const codeAttrs = codeMatch?.[1] || ''
       const rawCode = decodeHtml(codeMatch?.[2] || preContent.replace(/<[^>]+>/g, ''))
+      const sourceLanguage = extractCodeLanguage(preAttrs, codeAttrs, rawCode)
       return [
-        `<figure class="code-block" data-source-language="${encodeAttribute(sourceLanguage)}" data-current-language="auto">`,
+        `<figure class="code-block" data-source-language="${encodeAttribute(sourceLanguage)}" data-detected-language="${encodeAttribute(sourceLanguage)}" data-current-language="auto">`,
         '<div class="code-toolbar">',
+        '<div class="code-toolbar-main">',
         `<label class="code-lang-select-wrap"><span class="code-lang-caret">▼</span><select class="code-lang-select" data-code-action="switch-language">${buildLanguageOptions(sourceLanguage)}</select></label>`,
+        `<span class="code-language-hint">已识别：${formatLanguageLabel(sourceLanguage)}</span>`,
+        '</div>',
         '<button type="button" class="code-copy-btn" data-code-action="copy-code">复制代码</button>',
         '</div>',
         `<pre${preAttrs}><code class="language-${sourceLanguage}" data-raw-code="${encodeAttribute(rawCode)}">${encodeHtml(rawCode)}</code></pre>`,
@@ -572,25 +586,36 @@ function applyLanguageToCodeBlock(codeBlock, language) {
 
   const rawCode = decodeHtml(codeElement.dataset.rawCode || '')
   const detectedLanguage = detectLanguage(rawCode, codeBlock.dataset.sourceLanguage || codeElement.className)
-  const renderLanguage = language === 'auto' ? detectedLanguage : language
+  const renderLanguage = language === 'auto' ? detectedLanguage : resolveCodeLanguage(language) || detectedLanguage
 
   codeElement.innerHTML = highlightCode(rawCode, renderLanguage)
   codeElement.className = `language-${renderLanguage}`
   codeElement.dataset.activeLanguage = renderLanguage
+  codeBlock.dataset.detectedLanguage = detectedLanguage
   codeBlock.dataset.currentLanguage = language
-  syncLanguageButtons(codeBlock, language, renderLanguage)
+  syncLanguageButtons(codeBlock, language, renderLanguage, detectedLanguage)
 }
 
 /**
  * 同步语言按钮的选中反馈
  * 让 Auto 按钮同时提示当前实际识别出的语言，方便用户判断效果
  */
-function syncLanguageButtons(codeBlock, selectedLanguage, activeLanguage) {
+function syncLanguageButtons(codeBlock, selectedLanguage, activeLanguage, detectedLanguage) {
   const selectElement = codeBlock.querySelector('.code-lang-select')
   if (selectElement) {
-    updateLanguageOptions(selectElement, codeBlock.dataset.sourceLanguage || activeLanguage, activeLanguage)
+    updateLanguageOptions(
+      selectElement,
+      codeBlock.dataset.sourceLanguage || detectedLanguage || activeLanguage,
+      activeLanguage,
+      detectedLanguage
+    )
     selectElement.value = selectedLanguage
     selectElement.dataset.activeLanguage = activeLanguage
+  }
+
+  const languageHint = codeBlock.querySelector('.code-language-hint')
+  if (languageHint) {
+    languageHint.textContent = `已识别：${formatLanguageLabel(detectedLanguage || activeLanguage)}`
   }
 }
 
@@ -635,23 +660,39 @@ function detectLanguage(code, sourceLanguage) {
     return 'json'
   }
 
+  if (/^---\s*$[\s\S]*?:\s*.+/m.test(content) || /^\s*[\w.-]+\s*:\s*.+/m.test(content) && !/[;{}<>]/.test(content)) {
+    return 'yaml'
+  }
+
   if (/<\/?[a-z][\w:-]*[\s>]/i.test(content) || /^<\?xml/i.test(content)) {
     return 'xml'
   }
 
-  if (/\b(select|insert|update|delete|from|where|order\s+by|group\s+by|join)\b/i.test(content)) {
+  if (/@media\b|@keyframes\b|^\s*[.#]?[\w-]+(?:\s+[.#]?[\w-]+)*\s*\{[\s\S]*:[\s\S]*\}/m.test(content)) {
+    return 'css'
+  }
+
+  if (/\b(select|insert|update|delete|from|where|order\s+by|group\s+by|join|create\s+table|alter\s+table)\b/i.test(content)) {
     return 'sql'
   }
 
-  if (/\b(public|private|protected|class|interface|implements|extends|System\.out)\b/.test(content)) {
+  if (/(^|\s)def\s+|(\belif\b|\bself\b|\bNone\b|\bTrue\b|\bFalse\b|print\(|from\s+\w+\s+import\s+|__name__\s*==\s*['"]__main__['"])/.test(content)) {
+    return 'python'
+  }
+
+  if (/\b(interface|type)\s+[A-Z][\w$]*\s*[={<]|:\s*(string|number|boolean|unknown|never|Record|Partial|Promise|void)\b|implements\s+[A-Z]/.test(content)) {
+    return 'typescript'
+  }
+
+  if (/\b(public|private|protected|class|interface|implements|extends|System\.out|new\s+[A-Z][\w$]*\(|@Override)\b/.test(content)) {
     return 'java'
   }
 
-  if (/\b(const|let|var|function|=>|import\s+.+from|export\s+default)\b/.test(content)) {
+  if (/\b(const|let|var|function|=>|import\s+.+from|export\s+default|console\.log|document\.|window\.)\b/.test(content)) {
     return 'javascript'
   }
 
-  if (/^\s*(#!\/bin\/bash|#!\/bin\/sh|echo\s+|npm\s+|pnpm\s+|yarn\s+)/m.test(content)) {
+  if (/^\s*(#!\/bin\/bash|#!\/bin\/sh|echo\s+|npm\s+|pnpm\s+|yarn\s+|if\s+\[|then$|fi$|grep\s+|chmod\s+)/m.test(content)) {
     return 'bash'
   }
 
@@ -691,6 +732,15 @@ function applySyntaxRules(escapedCode, language) {
       .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>')
   }
 
+  if (language === 'yaml') {
+    return escapedCode
+      .replace(/(^|\n)(\s*#.*?$)/gm, '$1<span class="token-comment">$2</span>')
+      .replace(/(^|\n)(\s*[\w.-]+)(\s*:)/g, '$1<span class="token-property">$2</span>$3')
+      .replace(/(:\s*)(&quot;.*?&quot;|&#39;.*?&#39;)/g, '$1<span class="token-string">$2</span>')
+      .replace(/\b(true|false|null)\b/g, '<span class="token-keyword">$1</span>')
+      .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>')
+  }
+
   let content = escapedCode
   const placeholders = []
   const reserveToken = (pattern, className) => {
@@ -704,7 +754,7 @@ function applySyntaxRules(escapedCode, language) {
     })
   }
 
-  if (language === 'java' || language === 'javascript') {
+  if (language === 'java' || language === 'javascript' || language === 'typescript') {
     reserveToken(/\/\/[^\n\r]*|\/\*[\s\S]*?\*\//g, 'token-comment')
   }
 
@@ -712,8 +762,12 @@ function applySyntaxRules(escapedCode, language) {
     reserveToken(/--[^\n\r]*|\/\*[\s\S]*?\*\//g, 'token-comment')
   }
 
-  if (language === 'bash') {
+  if (language === 'bash' || language === 'python' || language === 'yaml') {
     reserveToken(/#[^\n\r]*/g, 'token-comment')
+  }
+
+  if (language === 'css') {
+    reserveToken(/\/\*[\s\S]*?\*\//g, 'token-comment')
   }
 
   reserveToken(/&quot;[\s\S]*?&quot;|&#39;[\s\S]*?&#39;|`[^`]*`/g, 'token-string')
@@ -721,19 +775,27 @@ function applySyntaxRules(escapedCode, language) {
   const keywordPatterns = {
     java: /\b(package|import|public|private|protected|class|static|final|void|new|return|if|else|switch|case|break|continue|for|while|try|catch|finally|throw|throws|extends|implements|interface|enum|this|super|null|true|false)\b/g,
     javascript: /\b(import|from|export|default|const|let|var|function|return|if|else|switch|case|break|continue|for|while|try|catch|finally|throw|new|class|extends|async|await|null|true|false|typeof)\b/g,
+    typescript: /\b(import|from|export|default|const|let|var|function|return|if|else|switch|case|break|continue|for|while|try|catch|finally|throw|new|class|extends|async|await|null|true|false|typeof|interface|type|enum|implements|readonly|public|private|protected|as|infer|keyof)\b/g,
+    python: /\b(def|class|return|if|elif|else|for|while|try|except|finally|raise|import|from|as|with|lambda|yield|pass|break|continue|in|is|not|and|or|None|True|False)\b/g,
     sql: /\b(select|from|where|and|or|order|by|group|having|limit|offset|insert|into|values|update|set|delete|left|right|inner|join|on|as|distinct|count|sum|max|min|case|when|then|else|end)\b/gi,
-    bash: /\b(if|then|else|fi|for|in|do|done|case|esac|function|echo|export|sudo|cd|ls|cat|grep|find|npm|pnpm|yarn)\b/g
+    bash: /\b(if|then|else|fi|for|in|do|done|case|esac|function|echo|export|sudo|cd|ls|cat|grep|find|npm|pnpm|yarn)\b/g,
+    css: /(^|[{}\s;])(@media|@keyframes|@supports|@import)\b/gm
   }
 
   const typePatterns = {
     java: /\b(String|Integer|Long|Boolean|Double|Float|List|Map|Set|HashMap|ArrayList|Object|int|long|double|float|boolean|char|byte|short|void)\b/g,
     javascript: /\b(Array|Object|Promise|Map|Set|Date|RegExp|string|number|boolean|undefined)\b/g,
+    typescript: /\b(Array|Object|Promise|Map|Set|Date|RegExp|string|number|boolean|undefined|unknown|never|any|void|Record|Partial|Pick|Omit)\b/g,
+    python: /\b(str|int|float|bool|list|dict|tuple|set|object)\b/g,
     sql: /\b(varchar|char|text|int|bigint|decimal|datetime|timestamp|json)\b/gi
   }
 
   content = content
     .replace(keywordPatterns[language] || /$^/g, '<span class="token-keyword">$1</span>')
     .replace(typePatterns[language] || /$^/g, '<span class="token-type">$1</span>')
+    .replace(language === 'css' ? /(^|[{}\s;])(@media|@keyframes|@supports|@import)\b/gm : /$^/g, '$1<span class="token-keyword">$2</span>')
+    .replace(language === 'css' ? /(^|\n)(\s*[.#]?[\w-]+)(\s*\{)/g : /$^/g, '$1<span class="token-function">$2</span>$3')
+    .replace(language === 'css' ? /([{\s;])([\w-]+)(\s*:)/g : /$^/g, '$1<span class="token-property">$2</span>$3')
     .replace(/@[\w$]+/g, '<span class="token-type">$&</span>')
     .replace(/\b(-?\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>')
     .replace(/\b([A-Za-z_$][\w$]*)(?=\s*\()/g, '<span class="token-function">$1</span>')
@@ -753,6 +815,7 @@ function applySyntaxRules(escapedCode, language) {
 function resolveCodeLanguage(language) {
   const rawLanguage = String(language || '')
     .replace(/^language-/i, '')
+    .replace(/^lang-/i, '')
     .trim()
     .toLowerCase()
 
@@ -766,6 +829,11 @@ function resolveCodeLanguage(language) {
     js: 'javascript',
     jsx: 'javascript',
     javascript: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    typescript: 'typescript',
+    py: 'python',
+    python: 'python',
     json: 'json',
     xml: 'xml',
     html: 'xml',
@@ -774,12 +842,34 @@ function resolveCodeLanguage(language) {
     sh: 'bash',
     shell: 'bash',
     bash: 'bash',
+    css: 'css',
+    scss: 'css',
+    less: 'css',
+    yml: 'yaml',
+    yaml: 'yaml',
     text: 'text',
     plaintext: 'text',
     txt: 'text'
   }
 
   return languageMap[rawLanguage] || ''
+}
+
+/**
+ * 目的：综合代码标签与代码内容，得到详情页代码块的初始语言。
+ * 逻辑：优先消费编辑器透出的 language/class 标记，没有标记时再走内容识别兜底。
+ */
+function extractCodeLanguage(preAttrs, codeAttrs, rawCode) {
+  const attrs = `${preAttrs || ''} ${codeAttrs || ''}`
+  const classMatch = attrs.match(/class=(["'])(.*?)\1/i)
+  const dataLanguageMatch = attrs.match(/data-language=(["'])(.*?)\1/i)
+  const languageMatch = attrs.match(/language=(["'])(.*?)\1/i)
+  const langMatch = attrs.match(/lang=(["'])(.*?)\1/i)
+  const sourceLanguage = resolveCodeLanguage(
+    dataLanguageMatch?.[2] || languageMatch?.[2] || langMatch?.[2] || classMatch?.[2] || attrs
+  )
+
+  return sourceLanguage || detectLanguage(rawCode, '')
 }
 
 /**
@@ -798,7 +888,7 @@ function formatLanguageLabel(language) {
 function buildLanguageOptions(sourceLanguage) {
   return codeBlockLanguages.map((language) => {
     const label = language === 'auto'
-      ? `auto (${formatLanguageLabel(sourceLanguage || 'text')})`
+      ? `自动识别（${formatLanguageLabel(sourceLanguage || 'text')}）`
       : formatLanguageLabel(language)
     return `<option value="${language}">${label}</option>`
   }).join('')
@@ -808,11 +898,11 @@ function buildLanguageOptions(sourceLanguage) {
  * 刷新语言下拉选项文案
  * 在自动识别和手动切换后同步提示当前语言，避免下拉内容与高亮状态脱节
  */
-function updateLanguageOptions(selectElement, sourceLanguage, activeLanguage) {
+function updateLanguageOptions(selectElement, sourceLanguage, activeLanguage, detectedLanguage) {
   Array.from(selectElement.options).forEach((option) => {
     const optionLanguage = option.value || 'auto'
     option.textContent = optionLanguage === 'auto'
-      ? `auto (${formatLanguageLabel(activeLanguage || sourceLanguage || 'text')})`
+      ? `自动识别（${formatLanguageLabel(detectedLanguage || activeLanguage || sourceLanguage || 'text')}）`
       : formatLanguageLabel(optionLanguage)
   })
 }

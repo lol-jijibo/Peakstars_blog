@@ -31,6 +31,8 @@ const badgeColor = computed(() => {
   const map = {
     java: 'linear-gradient(135deg, #3b82f6, #60a5fa)',
     frontend: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
+    agent: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+    llm: 'linear-gradient(135deg, #10b981, #34d399)',
     all: 'linear-gradient(135deg, #6c63ff, #5ac8fa)'
   }
   return map[props.data.category] || 'linear-gradient(135deg, #6c63ff, #5ac8fa)'
@@ -40,6 +42,8 @@ const badgeLabel = computed(() => {
   const map = {
     java: 'Java',
     frontend: '前端',
+    agent: 'Agent开发',
+    llm: '大模型原理',
     all: '综合'
   }
   return map[props.data.category] || props.data.category || '面经'

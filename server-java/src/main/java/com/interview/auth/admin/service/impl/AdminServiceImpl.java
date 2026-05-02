@@ -602,6 +602,8 @@ public class AdminServiceImpl implements AdminService {
         return switch (categoryId.intValue()) {
             case 2 -> "前端";
             case 3 -> "Java";
+            case 4 -> "Agent开发";
+            case 5 -> "大模型原理";
             default -> "综合";
         };
     }
@@ -626,13 +628,15 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 根据分类文本映射分类 ID，1=全部 2=前端 3=Java。
+     * 根据分类文本映射分类 ID，1=全部 2=前端 3=Java 4=Agent开发 5=大模型原理。
      */
     private Long parseCategoryId(String category) {
         if (category == null) return 1L;
         return switch (category.trim().toLowerCase()) {
             case "frontend" -> 2L;
             case "java" -> 3L;
+            case "agent" -> 4L;
+            case "llm" -> 5L;
             default -> 1L;
         };
     }

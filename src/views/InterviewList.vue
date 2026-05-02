@@ -75,7 +75,7 @@
       <section class="int-category-section" aria-label="分类筛选">
         <nav class="int-category-tabs" role="tablist">
           <button
-            v-for="firstLevel in firstLevelCategories"
+            v-for="firstLevel in visibleFirstLevelCategories"
             :key="firstLevel.key"
             type="button"
             class="int-cat-tab"
@@ -152,15 +152,13 @@ let debounceTimer = 0
 
 /* ── 统计数据 ── */
 const totalCount = ref(0)
-const categoryCount = ref(6)
+const categoryCount = computed(() => Math.max(visibleFirstLevelCategories.value.length - 1, 0))
 const hotTagCount = ref(0)
 const masteredCount = ref(0)
 
 /* ── 一级分类 ── */
 const firstLevelCategories = [
   { key: 'all', label: '全部', subCategories: [] },
-  { key: 'agent', label: 'Agent 开发', subCategories: [] },
-  { key: 'llm', label: '大模型原理', subCategories: [] },
   {
     key: 'backend', label: 'Java 后端',
     subCategories: [
@@ -172,8 +170,7 @@ const firstLevelCategories = [
       { key: 'springboot', label: 'Spring Boot', category: 'java' },
       { key: 'mysql', label: 'MySQL', category: 'java' },
       { key: 'redis', label: 'Redis', category: 'java' },
-      { key: 'microservice', label: '微服务', category: 'java' },
-      { key: 'system-design', label: '系统设计', category: 'java' }
+      { key: 'system-design', label: 'Elasticsearch', category: 'java' }
     ]
   },
   {
@@ -185,9 +182,10 @@ const firstLevelCategories = [
       { key: 'typescript', label: 'TypeScript', category: 'frontend' },
       { key: 'vue', label: 'Vue', category: 'frontend' },
       { key: 'react', label: 'React', category: 'frontend' },
-      { key: 'engineering', label: '前端工程化', category: 'frontend' }
     ]
   },
+  { key: 'agent', label: 'Agent 开发', subCategories: [] },
+  { key: 'llm', label: '大模型原理', subCategories: [] },
   { key: 'algorithm', label: '算法', subCategories: [] }
 ]
 
@@ -195,9 +193,23 @@ const firstLevelCategories = [
 const initialCategory = typeof route.query.category === 'string' ? route.query.category : 'all'
 const selectedSubCategory = ref(initialCategory)
 const activeFirstLevel = ref(resolveFirstLevel(initialCategory))
+const supportedFirstLevelKeys = ['all', 'agent', 'llm', 'backend', 'frontend']
+const visibleFirstLevelCategories = computed(() =>
+  firstLevelCategories.filter((item) => supportedFirstLevelKeys.includes(item.key))
+)
+/**
+ * 目的：统一一级分类与后端接口分类参数的映射关系。
+ * 逻辑：把前端展示态的 backend 转成后端真实支持的 java，保证“Java后端-全部”能命中完整数据。
+ */
+const firstLevelCategoryApiMap = {
+  backend: 'java',
+  frontend: 'frontend'
+}
 
 function resolveFirstLevel(category) {
   if (category === 'frontend') return firstLevelCategories.find((f) => f.key === 'frontend')
+  if (category === 'agent') return firstLevelCategories.find((f) => f.key === 'agent')
+  if (category === 'llm') return firstLevelCategories.find((f) => f.key === 'llm')
   if (category === 'all' || !category) return firstLevelCategories[0]
   return firstLevelCategories.find((f) => f.key === 'backend')
 }
@@ -205,10 +217,13 @@ function resolveFirstLevel(category) {
 /* ── 当前实际传给 API 的 category ── */
 const activeCategory = computed(() => {
   if (activeFirstLevel.value.key === 'all') return 'all'
-  if (activeFirstLevel.value.key === 'agent') return 'all'
-  if (activeFirstLevel.value.key === 'llm') return 'all'
+  if (activeFirstLevel.value.key === 'agent') return 'agent'
+  if (activeFirstLevel.value.key === 'llm') return 'llm'
   if (activeFirstLevel.value.key === 'algorithm') return 'all'
-  return selectedSubCategory.value === 'all' ? activeFirstLevel.value.key : selectedSubCategory.value
+  if (selectedSubCategory.value === 'all') {
+    return firstLevelCategoryApiMap[activeFirstLevel.value.key] || activeFirstLevel.value.key
+  }
+  return selectedSubCategory.value
 })
 
 /* ── 分类切换 ── */

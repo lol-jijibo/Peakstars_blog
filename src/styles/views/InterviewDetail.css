@@ -316,6 +316,13 @@
   background: #f7f7f7;
 }
 
+.detail-section-body :deep(.code-toolbar-main) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
 .detail-section-body :deep(.code-lang-select-wrap) {
   position: relative;
   display: inline-flex;
@@ -346,6 +353,13 @@
   outline: none;
   appearance: none;
   cursor: pointer;
+}
+
+.detail-section-body :deep(.code-language-hint) {
+  color: #71717a;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .detail-section-body :deep(.code-copy-btn) {
@@ -663,5 +677,21 @@
 
   .detail-section-body {
     font-size: 16px;
+  }
+
+  .detail-section-body :deep(.code-toolbar) {
+    align-items: flex-start;
+    height: auto;
+    padding: 10px 14px;
+  }
+
+  .detail-section-body :deep(.code-toolbar-main) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .detail-section-body :deep(.code-language-hint) {
+    white-space: normal;
   }
 }
