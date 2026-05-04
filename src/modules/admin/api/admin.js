@@ -55,6 +55,13 @@ export function batchSaveAdminContent(type, records) {
   })
 }
 
+export function previewImportedAdminContent(type, payload) {
+  return request(`/api/admin/content/import-preview?type=${encodeURIComponent(type)}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+}
+
 export function deleteAdminContent(type, contentKey) {
   return request(`/api/admin/content/${encodeURIComponent(contentKey)}?type=${encodeURIComponent(type)}`, {
     method: 'DELETE'

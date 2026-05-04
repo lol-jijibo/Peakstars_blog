@@ -44,6 +44,31 @@ mybatis:
     map-underscore-to-camel-case: true
 
 app:
+  content-import:
+  # 总开关：是否开启内容导入功能
+    enabled: ${CONTENT_IMPORT_ENABLED:true}
+    # 是否迁移图片/文件等资源
+    migrate-assets: ${CONTENT_IMPORT_MIGRATE_ASSETS:true}
+    # 是否严格校验资源迁移（失败就报错）
+    strict-asset-migration: ${CONTENT_IMPORT_STRICT_ASSET_MIGRATION:false}
+    # 连接超时 5 秒
+    connect-timeout-millis: ${CONTENT_IMPORT_CONNECT_TIMEOUT_MILLIS:5000}
+    # 读取超时 15 秒
+    read-timeout-millis: ${CONTENT_IMPORT_READ_TIMEOUT_MILLIS:15000}
+    # 最大资源大小 10MB
+    max-asset-size-bytes: ${CONTENT_IMPORT_MAX_ASSET_SIZE_BYTES:10485760}
+    # 上传文件前缀目录
+    upload-prefix: ${CONTENT_IMPORT_UPLOAD_PREFIX:content-import}
+
+   # 文件存储配置
+  storage:
+    minio:
+      enabled: ${MINIO_ENABLED:false}
+      endpoint: ${MINIO_ENDPOINT:} # MinIO 服务地址
+      access-key: ${MINIO_ACCESS_KEY:}  # MinIO 访问密钥
+      secret-key: ${MINIO_SECRET_KEY:} 
+      bucket: ${MINIO_BUCKET:peakstars-content} # 存储桶名称
+      public-base-url: ${MINIO_PUBLIC_BASE_URL:} # 对外访问的域名
   auth:
     token-secret: interview-demo-auth-secret
     token-expire-hours: 168

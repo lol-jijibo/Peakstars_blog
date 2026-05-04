@@ -4,10 +4,21 @@
       <strong>正文排版编辑</strong>
       <span>支持标题、字号、加粗、列表、引用、图片、表格、代码块和全屏编辑</span>
     </div>
-    <div ref="editorRef" class="admin-rich-editor-shell"></div>
+    <div ref="editorRef" class="admin-rich-editor-shell" :class="{ 'no-ai': !aiEnabled }"></div>
     <p class="admin-rich-editor-tip">
       {{ aiEnabled ? 'AI 已启用，选中文本后可在气泡菜单中调用润色、续写和改写。' : '当前未配置 AI Key，富文本排版能力可正常使用；补齐配置后会自动启用 AI 辅助写作。' }}
     </p>
+    <!-- 复制代码成功弹窗 -->
+    <Teleport to="body">
+      <Transition name="copy-toast">
+        <div v-if="showCopyToast" class="copy-code-toast" @click="showCopyToast = false">
+          <div class="copy-code-toast-inner">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>代码已成功复制</span>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -28,11 +39,14 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 const editorRef = ref(null)
 const aiEnabled = Boolean(import.meta.env.VITE_ADMIN_AI_MODEL && import.meta.env.VITE_ADMIN_AI_API_KEY)
+const showCopyToast = ref(false)
+let copyToastTimer = null
 let editorInstance = null
 let editorConstructor = null
 let editorRuntimePromise = null
 let exitCodeBlockExtension = null
 let exitListExtension = null
+let safeCodeCommentExtension = null
 
 /**
  * 统一承接后台正文编辑与内容回填。
@@ -101,6 +115,9 @@ async function initEditor() {
       }
       if (exitListExtension) {
         extensions.push(exitListExtension)
+      }
+      if (safeCodeCommentExtension) {
+        extensions.push(safeCodeCommentExtension)
       }
     },
     ai: buildAiConfig()
@@ -214,6 +231,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   editorInstance?.destroy()
   editorInstance = null
+  if (copyToastTimer) clearTimeout(copyToastTimer)
 })
 
 /**
@@ -305,6 +323,114 @@ async function ensureEditorRuntime() {
           }
         },
       })
+
+      // 创建安全扩展：拦截 AiEditor 的代码块 AI 注释/解释按钮点击事件
+      // 并注入"复制代码"按钮
+      safeCodeCommentExtension = Extension.create({
+        name: 'safeCodeComment',
+        onCreate() {
+          // 延迟到编辑器 DOM 渲染完毕后绑定拦截事件和注入复制按钮
+          setTimeout(() => {
+            const editorEl = editorInstance?.getNativeElement?.()
+              || document.querySelector('.aie-container')
+            if (!editorEl) return
+
+            // 拦截"自动注释"按钮点击：阻止原生命令，改用安全逻辑
+            editorEl.addEventListener('click', (e) => {
+              const commentBtn = e.target.closest('.aie-codeblock-tools-comments')
+              if (commentBtn && !aiEnabled) {
+                e.stopImmediatePropagation()
+                e.preventDefault()
+                return
+              }
+            }, true)
+
+            // 拦截"代码解释"按钮点击
+            editorEl.addEventListener('click', (e) => {
+              const explainBtn = e.target.closest('.aie-codeblock-tools-explain')
+              if (explainBtn && !aiEnabled) {
+                e.stopImmediatePropagation()
+                e.preventDefault()
+                return
+              }
+            }, true)
+
+            // 为每个代码块注入"复制代码"按钮
+            injectCopyButtons(editorEl)
+
+            // 观察 DOM 变化，新代码块插入时自动注入复制按钮
+            // 使用防抖 + 临时断开 observer 避免注入按钮时触发无限循环
+            let observerTimer = null
+            const proseMirror = editorEl.querySelector('.ProseMirror')
+            if (proseMirror) {
+              const observer = new MutationObserver(() => {
+                if (observerTimer) return
+                observerTimer = setTimeout(() => {
+                  observer.disconnect()
+                  injectCopyButtons(editorEl)
+                  observerTimer = null
+                  observer.observe(proseMirror, { childList: true, subtree: true })
+                }, 200)
+              })
+              observer.observe(proseMirror, { childList: true, subtree: true })
+            }
+          }, 500)
+        },
+      })
+
+      /**
+       * 为所有代码块工具栏注入"复制代码"按钮
+       */
+      function injectCopyButtons(container) {
+        const wrappers = container.querySelectorAll('.aie-codeblock-wrapper')
+        wrappers.forEach((wrapper) => {
+          const toolsBar = wrapper.querySelector('.aie-codeblock-tools')
+          // 已有复制按钮则跳过
+          if (!toolsBar || toolsBar.querySelector('.aie-codeblock-tools-copy')) return
+
+          const copyBtn = document.createElement('div')
+          copyBtn.className = 'aie-codeblock-tools-copy'
+          copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>复制`
+          copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            const codeEl = wrapper.querySelector('pre code')
+            const codeText = codeEl ? codeEl.textContent || '' : ''
+            if (!codeText.trim()) return
+
+            navigator.clipboard.writeText(codeText).then(() => {
+              showCopyToast.value = true
+              if (copyToastTimer) clearTimeout(copyToastTimer)
+              copyToastTimer = setTimeout(() => { showCopyToast.value = false }, 1800)
+              copyBtn.classList.add('copied')
+              copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>已复制`
+              setTimeout(() => {
+                copyBtn.classList.remove('copied')
+                copyBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>复制`
+              }, 2000)
+            }).catch(() => {
+              const textarea = document.createElement('textarea')
+              textarea.value = codeText
+              textarea.style.cssText = 'position:fixed;left:-9999px'
+              document.body.appendChild(textarea)
+              textarea.select()
+              document.execCommand('copy')
+              document.body.removeChild(textarea)
+              showCopyToast.value = true
+              if (copyToastTimer) clearTimeout(copyToastTimer)
+              copyToastTimer = setTimeout(() => { showCopyToast.value = false }, 1800)
+            })
+          })
+
+          // 插入到语言选择器前面
+          const langSelector = toolsBar.querySelector('.aie-codeblock-tools-lang')
+          if (langSelector) {
+            toolsBar.insertBefore(copyBtn, langSelector)
+          } else {
+            toolsBar.appendChild(copyBtn)
+          }
+        })
+      }
     })
   }
 
@@ -473,6 +599,86 @@ async function ensureEditorRuntime() {
 .admin-rich-editor-shell :deep(.aie-container .hljs-title.class_),
 .admin-rich-editor-shell :deep(.aie-container .hljs-class .hljs-title) {
   color: #e6c07b;
+}
+
+/* AI 未启用时，隐藏代码块的"自动注释"和"代码解释"按钮
+   这些按钮依赖 AI 接口，点击时 AiEditor 会先删除代码块再调用 AI，
+   如果 AI 不可用则代码块内容会永久丢失 */
+.admin-rich-editor-shell.no-ai :deep(.aie-codeblock-tools-comments),
+.admin-rich-editor-shell.no-ai :deep(.aie-codeblock-tools-explain) {
+  display: none !important;
+}
+
+/* 代码块复制按钮样式 */
+.admin-rich-editor-shell :deep(.aie-codeblock-tools-copy) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  margin-right: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #8b949e;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.admin-rich-editor-shell :deep(.aie-codeblock-tools-copy:hover) {
+  background: rgba(255, 255, 255, 0.2);
+  color: #e5e7eb;
+}
+.admin-rich-editor-shell :deep(.aie-codeblock-tools-copy.copied) {
+  color: #10b981;
+}
+
+/* 复制成功居中弹窗 */
+.copy-code-toast {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  pointer-events: auto;
+  background: transparent;
+}
+.copy-code-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  color: #f1f5f9;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+  letter-spacing: 0.3px;
+}
+.copy-code-toast-inner svg {
+  flex-shrink: 0;
+}
+
+/* 弹窗过渡动画 */
+.copy-toast-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.copy-toast-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.copy-toast-enter-from {
+  opacity: 0;
+  transform: scale(0.85);
+}
+.copy-toast-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
 }
 
 .admin-rich-editor-shell :deep(.ProseMirror table) {

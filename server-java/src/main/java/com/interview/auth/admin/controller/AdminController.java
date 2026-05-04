@@ -1,9 +1,11 @@
 package com.interview.auth.admin.controller;
 
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
+import com.interview.auth.admin.dto.request.AdminContentImportPreviewRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminDraftUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminHeartbeatRequest;
+import com.interview.auth.admin.dto.response.AdminContentImportPreviewResponse;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
 import com.interview.auth.admin.dto.response.AdminDraftResponse;
@@ -23,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对外暴露后台管理页所需的心跳、仪表盘、内容 CRUD 和批量导入接口。
+ * 对外暴露后台管理页所需的心跳、仪表盘、内容 CRUD、批量导入与导入预处理接口。
  * Controller 只负责接参和包装统一响应结构，具体数据处理交给 AdminService。
  */
 @RestController
@@ -36,6 +38,9 @@ public class AdminController {
     /**
      * 记录后台当前访问者的心跳，驱动在线人数实时统计。
      * 前端会定时发送 clientId，后端据此维护短周期在线会话。
+     *
+     * @param request 心跳请求
+     * @return 统一响应
      */
     @PostMapping("/heartbeat")
     public ApiResponse<Void> heartbeat(@Valid @RequestBody AdminHeartbeatRequest request) {
@@ -46,6 +51,8 @@ public class AdminController {
     /**
      * 获取后台首页仪表盘聚合数据。
      * 统一返回指标卡片、趋势图、模块统计和最近编辑，减少前端首屏请求数量。
+     *
+     * @return 仪表盘聚合数据
      */
     @GetMapping("/dashboard")
     public ApiResponse<AdminDashboardResponse> getDashboard() {
@@ -54,7 +61,10 @@ public class AdminController {
 
     /**
      * 按模块读取后台内容管理列表。
-     * type 决定读取技术文章、看天下或 AI 热点，返回结果统一映射成后台记录结构。
+     * type 决定读取技术文章、看天下、AI 热点或面经，返回结果统一映射成后台记录结构。
+     *
+     * @param type 内容类型
+     * @return 内容列表
      */
     @GetMapping("/content")
     public ApiResponse<List<AdminContentRecordResponse>> listContent(@RequestParam String type) {
@@ -64,6 +74,10 @@ public class AdminController {
     /**
      * 新增指定模块的一条内容记录。
      * 后端会按模块规则生成业务主键并落库，同时记录一条编辑日志。
+     *
+     * @param type 内容类型
+     * @param request 内容保存请求
+     * @return 保存后的统一记录
      */
     @PostMapping("/content")
     public ApiResponse<AdminContentRecordResponse> createContent(
@@ -76,6 +90,11 @@ public class AdminController {
     /**
      * 更新指定模块的一条内容记录。
      * 通过路径上的业务主键定位记录，再按请求体内容执行幂等更新。
+     *
+     * @param type 内容类型
+     * @param contentKey 内容主键
+     * @param request 内容保存请求
+     * @return 保存后的统一记录
      */
     @PutMapping("/content/{contentKey}")
     public ApiResponse<AdminContentRecordResponse> updateContent(
@@ -89,6 +108,10 @@ public class AdminController {
     /**
      * 处理管理台的 Excel 批量导入保存。
      * 前端先把 XLSX 转成标准记录数组，再统一提交到该接口执行批量写入。
+     *
+     * @param type 内容类型
+     * @param request 批量保存请求
+     * @return 保存后的统一记录集合
      */
     @PostMapping("/content/batch")
     public ApiResponse<List<AdminContentRecordResponse>> batchSaveContent(
@@ -99,8 +122,28 @@ public class AdminController {
     }
 
     /**
+     * 对外部编辑器内容执行导入预处理。
+     * 在正式发布前先统一完成 HTML 白名单清洗与 MinIO 资源迁移，返回可直接回填到富文本编辑器的标准正文。
+     *
+     * @param type 内容类型
+     * @param request 导入预处理请求
+     * @return 导入预处理结果
+     */
+    @PostMapping("/content/import-preview")
+    public ApiResponse<AdminContentImportPreviewResponse> previewImportedContent(
+        @RequestParam String type,
+        @Valid @RequestBody AdminContentImportPreviewRequest request
+    ) {
+        return ApiResponse.success(adminService.previewImportedContent(type, request));
+    }
+
+    /**
      * 下线指定模块的一条内容记录。
      * 删除采用软删除方案，只更新 status 并同步写入编辑日志。
+     *
+     * @param type 内容类型
+     * @param contentKey 内容主键
+     * @return 统一响应
      */
     @DeleteMapping("/content/{contentKey}")
     public ApiResponse<Void> deleteContent(@RequestParam String type, @PathVariable String contentKey) {
@@ -108,11 +151,12 @@ public class AdminController {
         return ApiResponse.success("Content removed", null);
     }
 
-    // ── 草稿管理 ──────────────────────────────────────────
-
     /**
-     * 按模块列出全部草稿，返回给前端「待编辑」表格展示。
+     * 按模块列出全部草稿，返回给前端“待编辑”表格展示。
      * 按更新时间倒序排列，最新的草稿排在最前面。
+     *
+     * @param type 内容类型
+     * @return 草稿列表
      */
     @GetMapping("/draft")
     public ApiResponse<List<AdminDraftResponse>> listDrafts(@RequestParam String type) {
@@ -120,8 +164,11 @@ public class AdminController {
     }
 
     /**
-     * 创建或更新草稿（按 draftKey 幂等写入）。
-     * 前端在新增或编辑过程中点击「保存草稿」或触发自动保存时调用此接口。
+     * 创建或更新草稿，按 draftKey 幂等写入。
+     * 前端在新增或编辑过程中点击“保存草稿”或触发自动保存时调用此接口。
+     *
+     * @param request 草稿保存请求
+     * @return 草稿结果
      */
     @PostMapping("/draft")
     public ApiResponse<AdminDraftResponse> saveDraft(@Valid @RequestBody AdminDraftUpsertRequest request) {
@@ -131,6 +178,9 @@ public class AdminController {
     /**
      * 删除指定草稿。
      * 草稿发布成功或用户手动删除时调用，直接从 content_draft 表物理删除。
+     *
+     * @param draftKey 草稿主键
+     * @return 统一响应
      */
     @DeleteMapping("/draft/{draftKey}")
     public ApiResponse<Void> deleteDraft(@PathVariable String draftKey) {

@@ -1,8 +1,10 @@
 package com.interview.auth.admin.service.impl;
 
 import com.interview.auth.admin.dto.request.AdminBatchUpsertRequest;
+import com.interview.auth.admin.dto.request.AdminContentImportPreviewRequest;
 import com.interview.auth.admin.dto.request.AdminContentUpsertRequest;
 import com.interview.auth.admin.dto.request.AdminDraftUpsertRequest;
+import com.interview.auth.admin.dto.response.AdminContentImportPreviewResponse;
 import com.interview.auth.admin.dto.response.AdminContentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminCommentRecordResponse;
 import com.interview.auth.admin.dto.response.AdminDashboardResponse;
@@ -14,6 +16,7 @@ import com.interview.auth.admin.dto.response.AdminTrendPointResponse;
 import com.interview.auth.admin.entity.ContentDraft;
 import com.interview.auth.admin.entity.ContentEditLog;
 import com.interview.auth.admin.mapper.AdminMapper;
+import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.BusinessException;
 import com.interview.auth.domain.entity.AiHotspot;
@@ -68,6 +71,7 @@ public class AdminServiceImpl implements AdminService {
     private static final int MAX_TREND_POINTS = 12;
 
     private final AdminMapper adminMapper;
+    private final AdminContentImportService adminContentImportService;
     private volatile boolean editLogStorageAvailable = true;
 
     /**
@@ -135,6 +139,7 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public AdminContentRecordResponse saveContent(String type, String contentKey, AdminContentUpsertRequest request) {
         String normalizedType = normalizeType(type);
+        preprocessContentRequest(normalizedType, request);
         String resolvedKey = resolveContentKey(normalizedType, contentKey, request.getId(), request.getTitle());
 
         AdminContentRecordResponse saved = switch (normalizedType) {
@@ -167,6 +172,15 @@ public class AdminServiceImpl implements AdminService {
         appendEditLog(normalizedType, "batch-import", "batch-import", "批量导入 " + results.size() + " 条内容");
         appendSnapshotIfNeeded(buildCurrentSummary());
         return results;
+    }
+
+    /**
+     * 预处理外部导入内容并返回标准化结果。
+     * 复用正式保存链路同一套 HTML 清洗与 MinIO 迁移能力，保证后台预览和入库结果完全一致。
+     */
+    @Override
+    public AdminContentImportPreviewResponse previewImportedContent(String type, AdminContentImportPreviewRequest request) {
+        return adminContentImportService.preview(normalizeType(type), request);
     }
 
     /**
@@ -591,6 +605,23 @@ public class AdminServiceImpl implements AdminService {
         interview.setStatus(1);
         adminMapper.saveInterview(interview);
         return toInterviewAdminRecord(interview);
+    }
+
+    /**
+     * 在正式保存前标准化后台内容请求。
+     * 对正文 HTML 与封面链接统一执行白名单清洗和 MinIO 资源迁移，避免外部富文本未经治理直接入库。
+     */
+    private void preprocessContentRequest(String type, AdminContentUpsertRequest request) {
+        String rawHtml = defaultString(request.getContentHtml(), wrapParagraph(request.getSummary()));
+        AdminContentImportPreviewResponse normalized = adminContentImportService.normalizeHtml(
+            type,
+            rawHtml,
+            "admin-editor",
+            null,
+            true
+        );
+        request.setContentHtml(normalized.getNormalizedHtml());
+        request.setCoverUrl(adminContentImportService.normalizeCoverUrl(type, request.getCoverUrl()));
     }
 
     /**

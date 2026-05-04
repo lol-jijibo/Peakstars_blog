@@ -12,6 +12,7 @@
     "aieditor": "^1.4.2",
     "echarts": "^6.0.0",
     "element-plus": "^2.13.7",
+    "mammoth": "^1.12.0",
     "pinia": "^3.0.4",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0",

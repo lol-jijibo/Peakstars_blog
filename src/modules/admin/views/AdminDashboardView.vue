@@ -24,11 +24,18 @@
       </div>
     </div>
     <input
-      ref="fileInputRef"
+      ref="excelFileInputRef"
       type="file"
       accept=".xlsx,.xls"
       class="admin-console-hidden-input"
-      @change="handleImportFile"
+      @change="handleExcelImportFile"
+    />
+    <input
+      ref="documentImportInputRef"
+      type="file"
+      accept=".docx,.html,.htm,.md,.markdown,.txt"
+      class="admin-console-hidden-input"
+      @change="handleDocumentImportFile"
     />
 
     <aside class="sidebar">
@@ -106,6 +113,8 @@
             </span>
             <input v-model.trim="keyword" type="text" placeholder="搜索内容…" />
           </label>
+          <button class="btn btn-ghost" type="button" @click="triggerDocumentImport">导入文档</button>
+          <button class="btn btn-ghost" type="button" @click="triggerBatchImport">Excel 导入</button>
           <button class="btn btn-ghost" type="button" @click="handleExportCurrentModule">导出</button>
           <button class="btn btn-primary" type="button" @click="openCreateDialog">+ 新建{{ activeModule.shortLabel }}</button>
         </div>
@@ -486,6 +495,42 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label class="form-label">外部内容导入</label>
+          <div class="admin-import-toolbar">
+            <button class="btn btn-ghost" type="button" :disabled="importPreviewLoading" @click="triggerDocumentImport">
+              {{ importPreviewLoading ? '文档处理中…' : '一键选择文档' }}
+            </button>
+            <button class="btn btn-ghost" type="button" :disabled="importPreviewLoading" @click="applyImportedHtmlSafe">
+              {{ importPreviewLoading ? '预处理中…' : '导入并预处理 HTML' }}
+            </button>
+          </div>
+          <div class="admin-import-meta">
+            {{ importFileName || '支持语雀、飞书、Notion 等工具导出的 docx / html / md / txt，正文会自动回填到编辑器。' }}
+          </div>
+          <textarea
+            v-model.trim="draftForm.importHtml"
+            class="form-input"
+            rows="6"
+            placeholder="粘贴语雀、飞书、Notion 等编辑器导出的 HTML 片段，点击下方按钮后会自动执行白名单清洗并迁移图片/附件。"
+          ></textarea>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">来源类型</label>
+              <input v-model.trim="draftForm.importSourceType" class="form-input" type="text" placeholder="例如 yuque / feishu / notion / html" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">来源地址</label>
+              <input v-model.trim="draftForm.importSourceUrl" class="form-input" type="text" placeholder="可选，填写原文链接可辅助解析相对资源地址" />
+            </div>
+          </div>
+          <div class="modal-footer modal-footer-inline">
+            <button class="btn btn-ghost" type="button" :disabled="importPreviewLoading" @click="applyImportedHtmlSafe">
+              {{ importPreviewLoading ? '预处理中…' : '导入并预处理 HTML' }}
+            </button>
+          </div>
+        </div>
+
         <div class="editor-group">
           <label class="form-label">正文内容</label>
           <AdminRichEditor
@@ -513,7 +558,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch }
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminConsoleStore } from '@/modules/admin/stores/adminConsole'
-import { listAdminDrafts, saveAdminDraft, deleteAdminDraft } from '@/modules/admin/api/admin'
+import { listAdminDrafts, saveAdminDraft, deleteAdminDraft, previewImportedAdminContent } from '@/modules/admin/api/admin'
 import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
 import AdminModuleChart from '@/modules/admin/components/AdminModuleChart.vue'
 import AdminCommentChart from '@/modules/admin/components/AdminCommentChart.vue'
@@ -526,6 +571,8 @@ const adminStore = useAdminConsoleStore()
 const { currentSummary, errorMessage, recentEdits, saving, trendPoints, moduleStats, hotContents, commentRecords } = storeToRefs(adminStore)
 
 let xlsxLibraryPromise = null
+let markdownRuntimePromise = null
+let mammothRuntimePromise = null
 
 // 业务目的：给左侧导航提供彩色模块图标，让每个模块入口都和参考模板一样有明显的视觉识别。
 // 业务逻辑：模块图标统一映射为彩色 emoji，模板层只按模块 key 读取，避免继续使用乱码文字占位。
@@ -692,7 +739,10 @@ const currentFilter = ref('all')
 const keyword = ref('')
 const dialogVisible = ref(false)
 const isEditing = ref(false)
-const fileInputRef = ref(null)
+const excelFileInputRef = ref(null)
+const documentImportInputRef = ref(null)
+const importPreviewLoading = ref(false)
+const importFileName = ref('')
 const draftForm = reactive(createEmptyDraft())
 
 const summary = computed(() => currentSummary.value || {
@@ -1356,11 +1406,26 @@ async function removeRecord(record) {
   showToast('内容已删除', 'success')
 }
 
-function triggerImport() {
-  fileInputRef.value?.click()
+/**
+ * 区分批量表格导入与单篇文档导入入口，避免同一个上传框同时承担两套业务语义。
+ * Excel 入口继续服务结构化批量写入，文档入口则服务语雀与飞书等编辑器导出的单篇正文导入。
+ */
+function triggerBatchImport() {
+  excelFileInputRef.value?.click()
 }
 
-async function handleImportFile(event) {
+/**
+ * 为后台新增一键导入外部文档入口，让运营直接从本地选择语雀或飞书导出的文章文件。
+ * 未打开弹窗时先进入新建态，再调起系统文件选择器，保证导入内容有明确落点。
+ */
+function triggerDocumentImport() {
+  if (!dialogVisible.value) {
+    openCreateDialog()
+  }
+  documentImportInputRef.value?.click()
+}
+
+async function handleExcelImportFile(event) {
   const file = event.target.files?.[0]
   if (!file) {
     return
@@ -1376,6 +1441,43 @@ async function handleImportFile(event) {
   event.target.value = ''
 }
 
+/**
+ * 把外部编辑工具导出的本地文件转成后台可接收的 HTML 正文，减少人工复制粘贴成本。
+ * 先在前端按文件类型做轻量解析，再统一调用后端预处理接口完成 HTML 清洗与 MinIO 图片迁移。
+ */
+async function handleDocumentImportFile(event) {
+  const file = event.target.files?.[0]
+  if (!file) {
+    return
+  }
+
+  importPreviewLoading.value = true
+  importFileName.value = file.name || ''
+  try {
+    const parsed = await parseImportedDocumentFile(file)
+    draftForm.importHtml = parsed.html
+    draftForm.importSourceType = parsed.sourceType
+    draftForm.importSourceUrl = ''
+    if (!draftForm.title && parsed.title) {
+      draftForm.title = parsed.title
+    }
+    if (!draftForm.summary && parsed.summary) {
+      draftForm.summary = parsed.summary
+    }
+    await applyImportedHtmlSafe({
+      html: parsed.html,
+      sourceType: parsed.sourceType,
+      fileName: file.name,
+      skipLoading: true
+    })
+  } catch (error) {
+    showToast(error.message || '文档导入失败', 'error')
+  } finally {
+    importPreviewLoading.value = false
+    event.target.value = ''
+  }
+}
+
 async function handleExportCurrentModule() {
   const XLSX = await loadXlsxLibrary()
   const rows = currentRecords.value.map((record) => buildExportRow(record, currentType.value))
@@ -1383,6 +1485,197 @@ async function handleExportCurrentModule() {
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, activeModule.value.shortLabel)
   XLSX.writeFile(workbook, `peakstars-${currentType.value}-content.xlsx`)
+}
+
+/**
+ * 把 docx、markdown、html 与 txt 等常见导出文件统一转成后台富文本可消费的 HTML。
+ * 前端按扩展名选择最合适的解析器，尽量保留原始标题层级、列表、表格与图片结构，再交给服务端做最终清洗。
+ */
+async function parseImportedDocumentFile(file) {
+  const extension = resolveFileExtension(file.name)
+  const sourceType = resolveSourceTypeByFileName(file.name)
+  if (extension === 'docx') {
+    return parseDocxFile(file, sourceType)
+  }
+  if (extension === 'md' || extension === 'markdown') {
+    return parseMarkdownFile(file, sourceType)
+  }
+  if (extension === 'html' || extension === 'htm') {
+    return parseHtmlFile(file, sourceType)
+  }
+  if (extension === 'txt') {
+    return parseTextFile(file, sourceType)
+  }
+  throw new Error('当前仅支持 docx、html、md、markdown、txt 文档导入')
+}
+
+/**
+ * 保留飞书与语雀导出的 Word 版式结构，让后台导入后尽量贴近原文排版。
+ * 使用 mammoth 把 docx 转成 HTML，并把内嵌图片转成 base64，后续交给后端统一迁移到 MinIO。
+ */
+async function parseDocxFile(file, sourceType) {
+  const mammoth = await loadMammothLibrary()
+  const arrayBuffer = await file.arrayBuffer()
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer },
+    {
+      convertImage: mammoth.images.inline(async (element) => ({
+        src: `data:${element.contentType};base64,${await element.read('base64')}`
+      }))
+    }
+  )
+  const html = String(result.value || '').trim()
+  const plainText = htmlToPlainText(html)
+  return {
+    html,
+    sourceType,
+    title: extractTitleFromHtml(html, file.name),
+    summary: buildSummaryFromPlainText(plainText)
+  }
+}
+
+/**
+ * 把 markdown 文档保留为结构化 HTML，避免后台只导入成一整段纯文本。
+ * 通过 markdown-it 渲染标题、代码块、表格和任务列表，再继续复用统一的预处理入口。
+ */
+async function parseMarkdownFile(file, sourceType) {
+  const markdown = await loadMarkdownRuntime()
+  const rawText = await file.text()
+  const normalizedMarkdown = rebuildMarkdownOrderedList(normalizeMarkdownSource(rawText))
+  const html = normalizeImportedHtml(markdown.render(normalizedMarkdown))
+  return {
+    html,
+    sourceType,
+    title: extractTitleFromMarkdown(normalizedMarkdown, file.name),
+    summary: buildSummaryFromPlainText(normalizedMarkdown)
+  }
+}
+
+/**
+ * 兼容语雀与飞书直接导出的 HTML 文件，最大程度保留原始结构。
+ * 优先提取 body 区域正文，避免整页样式与脚本被一并带入后台富文本。
+ */
+async function parseHtmlFile(file, sourceType) {
+  const rawText = await file.text()
+  const parser = new DOMParser()
+  const document = parser.parseFromString(rawText, 'text/html')
+  const html = normalizeImportedHtml(document.body?.innerHTML?.trim() || rawText)
+  const title = document.querySelector('h1')?.textContent?.trim() || document.title || stripFileExtension(file.name)
+  return {
+    html,
+    sourceType,
+    title,
+    summary: buildSummaryFromPlainText(document.body?.textContent || htmlToPlainText(html))
+  }
+}
+
+/**
+ * 让纯文本文档导入后仍保留段落节奏，避免直接贴入编辑器变成一整块内容。
+ * 按空行拆段并转成标准段落 HTML，再从首段补齐标题与摘要。
+ */
+async function parseTextFile(file, sourceType) {
+  const rawText = await file.text()
+  const html = normalizeImportedHtml(textToParagraphHtml(rawText))
+  return {
+    html,
+    sourceType,
+    title: extractTitleFromPlainText(rawText, file.name),
+    summary: buildSummaryFromPlainText(rawText)
+  }
+}
+
+/**
+ * 让外部文档导入后的正文继续复用服务端清洗与资源迁移链路，保证入库内容口径一致。
+ * 支持直接消费文件解析结果，也支持手动粘贴 HTML 后再次执行预处理，避免双入口分叉维护。
+ */
+async function applyImportedHtml(payload = {}) {
+  const rawHtml = String(payload.html || draftForm.importHtml || '').trim()
+  if (!rawHtml) {
+    showToast('请先粘贴外部 HTML 内容', 'warning')
+    return
+  }
+
+  importPreviewLoading.value = true
+  try {
+    const result = await previewImportedAdminContent(currentType.value, {
+      contentHtml: rawHtml,
+      sourceType: payload.sourceType || draftForm.importSourceType || 'html',
+      sourceUrl: draftForm.importSourceUrl || '',
+      migrateAssets: true
+    })
+
+    draftForm.contentHtml = normalizeImportedHtml(result.normalizedHtml || '')
+    if (!draftForm.title) {
+      draftForm.title = extractTitleFromHtml(result.normalizedHtml || rawHtml, payload.fileName || importFileName.value)
+    }
+    if (!draftForm.summary && result.plainText) {
+      draftForm.summary = buildSummaryFromPlainText(result.plainText)
+    }
+    if (!draftForm.coverUrl && result.migratedCoverUrl) {
+      draftForm.coverUrl = result.migratedCoverUrl
+    }
+
+    const migratedCount = Array.isArray(result.assets)
+      ? result.assets.filter((item) => item.status === 'migrated').length
+      : 0
+    const warningCount = Array.isArray(result.warnings) ? result.warnings.length : 0
+    showToast(`导入完成，已处理 ${migratedCount} 个资源${warningCount ? `，${warningCount} 个告警` : ''}`, 'success')
+  } catch (error) {
+    showToast(error.message || '导入预处理失败', 'error')
+  } finally {
+    if (shouldManageLoading) {
+      importPreviewLoading.value = false
+    }
+  }
+}
+
+/**
+ * 兜底接管外部文档预处理入口，确保文件导入与手动粘贴都走稳定的清洗链路。
+ * 显式管理加载态、标题摘要回填与提示文案，避免旧函数历史逻辑影响新导入能力。
+ */
+async function applyImportedHtmlSafe(payload = {}) {
+  const rawHtml = String(payload.html || draftForm.importHtml || '').trim()
+  if (!rawHtml) {
+    showToast('请先选择文档或粘贴外部 HTML 内容', 'warning')
+    return
+  }
+
+  const shouldManageLoading = !payload.skipLoading
+  if (shouldManageLoading) {
+    importPreviewLoading.value = true
+  }
+  try {
+    const result = await previewImportedAdminContent(currentType.value, {
+      contentHtml: rawHtml,
+      sourceType: payload.sourceType || draftForm.importSourceType || 'html',
+      sourceUrl: draftForm.importSourceUrl || '',
+      migrateAssets: true
+    })
+
+    draftForm.contentHtml = normalizeImportedHtml(result.normalizedHtml || '')
+    if (!draftForm.title) {
+      draftForm.title = extractTitleFromHtml(result.normalizedHtml || rawHtml, payload.fileName || importFileName.value)
+    }
+    if (!draftForm.summary && result.plainText) {
+      draftForm.summary = buildSummaryFromPlainText(result.plainText)
+    }
+    if (!draftForm.coverUrl && result.migratedCoverUrl) {
+      draftForm.coverUrl = result.migratedCoverUrl
+    }
+
+    const migratedCount = Array.isArray(result.assets)
+      ? result.assets.filter((item) => item.status === 'migrated').length
+      : 0
+    const warningCount = Array.isArray(result.warnings) ? result.warnings.length : 0
+    const fileNameLabel = payload.fileName ? `《${payload.fileName}》` : '当前内容'
+    showToast(`已导入 ${fileNameLabel}，处理 ${migratedCount} 个资源${warningCount ? `，${warningCount} 个提醒` : ''}`, 'success')
+  } catch (error) {
+    showToast(error.message || '导入预处理失败', 'error')
+  } finally {
+    if (shouldManageLoading) {
+      importPreviewLoading.value = false
+    }
+  }
 }
 
 function createEmptyDraft() {
@@ -1407,7 +1700,10 @@ function createEmptyDraft() {
     today: false,
     highlightsText: '',
     tagsText: '',
-    visualStatus: 'published'
+    visualStatus: 'published',
+    importHtml: '',
+    importSourceType: 'html',
+    importSourceUrl: ''
   }
 }
 
@@ -1434,7 +1730,10 @@ function createDraftFromRecord(record) {
     today: Boolean(record.today),
     highlightsText: [record.coverKicker, ...(record.highlights || [])].filter(Boolean).join(', '),
     tagsText: (record.tags || []).join(', '),
-    visualStatus: inferVisualStatus(record)
+    visualStatus: inferVisualStatus(record),
+    importHtml: '',
+    importSourceType: 'html',
+    importSourceUrl: ''
   }
 }
 
@@ -1721,8 +2020,350 @@ function formatDraftTime(rawTime) {
   return saved.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
-// 业务目的：模板视觉保持一致的前提下，仍保留批量导入导出能力，避免后台运营能力倒退。
-// 业务逻辑：xlsx 运行时继续按需加载，页面结构再像模板，也不把额外依赖提前打进首屏。
+/**
+ * 统一懒加载 markdown 渲染能力，避免后台首页首屏额外引入大体积解析器。
+ * 只在用户选择 markdown 文件时加载 markdown-it，并复用同一个运行时实例。
+ */
+async function loadMarkdownRuntime() {
+  if (!markdownRuntimePromise) {
+    markdownRuntimePromise = import('markdown-it').then(({ default: MarkdownIt }) => new MarkdownIt({
+      html: true,
+      linkify: true,
+      breaks: true
+    }))
+  }
+  return markdownRuntimePromise
+}
+
+/**
+ * 懒加载 docx 解析器，保证后台常规浏览与编辑流程不被文档导入能力拖慢。
+ * 仅在用户选择 docx 文件时动态引入 mammoth，并复用缓存结果降低二次导入开销。
+ */
+async function loadMammothLibrary() {
+  if (!mammothRuntimePromise) {
+    mammothRuntimePromise = import('mammoth').then((module) => module.default || module)
+  }
+  return mammothRuntimePromise
+}
+
+/**
+ * 根据文件后缀选择最合适的解析器，提升不同来源文档的识别准确率。
+ * 优先读取最后一个扩展名并统一转成小写，避免用户本地文件大小写差异影响导入。
+ */
+function resolveFileExtension(fileName) {
+  const segments = String(fileName || '').toLowerCase().split('.')
+  return segments.length > 1 ? segments.pop() : ''
+}
+
+/**
+ * 从文件名识别语雀、飞书等来源，便于后端记录导入渠道与后续扩展差异化处理。
+ * 先按关键词识别常见编辑器，未命中时回落到文件扩展名来源。
+ */
+function resolveSourceTypeByFileName(fileName) {
+  const normalizedName = String(fileName || '').toLowerCase()
+  if (normalizedName.includes('语雀') || normalizedName.includes('yuque')) {
+    return 'yuque'
+  }
+  if (normalizedName.includes('飞书') || normalizedName.includes('feishu') || normalizedName.includes('lark')) {
+    return 'feishu'
+  }
+  if (normalizedName.includes('notion')) {
+    return 'notion'
+  }
+  return resolveFileExtension(fileName) || 'html'
+}
+
+/**
+ * 从解析后的正文中提取后台标题，减少导入后还要手动补标题的重复动作。
+ * 优先读取首个标题文本，再回退到纯文本首行与文件名，保证各种来源都能拿到稳定标题。
+ */
+function extractTitleFromHtml(html, fallbackName = '') {
+  const parser = new DOMParser()
+  const document = parser.parseFromString(String(html || ''), 'text/html')
+  const heading = document.querySelector('h1,h2,h3')?.textContent?.trim()
+  if (heading) {
+    return heading.slice(0, 80)
+  }
+  return extractTitleFromPlainText(document.body?.textContent || '', fallbackName)
+}
+
+/**
+ * 从 markdown 原文中提取最自然的文章标题，尽量贴近作者在编辑器里的结构。
+ * 优先识别一级标题，未命中时退回纯文本首行与文件名兜底。
+ */
+function extractTitleFromMarkdown(markdownText, fallbackName = '') {
+  const lines = String(markdownText || '').split(/\r?\n/)
+  const headingLine = lines.find((line) => /^#\s+/.test(line.trim()))
+  if (headingLine) {
+    return headingLine.replace(/^#\s+/, '').trim().slice(0, 80)
+  }
+  return extractTitleFromPlainText(markdownText, fallbackName)
+}
+
+/**
+ * 为纯文本导入提供稳定标题兜底，避免空标题阻断后台发布。
+ * 优先取首个非空行，若正文为空则退回文件名，最终保证返回可展示标题。
+ */
+function extractTitleFromPlainText(text, fallbackName = '') {
+  const firstLine = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+  return (firstLine || stripFileExtension(fallbackName) || '未命名导入内容').slice(0, 80)
+}
+
+/**
+ * 根据正文纯文本快速生成后台摘要，减少导入后手动整理摘要的运营动作。
+ * 统一压缩空白字符后截取前 120 个字，保证卡片摘要简洁且可读。
+ */
+function buildSummaryFromPlainText(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+}
+
+/**
+ * 统一整理 markdown 原文里的空行、伪列表和内联 HTML，减少导入后出现的空白段落与未渲染标签。
+ * 在进入 markdown-it 前先压平连续空行、清除空列表项，并把常见 font 标签退化成纯文本强调语义。
+ */
+function normalizeMarkdownSource(markdownText) {
+  return String(markdownText || '')
+    .replace(/\r\n/g, '\n')
+    // 全面剥离所有零宽字符、不可见格式化字符、软连字符
+    .replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\u00AD]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\u3000/g, ' ')
+    .replace(/<font\b[^>]*>(.*?)<\/font>/gi, '$1')
+    // 删除只剩空白字符的空行（之前的不可见字符被剥离后可能变成空白行）
+    .replace(/^\s+$/gm, '')
+    // 删除空的无序列表项：仅有 - * + 的行
+    .replace(/^\s*[-*+]\s*$/gm, '')
+    // 删除空的有序列表项：仅有数字编号的行
+    .replace(/^\s*\d+[.:：]?\s*$/gm, '')
+    // 删除空编号行后面紧跟空行或下一个编号的情况
+    .replace(/^\s*\d+[.:：]?\s*\n(?=\s*\n|\s*\d+[.:：]?\s|$)/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * 在不破坏嵌套结构的前提下重建有序列表编号。
+ * normalizer 可能删除了部分编号行（如空列表项），导致剩余编号不连续，
+ * 此函数重新按出现顺序从 1 开始编号，确保 markdown-it 能正确渲染有序列表。
+ */
+function rebuildMarkdownOrderedList(markdownText) {
+  let listCounters = {}
+  let indentStack = []
+  return String(markdownText || '')
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim()
+      // 匹配有序列表项：数字 + 英文句号/中文句号/冒号 + 至少一个空白字符 + 剩余内容
+      const match = trimmed.match(/^(\d+)[.:：]\s+(.*)$/)
+      if (!match) {
+        // 非列表行重置列表状态（空行或缩进归零）
+        if (trimmed === '' || (!trimmed.startsWith(' ') && !trimmed.startsWith('\t'))) {
+          listCounters = {}
+          indentStack = []
+        }
+        return line
+      }
+
+      // 剥离不可见字符后判断内容是否为空，避免被 NBSP / 零宽空格等欺骗
+      const rawContent = match[2] || ''
+      const cleanContent = rawContent
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\u3000/g, ' ')
+        .trim()
+
+      if (!cleanContent) {
+        // 空内容的列表项：重置计数器并保留原行（后续 markdown-it 会跳过）
+        listCounters = {}
+        indentStack = []
+        return ''
+      }
+
+      const indent = line.length - line.trimStart().length
+
+      // 找到当前缩进对应的层级
+      let level = indentStack.indexOf(indent)
+      if (level < 0) {
+        // 新层级：栈顶加进去
+        indentStack.push(indent)
+        level = indentStack.length - 1
+        listCounters[level] = 0
+      } else {
+        // 缩减缩进：弹出多余的栈
+        while (indentStack.length > level + 1) {
+          indentStack.pop()
+          delete listCounters[indentStack.length]
+        }
+      }
+
+      listCounters[level] = (listCounters[level] || 0) + 1
+      return ' '.repeat(indent) + listCounters[level] + '. ' + cleanContent
+    })
+    .join('\n')
+}
+
+/**
+ * 把普通文本转换成分段 HTML，保留原文段落结构。
+ * 按空行切段并进行最小转义，再输出标准段落标签供服务端继续清洗。
+ */
+function textToParagraphHtml(text) {
+  const paragraphs = String(text || '')
+    .split(/\r?\n\s*\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return paragraphs
+    .map((item) => `<p>${escapeHtml(item).replace(/\r?\n/g, '<br />')}</p>`)
+    .join('')
+}
+
+/**
+ * 为标题提取与摘要生成提供统一纯文本视图，避免重复手写 HTML 清洗逻辑。
+ * 通过 DOMParser 读取正文文本，再压缩多余空白字符形成稳定输出。
+ */
+function htmlToPlainText(html) {
+  const parser = new DOMParser()
+  const document = parser.parseFromString(String(html || ''), 'text/html')
+  return String(document.body?.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * 统一抹平导入内容里的零宽字符、NBSP 与全角空格，避免看起来空白的编号段落逃过清洗。
+ * 先把不可见字符标准化成普通空格，再输出稳定文本供空段落与伪编号判断复用。
+ */
+function normalizeImportText(text) {
+  return String(text || '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\u3000/g, ' ')
+    .trim()
+}
+
+/**
+ * 判断当前段落是否只剩编号占位，专门清理 1. 2. 3. 这类伪列表空行。
+ * 标准化文本后只按纯数字加标点的最小模式识别，避免误删正常正文内容。
+ */
+function isEmptyNumberMarker(text) {
+  return /^\d+[.:：]?$/.test(normalizeImportText(text))
+}
+
+/**
+ * 统一清理导入 HTML 里的空段落、空列表项和多余换行，保证后台编辑器打开后的版式更整洁。
+ * 通过多轮 DOM 级规则删除无内容节点，并把连续空白折叠到最小展示范围，减少截图中的大块留白问题。
+ */
+function normalizeImportedHtml(html) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(String(html || ''), 'text/html')
+  const body = doc.body
+
+  // 第一步：展开 font 标签，避免内部内容被遮挡
+  body.querySelectorAll('font').forEach((node) => {
+    node.replaceWith(...Array.from(node.childNodes))
+  })
+
+  // 第二步：先把所有不可见字符从 HTML 字符串层面剥离干净
+  // 必须在 DOM 操作之前做，否则不可见字符会干扰 textContent 判空
+  body.innerHTML = body.innerHTML
+    .replace(/[\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\u00AD]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\u3000/g, ' ')
+
+  // 第三步：多轮 DOM 清理，直到没有空节点可删为止
+  // 删除一个空节点可能让父节点也变空，所以需要循环
+  let changed = true
+  while (changed) {
+    changed = false
+
+    // 判断一个元素是否为"空"：没有可见文字、没有媒体内容、只有纯编号
+    const isEmpty = (node) => {
+      const text = (node.textContent || '').replace(/\s/g, '')
+      if (text && !/^\d+[.:：]+$/.test(text)) return false
+      const media = node.querySelectorAll('img, table, pre, code, iframe, video, audio')
+      return media.length === 0
+    }
+
+    // 3a. 删除空的 p / div / span / blockquote（但不删 li 内部的 p，交给 3b 统一处理）
+    for (const node of body.querySelectorAll('p, div, span, blockquote')) {
+      // 跳过 li 内部的 p，避免先删了 p 再把 li 误判为空
+      if (node.parentElement && node.parentElement.tagName === 'LI' && node.tagName === 'P') {
+        continue
+      }
+      if (isEmpty(node)) {
+        node.remove()
+        changed = true
+      }
+    }
+
+    // 3b. 删除空的 li：计算 li 自身文字 = 全部文字 - 嵌套列表文字
+    for (const li of body.querySelectorAll('li')) {
+      const allText = (li.textContent || '').replace(/\s/g, '')
+      const nestedText = Array.from(li.querySelectorAll('ul, ol'))
+        .map((list) => (list.textContent || '').replace(/\s/g, ''))
+        .join('')
+      const ownText = nestedText ? allText.replace(nestedText, '') : allText
+
+      const hasMedia = li.querySelectorAll('img, table, pre, code, iframe').length > 0
+      const nestedListsHaveContent = Array.from(li.children)
+        .filter((child) => child.tagName === 'UL' || child.tagName === 'OL')
+        .some((list) => list.querySelector('li'))
+      const isNumberOnly = /^\d+[.:：]+$/.test(ownText)
+
+      if ((!ownText || isNumberOnly) && !hasMedia && !nestedListsHaveContent) {
+        li.remove()
+        changed = true
+      }
+    }
+
+    // 3c. 删除所有 li 都被清空的 ul/ol
+    for (const list of body.querySelectorAll('ul, ol')) {
+      if (!list.querySelector('li')) {
+        list.remove()
+        changed = true
+      }
+    }
+  }
+
+  // 第四步：字符串级别最终清理
+  body.innerHTML = body.innerHTML
+    .replace(/<div[^>]*>\s*<\/div>/gi, '')
+    .replace(/<p[^>]*>(\s|&nbsp;)*<\/p>/gi, '')
+    .replace(/<span[^>]*>\s*<\/span>/gi, '')
+    .replace(/<li[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/li>/gi, '')
+    .replace(/<(ul|ol)[^>]*>(\s|&nbsp;|<br\s*\/?>)*<\/(ul|ol)>/gi, '')
+    .replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>')
+    .trim()
+
+  return body.innerHTML
+}
+
+/**
+ * 移除文件扩展名用于标题兜底，避免后台标题直接携带 docx 或 md 后缀。
+ * 只删除最后一个扩展名片段，兼容带点号的复杂文件名。
+ */
+function stripFileExtension(fileName) {
+  return String(fileName || '').replace(/\.[^.]+$/, '')
+}
+
+/**
+ * 在前端兜底处理纯文本转 HTML 时的特殊字符，避免正文被浏览器误解析。
+ * 对 HTML 关键字符做最小必要转义，再把换行保留为可读段落结构。
+ */
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 async function loadXlsxLibrary() {
   if (!xlsxLibraryPromise) {
     xlsxLibraryPromise = import('xlsx')

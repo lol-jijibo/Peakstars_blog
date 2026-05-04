@@ -37,13 +37,13 @@
 
 .detail-shell {
   display: grid;
-  grid-template-columns: 276px minmax(860px, 1120px) 220px;
+  grid-template-columns: 276px minmax(640px, 820px) 220px;
   gap: 8px;
   width: 100%;
   max-width: none;
   margin: 0;
   padding: 0 0 24px;
-  justify-content: start;
+  justify-content: start; /*子元素紧紧贴在起始边（左边），剩余空间全部留在右侧*/
 }
 
 .detail-left {
@@ -623,7 +623,7 @@
 
 @media (max-width: 1380px) {
   .detail-shell {
-    grid-template-columns: 248px minmax(720px, 980px) 208px;
+    grid-template-columns: 248px minmax(500px, 680px) 208px;
   }
 }
 

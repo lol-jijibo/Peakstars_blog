@@ -980,6 +980,20 @@ textarea.form-input {
   resize: vertical;
 }
 
+.admin-import-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.admin-import-meta {
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

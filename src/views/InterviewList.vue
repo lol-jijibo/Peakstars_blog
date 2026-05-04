@@ -137,7 +137,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getInterviews } from '@/api/interview.js'
-import InterviewCard from '@/components/InterviewCard.vue'
+import InterviewCard from '@/components/InterviewCard.vue' 
+
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 
 const route = useRoute()
