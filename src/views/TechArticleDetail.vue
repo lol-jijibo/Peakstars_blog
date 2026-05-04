@@ -140,6 +140,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
+import { highlight, RULE_MAP } from '@/utils/codeHighlight'
 
 const route = useRoute()
 const router = useRouter()
@@ -267,16 +268,20 @@ watch(
 
 watch(articleHtml, async () => {
   await nextTick()
+  processCodeBlocks()
   syncOutline()
 })
 
 onMounted(() => {
+  document.body.classList.add('article-page')
   window.addEventListener('scroll', handleWindowScroll, { passive: true })
   updateScrollState()
 })
 
 onBeforeUnmount(() => {
+  document.body.classList.remove('article-page')
   window.removeEventListener('scroll', handleWindowScroll)
+  document.removeEventListener('click', handleCodeBlockClick)
 })
 
 /**
@@ -301,6 +306,291 @@ function syncOutline() {
       text: heading.textContent?.trim() || `章节 ${index + 1}`,
       level: heading.tagName.toLowerCase()
     }
+  })
+}
+
+/* ===== 代码块增强：语言检测 / 复制按钮 / 语言切换下拉 / 语法高亮 ===== */
+
+const LANG_LIST = Object.keys(RULE_MAP)
+
+const LANG_ICONS = {
+  JavaScript: 'JS', TypeScript: 'TS', Python: 'PY', Java: 'JV',
+  C: 'C', 'C++': 'C+', 'C#': 'C#', Go: 'GO', Rust: 'RS',
+  PHP: 'PHP', Ruby: 'RB', Swift: 'SW', Kotlin: 'KT', SQL: 'SQL',
+  HTML: 'HT', CSS: 'CS', Shell: 'SH', YAML: 'YM', JSON: 'JS',
+  XML: 'XM', Markdown: 'MD', 'Plain Text': 'TX'
+}
+
+function detectLanguage(code) {
+  const text = String(code || '').trim()
+  if (!text) return 'Plain Text'
+
+  // HTML
+  if (/<\/?[a-z][\s\S]*>/i.test(text) && /<\/\w+>/.test(text)) return 'HTML'
+  // CSS
+  if (/\{[\s\S]*?:[^:]+;[\s\S]*?\}/.test(text) && /@media|@import|@keyframes|#\w+|\.\w+\s*\{/.test(text)) return 'CSS'
+  // SQL
+  if (/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH)\b/i.test(text)) return 'SQL'
+  // Python
+  if (/^\s*(import |from |def |class |if __name__|print\(|elif |async def )/.test(text) && !/[{;]/.test(text.split('\n')[0])) return 'Python'
+  // Java (not JavaScript)
+  if (/^\s*(package |import java\.|public class |public static void main|System\.out\.)/.test(text)) return 'Java'
+  // Go
+  if (/^\s*(package |func |import \(|func main\(\)|:=|fmt\.Print)/.test(text)) return 'Go'
+  // Rust
+  if (/^\s*(fn |let mut |impl |pub fn |use std::|match |println!)/.test(text)) return 'Rust'
+  // TypeScript
+  if (/(interface\s+\w+|:\s*(string|number|boolean|void|any)\b|<\w+>|as\s+\w+|import type)/.test(text) && /=>|const|let/.test(text)) return 'TypeScript'
+  // JavaScript
+  if (/^\s*(const |let |var |function |import |export |=>|async |await |require\()/.test(text)) return 'JavaScript'
+  // C / C++
+  if (/#include\s*[<"]/.test(text)) return /std::|cout|cin|class\s+\w+\s*\{|template\s*</.test(text) ? 'C++' : 'C'
+  // C#
+  if (/^\s*(using |namespace |public class|Console\.Write|var\s+\w+\s*=)/.test(text)) return 'C#'
+  // PHP
+  if (/<\?php|^\s*\$\w+/.test(text)) return 'PHP'
+  // Ruby
+  if (/^\s*(def |puts |require |module |class |end$|attr_)/.test(text)) return 'Ruby'
+  // Swift
+  if (/^\s*(import |var |let |func |guard |print\(|struct |enum |protocol )/.test(text) && /: /.test(text)) return 'Swift'
+  // Kotlin
+  if (/^\s*(fun |val |var |data class |object |companion|suspend fun)/.test(text)) return 'Kotlin'
+  // Shell
+  if (/^#!\/bin\/(bash|sh|zsh)|^\s*(echo |cd |mkdir |rm |curl |wget |chmod |export )/.test(text)) return 'Shell'
+  // YAML
+  if (/^\s*\w+:\s*$/m.test(text) && /^\s+[\w-]+:/m.test(text) && !/[{;]/.test(text)) return 'YAML'
+  // JSON
+  try { JSON.parse(text); return 'JSON' } catch {}
+  // XML
+  if (/^<\?xml/.test(text)) return 'XML'
+  // Markdown
+  if (/^#{1,6}\s|^\*{3,}$|^\[.*\]\(.*\)/m.test(text)) return 'Markdown'
+
+  return 'Plain Text'
+}
+
+function processCodeBlocks() {
+  const root = articleBodyRef.value
+  if (!root) return
+
+  // Process <pre> elements that are not already inside .code-block
+  const pres = [...root.querySelectorAll('pre')].filter(
+    (pre) => !pre.closest('.code-block')
+  )
+
+  pres.forEach((pre) => {
+    const codeEl = pre.querySelector('code') || pre
+    const rawCode = codeEl.textContent || ''
+    const detectedLang = detectLanguage(rawCode)
+
+    let hintedLang = ''
+    if (codeEl.className) {
+      const match = codeEl.className.match(/language-(\w+)/)
+      if (match) {
+        const label = match[1].charAt(0).toUpperCase() + match[1].slice(1)
+        if (LANG_LIST.includes(label)) hintedLang = label
+      }
+    }
+
+    const activeLang = hintedLang || detectedLang
+
+    // Build wrapper
+    const wrapper = document.createElement('div')
+    wrapper.className = 'code-block'
+    wrapper.setAttribute('data-lang', activeLang)
+    // 存储原始代码，用于切换语言时重新高亮
+    wrapper.setAttribute('data-raw', rawCode)
+
+    // Build header
+    const header = document.createElement('div')
+    header.className = 'code-header'
+    header.innerHTML = `
+      <div class="code-header-left">
+        <span class="code-dots">
+          <span class="dot dot-r"></span>
+          <span class="dot dot-y"></span>
+          <span class="dot dot-g"></span>
+        </span>
+      </div>
+      <div class="code-header-right">
+        <div class="code-lang-switcher">
+          <button class="code-lang-btn" type="button" title="切换语言">
+            <span class="code-lang-icon">${LANG_ICONS[activeLang] || activeLang.slice(0, 2).toUpperCase()}</span>
+          </button>
+          <div class="code-lang-dropdown">
+            ${LANG_LIST.map((lang) =>
+              `<button class="code-lang-option${lang === activeLang ? ' active' : ''}" type="button" data-lang="${lang}">${lang}</button>`
+            ).join('')}
+          </div>
+        </div>
+        <button class="code-copy-btn" type="button" title="复制代码">
+          <svg class="code-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span class="code-copy-text">复制</span>
+        </button>
+      </div>
+    `
+
+    // Apply syntax highlighting
+    const highlightedHtml = highlight(rawCode, activeLang)
+
+    const preClone = pre.cloneNode(false)
+    const codeClone = codeEl.cloneNode(false)
+    codeClone.innerHTML = highlightedHtml
+    preClone.appendChild(codeClone)
+
+    wrapper.appendChild(header)
+    wrapper.appendChild(preClone)
+    pre.replaceWith(wrapper)
+  })
+
+  // Also handle existing .code-block elements (add copy + lang switcher if missing)
+  ;[...root.querySelectorAll('.code-block')].forEach((block) => {
+    if (block.querySelector('.code-copy-btn')) return
+
+    const header = block.querySelector('.code-header')
+    if (!header) return
+
+    const preEl = block.querySelector('pre')
+    const codeEl = preEl?.querySelector('code') || preEl
+    const rawCode = codeEl?.textContent || ''
+
+    // 存储原始代码
+    block.setAttribute('data-raw', rawCode)
+
+    const existingLang = block.querySelector('.code-lang')
+    const langText = existingLang?.textContent?.trim() || block.getAttribute('data-lang') || ''
+    const activeLang = LANG_LIST.find((l) => l.toLowerCase() === langText.toLowerCase()) || detectLanguage(rawCode)
+
+    block.setAttribute('data-lang', activeLang)
+
+    const rightArea = document.createElement('div')
+    rightArea.className = 'code-header-right'
+
+    const switcher = document.createElement('div')
+    switcher.className = 'code-lang-switcher'
+    switcher.innerHTML = `
+      <button class="code-lang-btn" type="button" title="切换语言">
+        <span class="code-lang-icon">${LANG_ICONS[activeLang] || activeLang.slice(0, 2).toUpperCase()}</span>
+      </button>
+      <div class="code-lang-dropdown">
+        ${LANG_LIST.map((lang) =>
+          `<button class="code-lang-option${lang === activeLang ? ' active' : ''}" type="button" data-lang="${lang}">${lang}</button>`
+        ).join('')}
+      </div>
+    `
+
+    const copyBtn = document.createElement('button')
+    copyBtn.className = 'code-copy-btn'
+    copyBtn.type = 'button'
+    copyBtn.title = '复制代码'
+    copyBtn.innerHTML = `
+      <svg class="code-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span class="code-copy-text">复制</span>
+    `
+
+    rightArea.appendChild(switcher)
+    rightArea.appendChild(copyBtn)
+
+    if (existingLang) existingLang.remove()
+
+    const oldDots = header.querySelector('.code-dots')
+    if (oldDots) {
+      const leftArea = document.createElement('div')
+      leftArea.className = 'code-header-left'
+      leftArea.appendChild(oldDots)
+      header.insertBefore(leftArea, header.firstChild)
+    }
+
+    header.appendChild(rightArea)
+
+    // Apply highlighting
+    const highlightedHtml = highlight(rawCode, activeLang)
+    if (codeEl) codeEl.innerHTML = highlightedHtml
+  })
+
+  document.addEventListener('click', handleCodeBlockClick)
+}
+
+/**
+ * 对指定代码块按语言重新高亮
+ */
+function rehighlightBlock(block, lang) {
+  const rawCode = block.getAttribute('data-raw') || ''
+  const codeEl = block.querySelector('pre code') || block.querySelector('pre')
+  if (!codeEl || !rawCode) return
+
+  codeEl.innerHTML = highlight(rawCode, lang)
+}
+
+function handleCodeBlockClick(e) {
+  const target = e.target
+
+  // Copy button
+  const copyBtn = target.closest('.code-copy-btn')
+  if (copyBtn) {
+    const block = copyBtn.closest('.code-block')
+    const rawCode = block?.getAttribute('data-raw') || block?.querySelector('pre code')?.textContent || block?.querySelector('pre')?.textContent || ''
+    navigator.clipboard.writeText(rawCode).then(() => {
+      const textSpan = copyBtn.querySelector('.code-copy-text')
+      if (textSpan) textSpan.textContent = '已复制'
+      copyBtn.classList.add('copied')
+      setTimeout(() => {
+        if (textSpan) textSpan.textContent = '复制'
+        copyBtn.classList.remove('copied')
+      }, 1800)
+    }).catch(() => {
+      const textSpan = copyBtn.querySelector('.code-copy-text')
+      if (textSpan) textSpan.textContent = '失败'
+      setTimeout(() => {
+        if (textSpan) textSpan.textContent = '复制'
+      }, 1800)
+    })
+    return
+  }
+
+  // Language toggle button
+  const langBtn = target.closest('.code-lang-btn')
+  if (langBtn) {
+    const switcher = langBtn.closest('.code-lang-switcher')
+    const dropdown = switcher?.querySelector('.code-lang-dropdown')
+    if (dropdown) {
+      document.querySelectorAll('.code-lang-dropdown.open').forEach((d) => {
+        if (d !== dropdown) d.classList.remove('open')
+      })
+      dropdown.classList.toggle('open')
+    }
+    return
+  }
+
+  // Language option
+  const langOption = target.closest('.code-lang-option')
+  if (langOption) {
+    const switcher = langOption.closest('.code-lang-switcher')
+    const block = langOption.closest('.code-block')
+    const selectedLang = langOption.getAttribute('data-lang')
+
+    if (switcher && block && selectedLang) {
+      block.setAttribute('data-lang', selectedLang)
+
+      const icon = switcher.querySelector('.code-lang-icon')
+      if (icon) icon.textContent = LANG_ICONS[selectedLang] || selectedLang.slice(0, 2).toUpperCase()
+
+      switcher.querySelectorAll('.code-lang-option').forEach((opt) => {
+        opt.classList.toggle('active', opt.getAttribute('data-lang') === selectedLang)
+      })
+
+      const dropdown = switcher.querySelector('.code-lang-dropdown')
+      if (dropdown) dropdown.classList.remove('open')
+
+      // 切换语言后重新高亮
+      rehighlightBlock(block, selectedLang)
+    }
+    return
+  }
+
+  // Close dropdown when clicking outside
+  document.querySelectorAll('.code-lang-dropdown.open').forEach((d) => {
+    d.classList.remove('open')
   })
 }
 

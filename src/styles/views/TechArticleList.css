@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
 
 .article-hub-page {
-  --ink: #0e0e0f;
+  --ink: #1a1a1f;
   --ink-soft: #4a4a52;
   --ink-muted: #8f8f99;
-  --surface: #fafaf8;
-  --surface-alt: #f2f1ed;
-  --surface-deep: #ece8e1;
-  --border: #e4e3df;
+  --surface: #fafafa;
+  --surface-alt: #f2f2f2;
+  --surface-deep: #ebebeb;
+  --border: #e2e2e2;
   --accent: #c84b2f;
   --accent-pale: #fdf0ec;
-  --tag-bg: #eeedf0;
+  --tag-bg: #ededed;
   --tag-text: #3d3b46;
   --serif: 'DM Serif Display', Georgia, serif;
   --sans: 'Sora', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -42,7 +42,7 @@
   height: 56px;
   padding: 0 3rem;
   border-bottom: 1px solid var(--border);
-  background: rgba(250, 250, 248, 0.92);
+  background: rgba(245, 245, 240, 0.92);
   backdrop-filter: blur(12px);
 }
 
@@ -451,7 +451,7 @@
 .category-backend .article-cover-placeholder {
   background:
     linear-gradient(180deg, rgba(14, 14, 15, 0.08), rgba(14, 14, 15, 0.65)),
-    linear-gradient(135deg, #224870, #3b82a0);
+    linear-gradient(135deg, #c84b2f, #f59e0b);
 }
 
 .article-sub-grid {
@@ -810,32 +810,32 @@
 }
 
 html[data-theme='dark'] .article-hub-page {
-  --ink: #f8fafc;
-  --ink-soft: #cbd5e1;
-  --ink-muted: #94a3b8;
-  --surface: #0f172a;
-  --surface-alt: #182234;
-  --surface-deep: #223147;
-  --border: #263142;
-  --accent: #f97316;
-  --accent-pale: #2b1e16;
-  --tag-bg: #1c2536;
-  --tag-text: #dbe5f2;
+  --ink: #1a1a1f;
+  --ink-soft: #4a4a52;
+  --ink-muted: #8f8f99;
+  --surface: #fafafa;
+  --surface-alt: #f2f2f2;
+  --surface-deep: #ebebeb;
+  --border: #e2e2e2;
+  --accent: #c84b2f;
+  --accent-pale: #fdf0ec;
+  --tag-bg: #deddd8;
+  --tag-text: #3d3b46;
 }
 
 html[data-theme='dark'] .article-topbar {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(250, 250, 250, 0.92);
 }
 
 html[data-theme='dark'] .article-mode-switch-item,
 html[data-theme='dark'] .article-sidebar-item,
 html[data-theme='dark'] .article-sidebar-card {
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(250, 250, 250, 0.5);
 }
 
 html[data-theme='dark'] .article-mode-switch-item:hover,
 html[data-theme='dark'] .article-mode-switch-item.active,
 html[data-theme='dark'] .article-sidebar-item:hover,
 html[data-theme='dark'] .article-sidebar-item.active {
-  background: rgba(30, 41, 59, 0.95);
+  background: #ffffff;
 }

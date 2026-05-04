@@ -491,12 +491,14 @@ async function loadArticles() {
 }
 
 onMounted(async () => {
+  document.body.classList.add('article-hub-page')
   await loadArticles()
   window.addEventListener('scroll', handleWindowScroll, { passive: true })
   updateScrollState()
 })
 
 onBeforeUnmount(() => {
+  document.body.classList.remove('article-hub-page')
   window.removeEventListener('scroll', handleWindowScroll)
 })
 
@@ -699,7 +701,7 @@ function resolveCategoryLabel(category) {
 
 function resolveAccentByCategory(category) {
   if (category === 'backend') {
-    return 'linear-gradient(135deg, #1d4ed8, #0891b2)'
+    return 'linear-gradient(135deg, #c84b2f, #0891b2)'
   }
 
   return 'linear-gradient(135deg, #c84b2f, #f59e0b)'

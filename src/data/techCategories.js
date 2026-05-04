@@ -25,7 +25,7 @@ export const recommendedAuthors = [
     name: '码客星云',
     subtitle: '全栈架构师',
     initials: 'MK',
-    accent: 'linear-gradient(135deg, #1d4ed8, #0891b2)'
+    accent: 'linear-gradient(135deg, #c84b2f, #0891b2)'
   },
   {
     name: 'TechLead',
