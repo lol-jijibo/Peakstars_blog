@@ -67,12 +67,12 @@ app:
    # 文件存储配置
   storage:
     minio:
-      enabled: ${MINIO_ENABLED:false}
-      endpoint: ${MINIO_ENDPOINT:} # MinIO 服务地址
-      access-key: ${MINIO_ACCESS_KEY:}  # MinIO 访问密钥
-      secret-key: ${MINIO_SECRET_KEY:} 
-      bucket: ${MINIO_BUCKET:peakstars-content} # 存储桶名称
-      public-base-url: ${MINIO_PUBLIC_BASE_URL:} # 对外访问的域名
+      enabled: ${MINIO_ENABLED:true}
+      endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+      bucket: ${MINIO_BUCKET:peakstars-content}
+      public-base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000}
   auth:
     token-secret: interview-demo-auth-secret
     token-expire-hours: 168

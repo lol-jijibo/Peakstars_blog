@@ -887,7 +887,16 @@
   transition: border-color 0.2s ease;
 }
 
-.article-toc-item.sub {
+.article-toc-item.h1 {
+  font-weight: 600;
+  padding-left: 0;
+}
+
+.article-toc-item.h2 {
+  padding-left: 0.75rem;
+}
+
+.article-toc-item.h3 {
   padding-left: 1.5rem;
 }
 

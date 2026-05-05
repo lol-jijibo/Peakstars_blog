@@ -85,10 +85,10 @@
               v-for="item in outlineItems"
               :key="item.id"
               class="article-toc-item"
-              :class="{
-                active: activeOutlineId === item.id,
-                sub: item.level === 'h3'
-              }"
+              :class="[
+                { active: activeOutlineId === item.id },
+                item.level
+              ]"
             >
               <button type="button" @click="scrollToHeading(item.id)">{{ item.text }}</button>
             </li>
@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
 
 /**
  * 目的：根据文章正文标题生成右侧目录。
- * 逻辑：扫描正文中的 h2 与 h3，写入稳定 id 后同步用于目录跳转与滚动高亮。
+ * 逻辑：扫描正文中的 h1、h2 与 h3，写入稳定 id 后同步用于目录跳转与滚动高亮。
  */
 function syncOutline() {
   const root = articleBodyRef.value
@@ -301,7 +301,7 @@ function syncOutline() {
     return
   }
 
-  const headings = [...root.querySelectorAll('h2, h3')]
+  const headings = [...root.querySelectorAll('h1, h2, h3')]
   outlineItems.value = headings.map((heading, index) => {
     const id = `article-outline-${index}`
     heading.id = id
