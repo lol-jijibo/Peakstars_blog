@@ -217,8 +217,8 @@
 
 html[data-theme='dark'] .world-news-page {
   background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 22%),
-    linear-gradient(180deg, #09111e 0%, #0d1525 100%);
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.06), transparent 22%),
+    linear-gradient(180deg, #0a0a0a 0%, #121212 100%);
   color: #dbe7fb;
 }
 
@@ -236,18 +236,18 @@ html[data-theme='dark'] .world-news-intro p {
 }
 
 html[data-theme='dark'] .world-news-item {
-  background: rgba(15, 23, 42, 0.32);
+  background: rgba(18, 18, 18, 0.6);
 }
 
 html[data-theme='dark'] .world-news-item:hover {
-  background: rgba(30, 41, 59, 0.86);
+  background: rgba(26, 26, 26, 0.86);
   box-shadow:
-    0 16px 32px rgba(2, 6, 23, 0.38),
-    0 4px 12px rgba(15, 23, 42, 0.24);
+    0 16px 32px rgba(0, 0, 0, 0.38),
+    0 4px 12px rgba(0, 0, 0, 0.24);
 }
 
 html[data-theme='dark'] .world-news-cover-frame {
-  background: #1e293b;
+  background: #1a1a1a;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 

@@ -445,19 +445,19 @@
 
 html[data-theme='dark'] .ai-hotspot-page {
   background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 22%),
-    linear-gradient(180deg, #09111e 0%, #0d1525 100%);
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.06), transparent 22%),
+    linear-gradient(180deg, #0a0a0a 0%, #121212 100%);
   color: #dbe7fb;
 }
 
 html[data-theme='dark'] .ai-panel,
 html[data-theme='dark'] .ai-hotspot-feed {
-  border-color: rgba(143, 216, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
   background:
-    linear-gradient(180deg, rgba(16, 26, 45, 0.96), rgba(13, 21, 37, 0.96));
+    linear-gradient(180deg, rgba(18, 18, 18, 0.96), rgba(14, 14, 14, 0.96));
   box-shadow:
-    0 18px 38px rgba(3, 7, 18, 0.28),
-    0 6px 14px rgba(2, 6, 23, 0.18);
+    0 18px 38px rgba(0, 0, 0, 0.28),
+    0 6px 14px rgba(0, 0, 0, 0.18);
 }
 
 html[data-theme='dark'] .ai-ranking-title strong,
@@ -478,7 +478,7 @@ html[data-theme='dark'] .ai-feed-tab {
 
 html[data-theme='dark'] .ai-ranking-card,
 html[data-theme='dark'] .ai-signin-card {
-  background: linear-gradient(180deg, rgba(16, 26, 45, 0.98), rgba(13, 21, 37, 0.98));
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.98), rgba(14, 14, 14, 0.98));
 }
 
 html[data-theme='dark'] .ai-ranking-card :deep(.el-card__header),

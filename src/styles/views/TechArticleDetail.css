@@ -1144,19 +1144,19 @@ html[data-theme='dark'] .article-page {
   --ink: #e8e8ed;
   --ink-soft: #a8a8b3;
   --ink-muted: #6b6b78;
-  --surface: #1a1a1f;
-  --surface-alt: #222228;
-  --border: #333340;
+  --surface: #121212;
+  --surface-alt: #1a1a1a;
+  --border: #222222;
   --accent: #e8654a;
   --accent-pale: #2e1f1a;
   --code-bg: #1e1e1e;
   --code-text: #d4d4d4;
-  --tag-bg: #2a2a32;
+  --tag-bg: #1a1a1a;
   --tag-text: #b8b8c3;
 }
 
 html[data-theme='dark'] .article-topbar {
-  background: rgba(26, 26, 31, 0.92);
+  background: rgba(0, 0, 0, 0.92);
 }
 
 html[data-theme='dark'] .article-topbar-theme {

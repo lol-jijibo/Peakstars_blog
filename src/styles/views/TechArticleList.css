@@ -843,9 +843,9 @@ html[data-theme='dark'] .article-hub-page {
   --ink: #e8e8ed;
   --ink-soft: #a8a8b3;
   --ink-muted: #6b6b78;
-  --surface: #1a1a1f;
-  --surface-alt: #222228;
-  --surface-deep: #2a2a32;
+  --surface: #121212;
+  --surface-alt: #1a1a1a;
+  --surface-deep: #222222;
   --border: #333340;
   --accent: #e8654a;
   --accent-pale: #2e1f1a;
@@ -854,7 +854,7 @@ html[data-theme='dark'] .article-hub-page {
 }
 
 html[data-theme='dark'] .article-topbar {
-  background: rgba(26, 26, 31, 0.92);
+  background: rgba(0, 0, 0, 0.92);
 }
 
 html[data-theme='dark'] .article-mode-switch-item,

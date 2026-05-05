@@ -877,19 +877,19 @@
    DARK THEME
 ═══════════════════════════════════════ */
 html[data-theme='dark'] .home-page {
-  --bg-primary: #020617;
-  --bg-card: #0f172a;
-  --bg-card-hover: #1e293b;
-  --bg-hero: linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
-  --bg-tag: #1e293b;
+  --bg-primary: #000000;
+  --bg-card: #0a0a0a;
+  --bg-card-hover: #141414;
+  --bg-hero: linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #000000 100%);
+  --bg-tag: #141414;
   --bg-tag-hover: rgba(59,130,246,0.1);
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
   --text-hero: #f1f5f9;
   --text-hero-sub: #64748b;
-  --border-primary: #1e293b;
-  --border-secondary: #1e293b;
+  --border-primary: #1a1a1a;
+  --border-secondary: #1a1a1a;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.2);
   --shadow-card-hover: 0 10px 25px -5px rgba(59,130,246,0.1), 0 8px 10px -6px rgba(0,0,0,0.2);
   --shadow-glow: 0 0 60px rgba(59,130,246,0.1);
@@ -910,7 +910,7 @@ html[data-theme='dark'] .hero-glow-2 {
 }
 
 html[data-theme='dark'] .zone-card {
-  background: #0f172a;
+  background: #0a0a0a;
 }
 
 html[data-theme='dark'] .zc-tech:hover { border-color: rgba(59,130,246,0.4); }
@@ -919,12 +919,12 @@ html[data-theme='dark'] .zc-ai:hover { border-color: rgba(139,92,246,0.4); }
 html[data-theme='dark'] .zc-route:hover { border-color: rgba(6,182,212,0.4); }
 
 html[data-theme='dark'] .zone-arrow {
-  background: #1e293b;
+  background: #1a1a1a;
   color: #94a3b8;
 }
 
 html[data-theme='dark'] .highlight-card {
-  background: #0f172a;
+  background: #121212;
 }
 
 html[data-theme='dark'] .hl-badge {
@@ -932,15 +932,15 @@ html[data-theme='dark'] .hl-badge {
 }
 
 html[data-theme='dark'] .highlights-more .btn-outline {
-  background: #0f172a;
-  border-color: #1e293b;
+  background: #0a0a0a;
+  border-color: #1a1a1a;
   color: #94a3b8;
 }
 
 html[data-theme='dark'] .highlights-more .btn-outline:hover {
   border-color: #60a5fa;
   color: #60a5fa;
-  background: #020617;
+  background: #000000;
 }
 
 html[data-theme='dark'] .tc-blue { background: rgba(59,130,246,0.15); color: #60a5fa; }
@@ -951,8 +951,8 @@ html[data-theme='dark'] .tc-red { background: rgba(239,68,68,0.15); color: #f871
 html[data-theme='dark'] .tc-purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
 
 html[data-theme='dark'] .sphere-tag {
-  background: #0f172a;
-  border-color: #1e293b;
+  background: #0a0a0a;
+  border-color: #1a1a1a;
 }
 
 html[data-theme='dark'] .sp-0:hover { border-color: rgba(59,130,246,0.5); background: rgba(59,130,246,0.08); }
@@ -963,13 +963,13 @@ html[data-theme='dark'] .sp-4:hover { border-color: rgba(139,92,246,0.5); backgr
 html[data-theme='dark'] .sp-5:hover { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.08); }
 
 html[data-theme='dark'] .sphere-tag-count {
-  background: #1e293b;
+  background: #1a1a1a;
 }
 
 html[data-theme='dark'] .about-section {
-  background: #0a0f1e;
-  border-top-color: #1e293b;
-  border-bottom-color: #1e293b;
+  background: #0a0a0a;
+  border-top-color: #222222;
+  border-bottom-color: #222222;
 }
 
 html[data-theme='dark'] .about-avatar-ring {
@@ -977,13 +977,13 @@ html[data-theme='dark'] .about-avatar-ring {
 }
 
 html[data-theme='dark'] .about-theme-panel {
-  background: #020617;
-  border-color: #1e293b;
+  background: #0a0a0a;
+  border-color: #222222;
 }
 
 html[data-theme='dark'] .about-social-link {
-  background: #0f172a;
-  border-color: #1e293b;
+  background: #121212;
+  border-color: #222222;
 }
 
 html[data-theme='dark'] .about-social-link:hover {
@@ -1002,8 +1002,8 @@ html[data-theme='dark'] .btn-theme:hover {
 }
 
 html[data-theme='dark'] .home-footer {
-  background: #0a0f1e;
-  border-top-color: #1e293b;
+  background: #000000;
+  border-top-color: #1a1a1a;
 }
 
 html[data-theme='dark'] .footer-logo-icon {
@@ -1011,13 +1011,13 @@ html[data-theme='dark'] .footer-logo-icon {
 }
 
 html[data-theme='dark'] .footer-foot {
-  border-top-color: #1e293b;
+  border-top-color: #222222;
 }
 
 html[data-theme='dark'] .highlights {
-  background: #0a0f1e;
-  border-top-color: #1e293b;
-  border-bottom-color: #1e293b;
+  background: #0a0a0a;
+  border-top-color: #222222;
+  border-bottom-color: #222222;
 }
 
 /* ═══════════════════════════════════════
