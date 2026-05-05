@@ -14,6 +14,9 @@
         <button type="button" @click="openCategory('backend')">后端</button>
       </nav>
 
+      <button class="article-topbar-theme" type="button" :title="isDark ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
+        <span class="theme-icon">{{ isDark ? '☀' : '☾' }}</span>
+      </button>
       <button class="article-topbar-action" type="button" @click="goArticleList">返回列表 →</button>
     </header>
 
@@ -141,9 +144,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
 import { highlight, RULE_MAP } from '@/utils/codeHighlight'
+import { useThemeStore } from '@/stores/theme'
 
 const route = useRoute()
 const router = useRouter()
+const { isDark, toggleTheme } = useThemeStore()
 
 const techArticles = ref([])
 const article = ref(null)

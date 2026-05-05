@@ -26,6 +26,9 @@
         </button>
       </nav>
 
+      <button class="article-topbar-theme" type="button" :title="isDark ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
+        <span class="theme-icon">{{ isDark ? '☀' : '☾' }}</span>
+      </button>
       <button class="article-topbar-action" type="button" @click="goHome">返回首页 →</button>
     </header>
 
@@ -320,9 +323,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
 import { recommendedAuthors, techArticleCategories } from '@/data/techCategories'
+import { useThemeStore } from '@/stores/theme'
 
 const route = useRoute()
 const router = useRouter()
+const { isDark, toggleTheme } = useThemeStore()
 const techArticles = ref([])
 const scrollProgress = ref(0)
 

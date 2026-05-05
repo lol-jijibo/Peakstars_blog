@@ -204,13 +204,13 @@ html[data-theme='dark'] .go-btn {
 }
 
 html[data-theme='dark'] .article-hub-page {
-  background: var(--surface, #f5f5f0) !important;
-  color: #1a1a1f !important;
+  background: var(--surface, #1a1a1f) !important;
+  color: var(--ink, #e8e8ed) !important;
 }
 
 /**
- * 让技术文章页外层壳子保持暖白背景
- * 覆盖全局深色主题和 app-container 的蓝色底色
+ * 让技术文章页外层壳子保持暖白背景（浅色模式）
+ * 深色模式下切换为对应深色底色
  */
 html:has(body.article-hub-page),
 body.article-hub-page,
@@ -224,8 +224,8 @@ html[data-theme='dark'] body.article-hub-page,
 html[data-theme='dark'] body.article-hub-page #app,
 html[data-theme='dark'] body.article-hub-page .app-container,
 html[data-theme='dark'] body.article-hub-page .article-hub-page {
-  background: #fafafa !important;
-  color: #1a1a1f !important;
+  background: #1a1a1f !important;
+  color: #e8e8ed !important;
 }
 
 html:has(body.article-page),
@@ -240,16 +240,16 @@ html[data-theme='dark'] body.article-page,
 html[data-theme='dark'] body.article-page #app,
 html[data-theme='dark'] body.article-page .app-container,
 html[data-theme='dark'] body.article-page .article-page {
-  background: #fafafa !important;
-  color: #1a1a1f !important;
+  background: #1a1a1f !important;
+  color: #e8e8ed !important;
 }
 
 html[data-theme='dark'] .article-filter-panel,
 html[data-theme='dark'] .article-spotlight-card,
 html[data-theme='dark'] .article-stream-card,
 html[data-theme='dark'] .article-author-card {
-  background: var(--surface-alt, #f2f2f2);
-  border-color: var(--border, #e2e2e2);
+  background: #222228;
+  border-color: #333340;
   box-shadow: none;
 }
 
@@ -261,14 +261,14 @@ html[data-theme='dark'] .article-hub-page h1,
 html[data-theme='dark'] .article-hub-page h2,
 html[data-theme='dark'] .article-hub-page h3,
 html[data-theme='dark'] .article-hub-page strong {
-  color: var(--ink, #1a1a1f);
+  color: var(--ink, #e8e8ed);
 }
 
 html[data-theme='dark'] .article-hub-page p,
 html[data-theme='dark'] .article-filter-kicker,
 html[data-theme='dark'] .article-hub-page small,
 html[data-theme='dark'] .article-hub-page span {
-  color: var(--ink-soft, #4a4a52);
+  color: var(--ink-soft, #a8a8b3);
 }
 
 html[data-theme='dark'] .site-header {
