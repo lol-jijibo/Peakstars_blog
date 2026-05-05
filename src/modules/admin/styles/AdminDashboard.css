@@ -1276,3 +1276,96 @@ textarea.form-input {
     opacity: 1;
   }
 }
+
+/* ── 封面图片上传区域 ── */
+.cover-upload-area {
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 120px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.cover-placeholder:hover {
+  border-color: var(--accent-mid);
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.cover-placeholder-icon {
+  font-size: 1.6rem;
+}
+
+.cover-placeholder small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.cover-preview {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface2);
+}
+
+.cover-preview img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+.cover-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.cover-remove-btn:hover {
+  background: var(--red);
+}
+
+.cover-uploading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(8, 19, 31, 0.75);
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.form-input--cover-url {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

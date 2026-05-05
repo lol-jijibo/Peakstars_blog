@@ -1,8 +1,10 @@
 package com.interview.auth.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -12,25 +14,24 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig {
 
-    /**
-     * 注册跨域规则。
-     *
-     * @return 自定义的 WebMvcConfigurer
-     */
+    @Value("${app.storage.local.upload-dir:${java.io.tmpdir}/peakstars-uploads}")
+    private String uploadDir;
+
     @Bean
     public WebMvcConfigurer webMvcConfigurer() {
         return new WebMvcConfigurer() {
-            /**
-             * 为认证接口开放跨域访问。
-             *
-             * @param registry Spring MVC 提供的跨域配置注册器
-             */
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
                     .allowedOriginPatterns("*")
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                     .allowedHeaders("*");
+            }
+
+            @Override
+            public void addResourceHandlers(ResourceHandlerRegistry registry) {
+                registry.addResourceHandler("/uploads/**")
+                    .addResourceLocations("file:" + uploadDir + "/");
             }
         };
     }

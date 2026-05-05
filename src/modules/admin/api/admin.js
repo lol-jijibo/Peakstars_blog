@@ -19,6 +19,25 @@ async function request(url, options = {}) {
   return payload.data
 }
 
+// 业务目的：封面图片上传不走 JSON，使用 FormData multipart 方式提交。
+// 业务逻辑：独立封装避免和 JSON 请求互相干扰，上传成功后直接返回图片 URL。
+export async function uploadCoverImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${BASE_URL}/api/admin/upload/cover`, {
+    method: 'POST',
+    body: formData
+  })
+
+  const payload = await response.json()
+  if (!response.ok || payload.code !== 0) {
+    throw new Error(payload.message || '封面图片上传失败')
+  }
+
+  return payload.data
+}
+
 export function sendAdminHeartbeat(clientId) {
   return request('/api/admin/heartbeat', {
     method: 'POST',

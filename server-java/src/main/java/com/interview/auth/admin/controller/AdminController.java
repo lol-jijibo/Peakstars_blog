@@ -13,6 +13,7 @@ import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 对外暴露后台管理页所需的心跳、仪表盘、内容 CRUD、批量导入与导入预处理接口。
@@ -186,5 +188,42 @@ public class AdminController {
     public ApiResponse<Void> deleteDraft(@PathVariable String draftKey) {
         adminService.deleteDraft(draftKey);
         return ApiResponse.success("Draft removed", null);
+    }
+
+    /**
+     * 上传封面图片。
+     * 接收前端通过文件选择器提交的图片，上传到对象存储后返回可访问的 URL 地址。
+     * 支持 jpg/jpeg/png/gif/webp/bmp/svg 等主流图片格式，单文件最大 10MB。
+     *
+     * @param file 图片文件
+     * @return 上传结果，包含可访问的 URL 地址
+     */
+    @PostMapping("/upload/cover")
+    public ApiResponse<Map<String, String>> uploadCoverImage(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ApiResponse.fail(400, "上传文件不能为空");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            return ApiResponse.fail(400, "仅支持上传图片文件");
+        }
+
+        long maxSize = 10 * 1024 * 1024;
+        if (file.getSize() > maxSize) {
+            return ApiResponse.fail(400, "图片大小不能超过 10MB");
+        }
+
+        try {
+            String url = adminService.uploadCoverImage(
+                file.getOriginalFilename(),
+                file.getInputStream(),
+                file.getSize(),
+                contentType
+            );
+            return ApiResponse.success(Map.of("url", url));
+        } catch (Exception e) {
+            return ApiResponse.fail(500, "图片上传失败：" + e.getMessage());
+        }
     }
 }

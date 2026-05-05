@@ -490,8 +490,29 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label">封面地址</label>
-            <input v-model.trim="draftForm.coverUrl" class="form-input" type="text" placeholder="请输入封面地址…" />
+            <label class="form-label">封面图片</label>
+            <div class="cover-upload-area">
+              <input
+                ref="coverFileInputRef"
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,image/bmp,image/svg+xml"
+                class="admin-console-hidden-input"
+                @change="handleCoverFileSelect"
+              />
+              <div v-if="draftForm.coverUrl" class="cover-preview">
+                <img :src="draftForm.coverUrl" alt="封面预览" />
+                <button type="button" class="cover-remove-btn" @click="removeCover">✕</button>
+              </div>
+              <div v-else class="cover-placeholder" @click="triggerCoverSelect">
+                <span class="cover-placeholder-icon">📷</span>
+                <span>点击选择封面图片</span>
+                <small>支持 JPG / PNG / GIF / WebP / BMP / SVG，最大 10MB</small>
+              </div>
+              <div v-if="coverUploading" class="cover-uploading">
+                <span>上传中…</span>
+              </div>
+            </div>
+            <input v-model.trim="draftForm.coverUrl" class="form-input form-input--cover-url" type="text" placeholder="或手动输入封面地址…" />
           </div>
         </div>
 
@@ -558,7 +579,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch }
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminConsoleStore } from '@/modules/admin/stores/adminConsole'
-import { listAdminDrafts, saveAdminDraft, deleteAdminDraft, previewImportedAdminContent } from '@/modules/admin/api/admin'
+import { listAdminDrafts, saveAdminDraft, deleteAdminDraft, previewImportedAdminContent, uploadCoverImage } from '@/modules/admin/api/admin'
 import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
 import AdminModuleChart from '@/modules/admin/components/AdminModuleChart.vue'
 import AdminCommentChart from '@/modules/admin/components/AdminCommentChart.vue'
@@ -741,6 +762,8 @@ const dialogVisible = ref(false)
 const isEditing = ref(false)
 const excelFileInputRef = ref(null)
 const documentImportInputRef = ref(null)
+const coverFileInputRef = ref(null)
+const coverUploading = ref(false)
 const importPreviewLoading = ref(false)
 const importFileName = ref('')
 const draftForm = reactive(createEmptyDraft())
@@ -1423,6 +1446,43 @@ function triggerDocumentImport() {
     openCreateDialog()
   }
   documentImportInputRef.value?.click()
+}
+
+function triggerCoverSelect() {
+  coverFileInputRef.value?.click()
+}
+
+async function handleCoverFileSelect(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  if (!file.type.startsWith('image/')) {
+    showToast('请选择图片文件', 'error')
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('图片大小不能超过 10MB', 'error')
+    event.target.value = ''
+    return
+  }
+
+  coverUploading.value = true
+  try {
+    const result = await uploadCoverImage(file)
+    draftForm.coverUrl = result.url
+    showToast('封面图片上传成功', 'success')
+  } catch (error) {
+    showToast(error.message || '封面图片上传失败', 'error')
+  } finally {
+    coverUploading.value = false
+    event.target.value = ''
+  }
+}
+
+function removeCover() {
+  draftForm.coverUrl = ''
 }
 
 async function handleExcelImportFile(event) {

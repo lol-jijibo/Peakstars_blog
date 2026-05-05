@@ -106,4 +106,17 @@ public interface AdminService {
      * @param draftKey 草稿主键
      */
     void deleteDraft(String draftKey);
+
+    /**
+     * 上传封面图片到对象存储，返回可访问的 URL 地址。
+     * 支持主流图片格式（jpg/png/gif/webp/bmp/svg），上传后自动按日期分片存储。
+     *
+     * @param fileName 原始文件名
+     * @param inputStream 文件输入流
+     * @param size 文件字节大小
+     * @param contentType 文件 MIME 类型
+     * @return 上传后的可访问 URL
+     * @throws Exception 上传或存储异常
+     */
+    String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
 }

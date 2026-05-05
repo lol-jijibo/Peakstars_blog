@@ -72,6 +72,7 @@ public class AdminServiceImpl implements AdminService {
 
     private final AdminMapper adminMapper;
     private final AdminContentImportService adminContentImportService;
+    private final com.interview.auth.infrastructure.storage.ContentStorageService contentStorageService;
     private volatile boolean editLogStorageAvailable = true;
 
     /**
@@ -1129,6 +1130,11 @@ public class AdminServiceImpl implements AdminService {
      * 封装后台趋势快照的内存结构，供仪表盘折线图读取。
      * 每个快照只保留当前时刻关键指标，避免把整份仪表盘对象长期留在内存中。
      */
+    @Override
+    public String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
+        return contentStorageService.upload("cover", fileName, inputStream, size, contentType);
+    }
+
     private record DashboardSnapshot(
         LocalDateTime createdAt,
         Integer onlineUsers,
