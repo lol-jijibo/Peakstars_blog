@@ -271,8 +271,12 @@
 
 /* ── 单篇文章行 ── */
 .article-row {
+  /**
+   * 技术文章列表右侧封面列适度放大，保证顶部起点不变时底部能更贴近作者信息区底线。
+   * 通过放宽封面列宽度让图片按原比例自然增高，避免重新引入裁切、阴影或留白问题。
+   */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-columns: minmax(0, 1fr) 220px;
   gap: 2rem;
   border-bottom: 1px solid var(--border);
   padding: 2rem 0;
@@ -475,19 +479,24 @@
 
 /* ── 封面图 ── */
 .article-row-cover {
+  /**
+   * 技术文章列表封面容器取消固定高度裁切，兼容后台新增的原始比例图片。
+   * 让容器由图片自然撑开，避免完整展示时出现上下留白或阴影遮挡感。
+   */
   overflow: hidden;
   border: 1px solid var(--border);
-  background: var(--surface-alt);
-  min-height: 160px;
   border-radius: 3px;
-  align-self: center;
+  align-self: start;
 }
 
 .article-row-cover img {
+  /**
+   * 列表封面按原始比例完整展示，避免后台新增图片在固定框内被压缩裁切。
+   * 宽度保持跟随列表卡片，图片高度自适应展开，不再制造额外上下留白。
+   */
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
 }
 
 /* ── 空状态 ── */
@@ -548,7 +557,11 @@
   }
 
   .article-row {
-    grid-template-columns: minmax(0, 1fr) 140px;
+    /**
+     * 中等屏宽下同步放大封面列，保持桌面端调整后的上下视觉关系一致。
+     * 仍然控制在紧凑范围内，避免挤压正文可读宽度。
+     */
+    grid-template-columns: minmax(0, 1fr) 156px;
     gap: 1.25rem;
   }
 

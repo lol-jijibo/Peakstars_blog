@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
  * 统一将外部编辑器中的图片和附件迁移到自有对象存储，并返回稳定可访问的静态资源地址。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "app.storage.minio", name = "enabled", havingValue = "true")
 public class MinioContentStorageService implements ContentStorageService {
@@ -26,12 +28,23 @@ public class MinioContentStorageService implements ContentStorageService {
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
 
+    private volatile boolean bucketReady = false;
+
     /**
      * 启动时校验对象存储桶可用。
-     * 提前完成桶存在性检查与兜底创建，避免导入过程中首个资源上传才暴露环境配置问题。
+     * 提前完成桶存在性检查与兜底创建，初始化失败时仅记录警告不阻断应用启动，
+     * 后续上传操作会在首次成功连接后自动重试初始化。
      */
     @PostConstruct
     public void ensureBucketReady() {
+        tryInitializeBucket();
+    }
+
+    /**
+     * 尝试初始化桶，失败时仅记录警告，不抛出异常。
+     * 避免凭证配置错误或 MinIO 短暂不可用时导致整个应用无法启动。
+     */
+    private void tryInitializeBucket() {
         try {
             boolean bucketExists = minioClient.bucketExists(
                 BucketExistsArgs.builder().bucket(minioProperties.getBucket()).build()
@@ -39,17 +52,28 @@ public class MinioContentStorageService implements ContentStorageService {
             if (!bucketExists) {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(minioProperties.getBucket()).build());
             }
+            bucketReady = true;
+            log.info("MinIO bucket '{}' is ready", minioProperties.getBucket());
         } catch (Exception exception) {
-            throw new IllegalStateException("MinIO bucket initialization failed", exception);
+            bucketReady = false;
+            log.warn("MinIO bucket initialization failed, file uploads will fail until MinIO is available. " +
+                "Please check MinIO endpoint/credentials configuration. Error: {}", exception.getMessage());
         }
     }
 
     /**
      * 上传内容导入资源到 MinIO。
      * 统一按业务类型和日期生成对象路径，保证资源目录结构稳定且可回溯。
+     * 若桶尚未就绪会自动重试初始化，仍失败时抛出明确异常。
      */
     @Override
     public String upload(String objectPrefix, String fileName, InputStream inputStream, long size, String contentType) throws Exception {
+        if (!bucketReady) {
+            tryInitializeBucket();
+        }
+        if (!bucketReady) {
+            throw new IllegalStateException("MinIO is not available. Please check MinIO service status and credentials configuration.");
+        }
         String objectName = buildObjectName(objectPrefix, fileName);
         minioClient.putObject(
             PutObjectArgs.builder()

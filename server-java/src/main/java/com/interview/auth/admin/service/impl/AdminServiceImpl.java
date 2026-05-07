@@ -405,7 +405,7 @@ public class AdminServiceImpl implements AdminService {
         article.setAuthorRole(defaultString(request.getAuthorRole(), "内容运营"));
         article.setAuthorInitials(defaultString(request.getAuthorInitials(), buildInitials(article.getAuthorName())));
         article.setAuthorAccent(defaultString(request.getAuthorAccent(), "linear-gradient(135deg, #2563eb, #60a5fa)"));
-        article.setCoverUrl(defaultString(request.getCoverUrl(), "/peakstars-blog-icon.jpg"));
+        article.setCoverUrl(defaultString(request.getCoverUrl(), ""));
         article.setContentHtml(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary())));
         article.setPublishedAt(parseDateTime(defaultString(request.getPublishedAt(), LocalDateTime.now().format(DATE_TIME_FORMATTER))));
         article.setReadCount(safeInt(request.getViewCount()));
@@ -463,7 +463,7 @@ public class AdminServiceImpl implements AdminService {
         hotspot.setSummary(defaultString(request.getSummary(), ""));
         hotspot.setAuthorName(defaultString(request.getAuthorName(), "后台编辑"));
         hotspot.setPublishedAt(parseDateTime(defaultString(request.getPublishedAt(), LocalDateTime.now().format(DATE_TIME_FORMATTER))));
-        hotspot.setCoverUrl(defaultString(request.getCoverUrl(), "/peakstars-blog-icon.jpg"));
+        hotspot.setCoverUrl(defaultString(request.getCoverUrl(), ""));
         hotspot.setContentHtml(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary())));
         hotspot.setTagList(joinPipeValues(request.getTags()));
         hotspot.setViewCount(safeInt(request.getViewCount()));

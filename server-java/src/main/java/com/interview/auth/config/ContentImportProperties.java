@@ -50,6 +50,18 @@ public class ContentImportProperties {
         "md"
     );
 
+    /**
+     * 本地静态资源目录，用于将相对路径（如 /peakstars-blog-icon.jpg）的图片上传到对象存储。
+     * 默认指向项目根目录下的 public 文件夹。
+     */
+    private String localStaticDir = "public";
+
+    /**
+     * 是否启用本地相对路径资源迁移到对象存储。
+     * 开启后，封面图或正文中的 /xxx.jpg 形式路径会从本地目录读取并上传到 MinIO。
+     */
+    private boolean migrateLocalAssets = true;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -128,5 +140,21 @@ public class ContentImportProperties {
 
     public void setAttachmentExtensions(List<String> attachmentExtensions) {
         this.attachmentExtensions = attachmentExtensions;
+    }
+
+    public String getLocalStaticDir() {
+        return localStaticDir;
+    }
+
+    public void setLocalStaticDir(String localStaticDir) {
+        this.localStaticDir = localStaticDir;
+    }
+
+    public boolean isMigrateLocalAssets() {
+        return migrateLocalAssets;
+    }
+
+    public void setMigrateLocalAssets(boolean migrateLocalAssets) {
+        this.migrateLocalAssets = migrateLocalAssets;
     }
 }

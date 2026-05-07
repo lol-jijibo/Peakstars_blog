@@ -63,6 +63,10 @@ app:
     max-asset-size-bytes: ${CONTENT_IMPORT_MAX_ASSET_SIZE_BYTES:10485760}
     # 上传文件前缀目录
     upload-prefix: ${CONTENT_IMPORT_UPLOAD_PREFIX:content-import}
+    # 本地静态资源目录（用于将 /xxx.jpg 等相对路径图片上传到对象存储）
+    local-static-dir: ${CONTENT_IMPORT_LOCAL_STATIC_DIR:public}
+    # 是否迁移本地相对路径资源到对象存储
+    migrate-local-assets: ${CONTENT_IMPORT_MIGRATE_LOCAL_ASSETS:true}
 
    # 文件存储配置
   storage:
@@ -70,7 +74,7 @@ app:
       enabled: ${MINIO_ENABLED:true}
       endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
       access-key: ${MINIO_ACCESS_KEY:minioadmin}
-      secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
       bucket: ${MINIO_BUCKET:peakstars-content}
       public-base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000}
   auth:

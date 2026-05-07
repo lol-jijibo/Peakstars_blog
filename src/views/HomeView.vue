@@ -170,7 +170,8 @@
               :class="{ 'delay-100': idx === 0, 'delay-200': idx === 1, 'delay-300': idx === 2 }"
               @click="openArticle(article.id)"
             >
-              <div class="hl-cover" :style="buildCoverStyle(article.coverUrl)">
+              <div class="hl-cover">
+                <img class="hl-cover-image" :src="resolveCoverUrl(article.coverUrl)" :alt="article.title" loading="lazy" />
                 <span class="hl-badge">{{ resolveArticleLabel(article.category) }}</span>
               </div>
               <div class="hl-body">
@@ -395,9 +396,12 @@ function tagColorClass(tag) {
   return map[tag] || 'tc-cyan'
 }
 
-function buildCoverStyle(coverUrl) {
-  const safeCover = coverUrl || '/peakstars-blog-icon.jpg'
-  return { backgroundImage: `url("${safeCover}")` }
+function resolveCoverUrl(coverUrl) {
+  /**
+   * 统一补齐首页精选卡片封面地址，保证后台新增封面和默认兜底图都能直接渲染。
+   * 取消背景图裁切方案后改为真实图片标签输出，避免固定高度容器制造上下留白。
+   */
+  return coverUrl || '/peakstars-blog-icon.jpg'
 }
 
 function formatReadTime(value) {

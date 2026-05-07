@@ -6,8 +6,12 @@ import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
 import com.interview.auth.service.ContentService;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -47,5 +51,37 @@ public class ContentController {
     @GetMapping("/ai-hotspots")
     public ApiResponse<List<AiHotspotResponse>> listAiHotspots() {
         return ApiResponse.success(contentService.listAiHotspots());
+    }
+
+    /**
+     * 为指定技术文章增加阅读量。
+     * 在用户打开文章详情页时调用，使用原子递增保证并发安全。
+     */
+    @PostMapping("/tech-articles/{articleKey}/read")
+    public ApiResponse<Map<String, Object>> incrementReadCount(@PathVariable String articleKey) {
+        return ApiResponse.success(contentService.incrementArticleReadCount(articleKey));
+    }
+
+    /**
+     * 获取指定技术文章的评论列表。
+     * 返回按时间正序排列的评论，支持父子层级关系。
+     */
+    @GetMapping("/tech-articles/{articleKey}/comments")
+    public ApiResponse<List<Map<String, Object>>> listArticleComments(@PathVariable String articleKey) {
+        return ApiResponse.success(contentService.listArticleComments(articleKey));
+    }
+
+    /**
+     * 为指定技术文章新增评论。
+     * 同时自增文章的评论计数，返回新增评论数据。
+     */
+    @PostMapping("/tech-articles/{articleKey}/comments")
+    public ApiResponse<Map<String, Object>> addArticleComment(@PathVariable String articleKey, @RequestBody Map<String, Object> body) {
+        String nickname = (String) body.getOrDefault("nickname", "匿名用户");
+        String content = (String) body.get("content");
+        String avatarText = (String) body.getOrDefault("avatarText", "匿");
+        String avatarAccent = (String) body.getOrDefault("avatarAccent", "linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
+        Long parentId = body.get("parentId") != null ? Long.valueOf(body.get("parentId").toString()) : null;
+        return ApiResponse.success(contentService.addArticleComment(articleKey, nickname, content, avatarText, avatarAccent, parentId));
     }
 }

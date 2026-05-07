@@ -11,7 +11,10 @@ import com.interview.auth.infrastructure.mapper.ContentMapper;
 import com.interview.auth.service.ContentService;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -149,6 +152,45 @@ public class ContentServiceImpl implements ContentService {
         response.setIsRecommended(toBoolean(hotspot.getIsRecommended()));
         response.setIsToday(toBoolean(hotspot.getIsToday()));
         return response;
+    }
+
+    /**
+     * 为指定技术文章增加阅读量。
+     * 使用原子 UPDATE 自增 read_count，更新后查询最新阅读数返回。
+     */
+    @Override
+    public Map<String, Object> incrementArticleReadCount(String articleKey) {
+        contentMapper.incrementReadCount(articleKey);
+        Integer readCount = contentMapper.findReadCount(articleKey);
+        Map<String, Object> result = new HashMap<>();
+        result.put("readCount", readCount != null ? readCount : 0);
+        return result;
+    }
+
+    /**
+     * 新增一条技术文章评论，同时自增文章的 comment_count。
+     * 返回新增评论的基本信息。
+     */
+    @Override
+    public Map<String, Object> addArticleComment(String articleKey, String nickname, String content, String avatarText, String avatarAccent, Long parentId) {
+        contentMapper.insertArticleComment(articleKey, nickname, content, avatarText, avatarAccent, parentId);
+        contentMapper.incrementCommentCount(articleKey);
+
+        List<Map<String, Object>> comments = contentMapper.findArticleComments(articleKey);
+        Map<String, Object> newComment = comments.stream()
+            .filter(c -> nickname.equals(c.get("nickname")) && content.equals(c.get("content")))
+            .reduce((first, second) -> second)
+            .orElse(Collections.emptyMap());
+
+        return newComment;
+    }
+
+    /**
+     * 获取指定技术文章的评论列表。
+     */
+    @Override
+    public List<Map<String, Object>> listArticleComments(String articleKey) {
+        return contentMapper.findArticleComments(articleKey);
     }
 
     /**

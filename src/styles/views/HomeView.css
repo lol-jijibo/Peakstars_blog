@@ -460,12 +460,23 @@
 }
 
 .hl-cover {
-  height: 180px;
-  background-size: cover;
-  background-position: center;
-  background-color: #1e293b;
+  /**
+   * 首页精选封面改为真实图片流式展示，兼容后台新增的不同尺寸封面。
+   * 取消固定高度和背景图铺设，避免图片完整展示时在上下产生留白或阴影观感。
+   */
   position: relative;
+  overflow: hidden;
   transition: transform 0.5s;
+}
+
+.hl-cover-image {
+  /**
+   * 让封面图按原始比例完整撑开卡片宽度，避免任何方向上的裁切与留白遮挡。
+   * 通过块级输出消除图片底部默认空隙，保证卡片封面与标题区自然衔接。
+   */
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .hl-badge {

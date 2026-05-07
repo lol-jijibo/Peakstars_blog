@@ -8,9 +8,10 @@ const contentCache = {
   aiHotspots: { data: null, promise: null }
 }
 
-async function request(url) {
+async function request(url, options = {}) {
   const response = await fetch(`${BASE_URL}${url}`, {
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json' },
+    ...options
   })
   const payload = await response.json()
   if (!response.ok || payload.code !== 0) {
@@ -60,4 +61,22 @@ export function getWorldNews() {
 
 export function getAiHotspots() {
   return loadWithCache('aiHotspots', '/api/content/ai-hotspots')
+}
+
+// 目的: 用户打开文章详情页时递增阅读数，与面经的 incrementViews 逻辑一致。
+export function incrementArticleReadCount(articleKey) {
+  return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/read`, { method: 'POST' })
+}
+
+// 目的: 获取指定文章的评论列表。
+export function getArticleComments(articleKey) {
+  return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/comments`)
+}
+
+// 目的: 为指定文章新增评论。
+export function addArticleComment(articleKey, data) {
+  return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
 }

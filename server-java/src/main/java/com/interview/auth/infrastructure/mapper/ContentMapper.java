@@ -4,7 +4,9 @@ import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
 import java.util.List;
+import java.util.Map;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 统一承接内容模块的数据库查询，避免为三个频道拆成多套相似的数据访问代码。
@@ -30,4 +32,57 @@ public interface ContentMapper {
      * 基础列表按业务排序返回，前端可继续按热度或发布时间切换视图。
      */
     List<AiHotspot> findPublishedAiHotspots();
+
+    /**
+     * 原子自增技术文章的阅读数，在详情页请求时触发。
+     * 使用原子 UPDATE 保证并发安全，不阻塞主查询返回。
+     *
+     * @param articleKey 文章业务主键
+     * @return 影响行数（0 表示文章不存在）
+     */
+    int incrementReadCount(@Param("articleKey") String articleKey);
+
+    /**
+     * 根据 article_key 查询技术文章的阅读数，供阅读量递增后返回最新值。
+     *
+     * @param articleKey 文章业务主键
+     * @return 最新阅读数
+     */
+    Integer findReadCount(@Param("articleKey") String articleKey);
+
+    /**
+     * 新增一条技术文章评论。
+     *
+     * @param articleKey 文章业务主键
+     * @param nickname   评论者昵称
+     * @param content    评论内容
+     * @param avatarText 头像文字
+     * @param avatarAccent 头像背景渐变
+     * @param parentId   父评论ID（null表示顶级评论）
+     * @return 影响行数
+     */
+    int insertArticleComment(
+        @Param("articleKey") String articleKey,
+        @Param("nickname") String nickname,
+        @Param("content") String content,
+        @Param("avatarText") String avatarText,
+        @Param("avatarAccent") String avatarAccent,
+        @Param("parentId") Long parentId
+    );
+
+    /**
+     * 原子自增技术文章的评论数。
+     *
+     * @param articleKey 文章业务主键
+     * @return 影响行数
+     */
+    int incrementCommentCount(@Param("articleKey") String articleKey);
+
+    /**
+     * 查询指定文章的评论列表，按创建时间正序排列。
+     *
+     * @param articleKey 文章业务主键
+     * @return 评论列表
+     */
+    List<Map<String, Object>> findArticleComments(@Param("articleKey") String articleKey);
 }

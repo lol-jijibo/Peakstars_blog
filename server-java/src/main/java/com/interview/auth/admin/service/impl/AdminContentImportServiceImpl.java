@@ -15,6 +15,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -174,7 +177,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
 
     /**
      * 迁移单个资源。
-     * 同时兼容 data URL、HTTP 外链与已存在的自有存储链接，并在需要时执行对象存储上传。
+     * 同时兼容 data URL、本地相对路径、HTTP 外链与已存在的自有存储链接，并在需要时执行对象存储上传。
      */
     private AssetMigrationResult migrateAsset(
         String contentType,
@@ -190,6 +193,11 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
             return new AssetMigrationResult(originalUrl, resolvedUrl, "skipped", "资源迁移已跳过");
         }
 
+        // 优先判断本地相对路径资源（如 /peakstars-blog-icon.jpg），从本地静态目录读取并上传到对象存储
+        if (isLocalRelativePath(resolvedUrl) && contentImportProperties.isMigrateLocalAssets()) {
+            return migrateLocalAsset(contentType, resolvedUrl, assetType, storageService, originalUrl);
+        }
+
         DownloadedAsset asset = resolvedUrl.startsWith("data:")
             ? decodeDataUrl(resolvedUrl, assetType)
             : downloadRemoteAsset(resolvedUrl, assetType);
@@ -203,6 +211,62 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
             asset.contentType()
         );
         return new AssetMigrationResult(originalUrl, targetUrl, "migrated", "资源已迁移到对象存储");
+    }
+
+    /**
+     * 判断 URL 是否为本地相对路径。
+     * 以 / 开头且不含协议前缀的路径视为本地资源，如 /peakstars-blog-icon.jpg。
+     */
+    private boolean isLocalRelativePath(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        String trimmed = url.trim();
+        return trimmed.startsWith("/") && !trimmed.startsWith("//");
+    }
+
+    /**
+     * 从本地静态资源目录读取文件并上传到对象存储。
+     * 将项目 public 目录下的相对路径资源迁移到 MinIO，实现封面图和正文图片的统一对象存储管理。
+     */
+    private AssetMigrationResult migrateLocalAsset(
+        String contentType,
+        String localPath,
+        String assetType,
+        ContentStorageService storageService,
+        String originalUrl
+    ) throws Exception {
+        String staticDir = contentImportProperties.getLocalStaticDir();
+        Path filePath = Paths.get(staticDir, localPath).normalize();
+
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            return new AssetMigrationResult(originalUrl, localPath, "skipped", "本地资源文件不存在: " + localPath);
+        }
+
+        long fileSize = Files.size(filePath);
+        if (fileSize > contentImportProperties.getMaxAssetSizeBytes()) {
+            return new AssetMigrationResult(originalUrl, localPath, "skipped", "本地资源超过大小限制: " + localPath);
+        }
+
+        String fileName = filePath.getFileName().toString();
+        String mimeType = Files.probeContentType(filePath);
+        if (mimeType == null || mimeType.isBlank()) {
+            mimeType = URLConnection.guessContentTypeFromName(fileName);
+        }
+        if (mimeType == null || mimeType.isBlank()) {
+            mimeType = IMAGE.equals(assetType) ? "application/octet-stream" : "application/octet-stream";
+        }
+
+        try (var inputStream = Files.newInputStream(filePath)) {
+            String targetUrl = storageService.upload(
+                buildObjectPrefix(contentType, assetType),
+                fileName,
+                inputStream,
+                fileSize,
+                mimeType
+            );
+            return new AssetMigrationResult(originalUrl, targetUrl, "migrated", "本地资源已迁移到对象存储");
+        }
     }
 
     /**

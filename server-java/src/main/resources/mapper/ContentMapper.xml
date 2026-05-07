@@ -165,4 +165,41 @@
     WHERE status = 1
     ORDER BY sort_order ASC, published_at DESC
   </select>
+
+  <update id="incrementReadCount">
+    UPDATE tech_article
+    SET read_count = read_count + 1
+    WHERE article_key = #{articleKey} AND status = 1
+  </update>
+
+  <select id="findReadCount" resultType="java.lang.Integer">
+    SELECT read_count FROM tech_article WHERE article_key = #{articleKey} AND status = 1
+  </select>
+
+  <insert id="insertArticleComment" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    INSERT INTO article_comment (article_key, nickname, content, avatar_text, avatar_accent, parent_id)
+    VALUES (#{articleKey}, #{nickname}, #{content}, #{avatarText}, #{avatarAccent}, #{parentId})
+  </insert>
+
+  <update id="incrementCommentCount">
+    UPDATE tech_article
+    SET comment_count = comment_count + 1
+    WHERE article_key = #{articleKey} AND status = 1
+  </update>
+
+  <select id="findArticleComments" resultType="java.util.Map">
+    SELECT
+      id,
+      article_key AS articleKey,
+      nickname,
+      content,
+      avatar_text AS avatarText,
+      avatar_accent AS avatarAccent,
+      parent_id AS parentId,
+      like_count AS likeCount,
+      created_at AS createdAt
+    FROM article_comment
+    WHERE article_key = #{articleKey} AND status = 1
+    ORDER BY created_at ASC
+  </select>
 </mapper>

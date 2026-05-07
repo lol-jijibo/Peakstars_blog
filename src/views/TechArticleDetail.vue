@@ -39,6 +39,10 @@
               <span class="article-date-read">{{ displayPublishedAt }} · {{ displayReadTime }}</span>
             </div>
 
+            <button class="article-author-follow-inline" type="button" @click="toggleFollow">
+              {{ isFollowed ? '已关注' : '+ 关注' }}
+            </button>
+
             <div class="article-stats">
               <div class="article-stat">
                 <span class="article-stat-num">{{ displayReadCount }}</span>
@@ -72,8 +76,88 @@
           </div>
 
           <p>{{ authorIntro }}</p>
+        </section>
 
-          <button class="article-author-follow" type="button">关注作者</button>
+        <!-- 评论区 -->
+        <section class="article-comments">
+          <div class="article-comments-header">
+            <h2>评论</h2>
+            <span class="article-comments-count">{{ comments.length }} 条评论</span>
+          </div>
+
+          <!-- 评论输入框 -->
+          <div class="article-comment-form">
+            <div class="article-comment-form-avatar">{{ avatarInitials }}</div>
+            <div class="article-comment-form-body">
+              <textarea
+                v-model="commentContent"
+                class="article-comment-input"
+                :placeholder="replyTo ? `回复 ${replyTo.nickname}...` : '写下你的评论...'"
+                rows="3"
+                @focus="commentFormFocused = true"
+              ></textarea>
+              <div v-if="commentFormFocused || commentContent" class="article-comment-form-actions">
+                <button v-if="replyTo" class="article-comment-cancel-reply" type="button" @click="cancelReply">取消回复</button>
+                <span class="article-comment-form-hint">支持 Markdown 粗体、代码</span>
+                <button
+                  class="article-comment-submit"
+                  type="button"
+                  :disabled="!commentContent.trim()"
+                  @click="submitComment"
+                >
+                  {{ submitting ? '发布中...' : '发布评论' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 评论列表 -->
+          <div v-if="comments.length === 0" class="article-comments-empty">
+            <p>暂无评论，来做第一个评论的人吧</p>
+          </div>
+          <div v-else class="article-comments-list">
+            <div v-for="comment in topLevelComments" :key="comment.id" class="article-comment-item">
+              <div class="article-comment-avatar" :style="{ background: comment.avatarAccent }">{{ comment.avatarText }}</div>
+              <div class="article-comment-body">
+                <div class="article-comment-meta">
+                  <span class="article-comment-nickname">{{ comment.nickname }}</span>
+                  <span class="article-comment-time">{{ formatCommentTime(comment.createdAt) }}</span>
+                </div>
+                <p class="article-comment-content">{{ comment.content }}</p>
+                <div class="article-comment-actions">
+                  <button type="button" class="article-comment-action-btn" @click="handleLikeComment(comment)">
+                    <span>{{ comment.liked ? '❤️' : '🤍' }}</span>
+                    <span>{{ comment.likeCount || 0 }}</span>
+                  </button>
+                  <button type="button" class="article-comment-action-btn" @click="handleReply(comment)">
+                    💬 回复
+                  </button>
+                </div>
+                <!-- 子评论 -->
+                <div v-if="getChildComments(comment.id).length" class="article-comment-replies">
+                  <div v-for="reply in getChildComments(comment.id)" :key="reply.id" class="article-comment-item article-comment-reply">
+                    <div class="article-comment-avatar article-comment-avatar--small" :style="{ background: reply.avatarAccent }">{{ reply.avatarText }}</div>
+                    <div class="article-comment-body">
+                      <div class="article-comment-meta">
+                        <span class="article-comment-nickname">{{ reply.nickname }}</span>
+                        <span class="article-comment-time">{{ formatCommentTime(reply.createdAt) }}</span>
+                      </div>
+                      <p class="article-comment-content">{{ reply.content }}</p>
+                      <div class="article-comment-actions">
+                        <button type="button" class="article-comment-action-btn" @click="handleLikeComment(reply)">
+                          <span>{{ reply.liked ? '❤️' : '🤍' }}</span>
+                          <span>{{ reply.likeCount || 0 }}</span>
+                        </button>
+                        <button type="button" class="article-comment-action-btn" @click="handleReply(reply)">
+                          💬 回复
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
       </main>
 
@@ -142,7 +226,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getTechArticles } from '@/api/content'
+import { getTechArticles, incrementArticleReadCount, getArticleComments, addArticleComment } from '@/api/content'
 import { highlight, RULE_MAP } from '@/utils/codeHighlight'
 import { useThemeStore } from '@/stores/theme'
 
@@ -158,6 +242,12 @@ const outlineItems = ref([])
 const activeOutlineId = ref('')
 const scrollProgress = ref(0)
 const copiedText = ref('复制链接')
+const isFollowed = ref(false)
+const comments = ref([])
+const commentContent = ref('')
+const commentFormFocused = ref(false)
+const replyTo = ref(null)
+const submitting = ref(false)
 
 /**
  * 目的：统一详情页文章来源，仅从后端 MySQL 加载。
@@ -171,6 +261,27 @@ async function loadArticle(articleId) {
   } catch {
     techArticles.value = []
     article.value = null
+  }
+
+  // 进入文章详情页时递增阅读量
+  if (article.value?.id) {
+    try {
+      const result = await incrementArticleReadCount(article.value.id)
+      if (result && result.readCount !== undefined) {
+        article.value = { ...article.value, readCount: result.readCount }
+      }
+    } catch {
+      // 阅读量递增失败不影响页面渲染
+    }
+  }
+
+  // 加载评论列表
+  if (article.value?.id) {
+    try {
+      comments.value = await getArticleComments(article.value.id)
+    } catch {
+      comments.value = []
+    }
   }
 
   await nextTick()
@@ -243,6 +354,89 @@ const displayReadTime = computed(() => formatReadTime(currentArticle.value.readT
 const displayReadCount = computed(() => formatCompactCount(currentArticle.value.readCount || 0))
 const displayLikeCount = computed(() => formatCompactCount(currentArticle.value.likeCount || 0))
 const displayCommentCount = computed(() => formatCompactCount(currentArticle.value.commentCount || 0))
+
+const avatarInitials = computed(() => buildInitials('匿名'))
+
+const topLevelComments = computed(() => comments.value.filter((c) => !c.parentId))
+
+function getChildComments(parentId) {
+  return comments.value.filter((c) => Number(c.parentId) === Number(parentId))
+}
+
+function formatCommentTime(timeStr) {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now - date
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days} 天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+function handleReply(comment) {
+  replyTo.value = comment
+  commentFormFocused.value = true
+}
+
+function cancelReply() {
+  replyTo.value = null
+}
+
+async function submitComment() {
+  const content = commentContent.value.trim()
+  if (!content || submitting.value) return
+
+  submitting.value = true
+  try {
+    const data = {
+      nickname: '匿名用户',
+      content,
+      avatarText: avatarInitials.value,
+      avatarAccent: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      parentId: replyTo.value ? Number(replyTo.value.id) : null
+    }
+    const newComment = await addArticleComment(currentArticle.value.id, data)
+    if (newComment && newComment.id) {
+      comments.value.push({ ...newComment, likeCount: 0, liked: false })
+    } else {
+      await loadComments()
+    }
+    commentContent.value = ''
+    replyTo.value = null
+    commentFormFocused.value = false
+    // 更新文章评论数
+    if (currentArticle.value) {
+      currentArticle.value = { ...currentArticle.value, commentCount: (currentArticle.value.commentCount || 0) + 1 }
+    }
+  } catch {
+    // 评论发布失败，保留输入内容
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function loadComments() {
+  if (!currentArticle.value?.id) return
+  try {
+    comments.value = await getArticleComments(currentArticle.value.id)
+  } catch {
+    comments.value = []
+  }
+}
+
+function handleLikeComment(comment) {
+  comment.liked = !comment.liked
+  comment.likeCount = (comment.likeCount || 0) + (comment.liked ? 1 : -1)
+}
+
+function toggleFollow() {
+  isFollowed.value = !isFollowed.value
+}
 
 const relatedArticles = computed(() => {
   const currentId = String(currentArticle.value.id)
