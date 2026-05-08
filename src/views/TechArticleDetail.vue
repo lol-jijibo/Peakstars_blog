@@ -85,7 +85,7 @@
               ></textarea>
               <div v-if="commentFormFocused || commentContent" class="article-comment-form-actions">
                 <button v-if="replyTo" class="article-comment-cancel-reply" type="button" @click="cancelReply">取消回复</button>
-                <span class="article-comment-form-hint">支持 Markdown 粗体、代码</span>
+
                 <button
                   class="article-comment-submit"
                   type="button"
@@ -112,12 +112,33 @@
                 </div>
                 <p class="article-comment-content">{{ comment.content }}</p>
                 <div class="article-comment-actions">
-                  <button type="button" class="article-comment-action-btn" @click="handleLikeComment(comment)">
-                    <span>{{ comment.liked ? '❤️' : '🤍' }}</span>
+                  <button type="button" class="article-comment-action-btn article-comment-like-btn" @click="handleLikeComment(comment)">
+                    <svg class="comment-icon comment-icon-like" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3.75 10.75h3.5v8.5h-3.5a1 1 0 0 1-1-1v-6.5a1 1 0 0 1 1-1Z"/>
+                      <path d="M9 19.25h6.73a1.75 1.75 0 0 0 1.72-1.43l1.11-5.75a1.75 1.75 0 0 0-1.72-2.07H12.5V5.95A2.2 2.2 0 0 0 10.3 3.75L8.56 9.1A2.5 2.5 0 0 1 8 10.03l-.75.83v5.89A2.5 2.5 0 0 0 9 19.25Z"/>
+                    </svg>
                     <span>{{ comment.likeCount || 0 }}</span>
                   </button>
-                  <button type="button" class="article-comment-action-btn" @click="handleReply(comment)">
-                    💬 回复
+                  <button v-if="getChildComments(comment.id).length" type="button" class="article-comment-action-btn article-comment-reply-btn" @click="handleReply(comment)">
+                    <svg class="comment-icon comment-icon-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M7 18.5 3.75 20.5V6.75A1.75 1.75 0 0 1 5.5 5h13a1.75 1.75 0 0 1 1.75 1.75v9a1.75 1.75 0 0 1-1.75 1.75H7Z"/>
+                      <circle cx="9.25" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                      <circle cx="12" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                      <circle cx="14.75" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                    </svg>
+                    <span>{{ getChildComments(comment.id).length }}</span>
+                  </button>
+                  <button v-else type="button" class="article-comment-action-btn article-comment-reply-btn" @click="handleReply(comment)">
+                    <svg class="comment-icon comment-icon-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M7 18.5 3.75 20.5V6.75A1.75 1.75 0 0 1 5.5 5h13a1.75 1.75 0 0 1 1.75 1.75v9a1.75 1.75 0 0 1-1.75 1.75H7Z"/>
+                      <circle cx="9.25" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                      <circle cx="12" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                      <circle cx="14.75" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                    </svg>
+                    <span>评论</span>
+                  </button>
+                  <button v-if="myCommentIds.has(String(comment.id))" type="button" class="article-comment-action-btn article-comment-delete-btn" @click="handleDeleteComment(comment)">
+                    🗑 删除
                   </button>
                 </div>
                 <!-- 子评论 -->
@@ -131,12 +152,24 @@
                       </div>
                       <p class="article-comment-content">{{ reply.content }}</p>
                       <div class="article-comment-actions">
-                        <button type="button" class="article-comment-action-btn" @click="handleLikeComment(reply)">
-                          <span>{{ reply.liked ? '❤️' : '🤍' }}</span>
+                        <button type="button" class="article-comment-action-btn article-comment-like-btn" @click="handleLikeComment(reply)">
+                          <svg class="comment-icon comment-icon-like" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3.75 10.75h3.5v8.5h-3.5a1 1 0 0 1-1-1v-6.5a1 1 0 0 1 1-1Z"/>
+                            <path d="M9 19.25h6.73a1.75 1.75 0 0 0 1.72-1.43l1.11-5.75a1.75 1.75 0 0 0-1.72-2.07H12.5V5.95A2.2 2.2 0 0 0 10.3 3.75L8.56 9.1A2.5 2.5 0 0 1 8 10.03l-.75.83v5.89A2.5 2.5 0 0 0 9 19.25Z"/>
+                          </svg>
                           <span>{{ reply.likeCount || 0 }}</span>
                         </button>
-                        <button type="button" class="article-comment-action-btn" @click="handleReply(reply)">
-                          💬 回复
+                        <button type="button" class="article-comment-action-btn article-comment-reply-btn" @click="handleReply(reply)">
+                          <svg class="comment-icon comment-icon-reply" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7 18.5 3.75 20.5V6.75A1.75 1.75 0 0 1 5.5 5h13a1.75 1.75 0 0 1 1.75 1.75v9a1.75 1.75 0 0 1-1.75 1.75H7Z"/>
+                            <circle cx="9.25" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                            <circle cx="12" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                            <circle cx="14.75" cy="11.5" r="0.8" fill="currentColor" stroke="none"/>
+                          </svg>
+                          <span>评论</span>
+                        </button>
+                        <button v-if="myCommentIds.has(String(reply.id))" type="button" class="article-comment-action-btn article-comment-delete-btn" @click="handleDeleteComment(reply)">
+                          🗑 删除
                         </button>
                       </div>
                     </div>
@@ -203,6 +236,23 @@
       </aside>
     </div>
 
+    <!-- Toast 通知 -->
+    <Transition name="toast">
+      <div v-if="toastVisible" class="toast-notification">{{ toastMessage }}</div>
+    </Transition>
+
+    <!-- 自定义确认弹窗 -->
+    <div v-if="confirmVisible" class="confirm-overlay" @click.self="cancelConfirm">
+      <div class="confirm-dialog">
+        <div class="confirm-title">{{ confirmTitle }}</div>
+        <div class="confirm-body">{{ confirmMessage }}</div>
+        <div class="confirm-actions">
+          <button class="confirm-btn confirm-btn-cancel" type="button" @click="cancelConfirm">取消</button>
+          <button class="confirm-btn confirm-btn-danger" type="button" @click="resolveConfirm">确认删除</button>
+        </div>
+      </div>
+    </div>
+
     <footer class="article-footer">
       <span class="article-footer-brand">Peak<span>Depth</span></span>
       <span class="article-footer-copy">© 2026 PeakDepth · 深度技术内容</span>
@@ -213,7 +263,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getTechArticles, incrementArticleReadCount, getArticleComments, addArticleComment } from '@/api/content'
+import { getTechArticles, incrementArticleReadCount, getArticleComments, addArticleComment, deleteArticleComment, invalidateTechArticlesCache } from '@/api/content'
 import { highlight, RULE_MAP } from '@/utils/codeHighlight'
 import { useThemeStore } from '@/stores/theme'
 
@@ -235,6 +285,43 @@ const commentContent = ref('')
 const commentFormFocused = ref(false)
 const replyTo = ref(null)
 const submitting = ref(false)
+const myCommentIds = ref(new Set(JSON.parse(localStorage.getItem('myCommentIds') || '[]')))
+const confirmVisible = ref(false)
+const confirmTitle = ref('')
+const confirmMessage = ref('')
+let confirmResolver = null
+
+function showConfirm(title, message) {
+  return new Promise((resolve) => {
+    confirmTitle.value = title
+    confirmMessage.value = message
+    confirmVisible.value = true
+    confirmResolver = resolve
+  })
+}
+
+function resolveConfirm() {
+  confirmVisible.value = false
+  if (confirmResolver) confirmResolver(true)
+}
+
+function cancelConfirm() {
+  confirmVisible.value = false
+  if (confirmResolver) confirmResolver(false)
+}
+
+const toastVisible = ref(false)
+const toastMessage = ref('')
+let toastTimer = null
+
+function showToast(message, duration = 2000) {
+  toastMessage.value = message
+  toastVisible.value = true
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastVisible.value = false
+  }, duration)
+}
 
 /**
  * 目的：统一详情页文章来源，仅从后端 MySQL 加载。
@@ -250,13 +337,15 @@ async function loadArticle(articleId) {
     article.value = null
   }
 
-  // 进入文章详情页时递增阅读量
+  // 进入文章详情页时递增阅读量，同时标记浏览历史
   if (article.value?.id) {
     try {
       const result = await incrementArticleReadCount(article.value.id)
       if (result && result.readCount !== undefined) {
         article.value = { ...article.value, readCount: result.readCount }
       }
+      // 清空文章列表缓存，确保返回列表页时 inHistory 状态刷新
+      invalidateTechArticlesCache()
     } catch {
       // 阅读量递增失败不影响页面渲染
     }
@@ -390,6 +479,8 @@ async function submitComment() {
     const newComment = await addArticleComment(currentArticle.value.id, data)
     if (newComment && newComment.id) {
       comments.value.push({ ...newComment, likeCount: 0, liked: false })
+      myCommentIds.value.add(String(newComment.id))
+      localStorage.setItem('myCommentIds', JSON.stringify([...myCommentIds.value]))
     } else {
       await loadComments()
     }
@@ -400,6 +491,8 @@ async function submitComment() {
     if (currentArticle.value) {
       currentArticle.value = { ...currentArticle.value, commentCount: (currentArticle.value.commentCount || 0) + 1 }
     }
+    // 清空文章列表缓存，确保返回列表页时评论数刷新
+    invalidateTechArticlesCache()
   } catch {
     // 评论发布失败，保留输入内容
   } finally {
@@ -419,6 +512,27 @@ async function loadComments() {
 function handleLikeComment(comment) {
   comment.liked = !comment.liked
   comment.likeCount = (comment.likeCount || 0) + (comment.liked ? 1 : -1)
+}
+
+async function handleDeleteComment(comment) {
+  const confirmed = await showConfirm('删除评论', '确定要删除这条评论吗？删除后将无法恢复。')
+  if (!confirmed) return
+  try {
+    const result = await deleteArticleComment(comment.id)
+    if (result && result.deleted) {
+      comments.value = comments.value.filter((c) => String(c.id) !== String(comment.id))
+      myCommentIds.value.delete(String(comment.id))
+      localStorage.setItem('myCommentIds', JSON.stringify([...myCommentIds.value]))
+      if (currentArticle.value) {
+        currentArticle.value = { ...currentArticle.value, commentCount: Math.max((currentArticle.value.commentCount || 0) - 1, 0) }
+      }
+      showToast('✅️ 删除成功')
+      // 清空文章列表缓存，确保返回列表页时评论数刷新
+      invalidateTechArticlesCache()
+    }
+  } catch {
+    // 删除失败，不额外处理
+  }
 }
 
 function toggleFollow() {

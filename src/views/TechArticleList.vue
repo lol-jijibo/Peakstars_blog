@@ -1,5 +1,5 @@
 <template>
-  <div class="article-hub-page">
+  <div class="article-hub-page" :class="{ 'article-hub-page--restoring': articleListRestoreAnimating }">
     <div class="article-progress-bar" :style="{ width: `${scrollProgress}%` }"></div>
 
     <header class="article-topbar">
@@ -161,17 +161,23 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { getTechArticles } from '@/api/content'
 import { recommendedAuthors, techArticleCategories } from '@/data/techCategories'
 import { useThemeStore } from '@/stores/theme'
+import { scrollRestorationMap } from '@/stores/scrollRestoration'
+
+// keep-alive 通过组件 name 匹配缓存目标
+defineOptions({ name: 'TechArticleList' })
 
 const route = useRoute()
 const router = useRouter()
 const { isDark, toggleTheme } = useThemeStore()
 const techArticles = ref([])
 const scrollProgress = ref(0)
+const articleListRestoreAnimating = ref(false)
+let articleListRestoreTimer = null
 
 /**
  * 浏览模式：推荐 / 收藏夹 / VIP
@@ -228,6 +234,18 @@ async function loadArticles() {
   }
 }
 
+/** 静默刷新文章列表，不阻塞 UI，数据回来后无缝替换 */
+async function refreshArticlesSilently() {
+  try {
+    const list = await getTechArticles()
+    if (Array.isArray(list) && list.length > 0) {
+      techArticles.value = list
+    }
+  } catch {
+    // 静默刷新失败不影响当前展示
+  }
+}
+
 onMounted(async () => {
   document.body.classList.add('article-hub-page')
   await loadArticles()
@@ -235,9 +253,73 @@ onMounted(async () => {
   updateScrollState()
 })
 
+/**
+ * 从 keep-alive 缓存恢复时：
+ * - 如果已有数据，不再重新请求（避免白屏闪烁）
+ * - 恢复滚动位置
+ * - 后台静默刷新数据，确保阅读数/评论数等状态最新
+ */
+onActivated(() => {
+  document.body.classList.add('article-hub-page')
+  window.addEventListener('scroll', handleWindowScroll, { passive: true })
+
+  // 恢复滚动位置（优先从 scrollRestorationMap，回退到 router savedPosition）
+  const currentPath = route.fullPath
+  const saved = scrollRestorationMap.get(currentPath)
+  if (saved) {
+    if (articleListRestoreTimer) {
+      window.clearTimeout(articleListRestoreTimer)
+    }
+    articleListRestoreAnimating.value = false
+    requestAnimationFrame(() => {
+      /**
+       * 业务目的: 技术文章列表从详情页返回时补一层和详情页一致的柔和入场反馈。
+       * 业务逻辑: 在恢复列表滚动位置前重新触发淡入上浮动画，避免 keep-alive 直接复用造成一闪一现。
+       */
+      articleListRestoreAnimating.value = true
+      window.scrollTo(saved.x, saved.y)
+      articleListRestoreTimer = window.setTimeout(() => {
+        articleListRestoreAnimating.value = false
+        articleListRestoreTimer = null
+      }, 560)
+    })
+  }
+
+  // 数据为空时同步加载；已有数据时后台静默刷新，不阻塞渲染
+  if (techArticles.value.length === 0) {
+    loadArticles()
+  } else {
+    // 静默刷新：不阻塞 UI，数据回来后无缝替换
+    refreshArticlesSilently()
+  }
+})
+
+/**
+ * 业务目的: 在离开技术文章列表时精准记住用户点击文章前的浏览位置。
+ * 业务逻辑: 使用列表页自身的 fullPath 作为键保存滚动坐标，避免切到详情页后被新路由覆盖。
+ */
+onBeforeRouteLeave((to, from) => {
+  scrollRestorationMap.set(from.fullPath, { x: window.scrollX, y: window.scrollY })
+})
+
 onBeforeUnmount(() => {
   document.body.classList.remove('article-hub-page')
   window.removeEventListener('scroll', handleWindowScroll)
+  if (articleListRestoreTimer) {
+    window.clearTimeout(articleListRestoreTimer)
+    articleListRestoreTimer = null
+  }
+})
+
+/** 被 keep-alive 缓存挂起时，清理全局副作用 */
+onDeactivated(() => {
+  document.body.classList.remove('article-hub-page')
+  window.removeEventListener('scroll', handleWindowScroll)
+  articleListRestoreAnimating.value = false
+  if (articleListRestoreTimer) {
+    window.clearTimeout(articleListRestoreTimer)
+    articleListRestoreTimer = null
+  }
 })
 
 watch(

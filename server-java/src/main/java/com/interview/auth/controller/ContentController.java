@@ -5,9 +5,11 @@ import com.interview.auth.domain.dto.response.AiHotspotResponse;
 import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
 import com.interview.auth.service.ContentService;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,5 +85,17 @@ public class ContentController {
         String avatarAccent = (String) body.getOrDefault("avatarAccent", "linear-gradient(135deg, #667eea 0%, #764ba2 100%)");
         Long parentId = body.get("parentId") != null ? Long.valueOf(body.get("parentId").toString()) : null;
         return ApiResponse.success(contentService.addArticleComment(articleKey, nickname, content, avatarText, avatarAccent, parentId));
+    }
+
+    /**
+     * 删除指定评论（软删除）。
+     * 删除后同时递减文章的评论计数。
+     */
+    @DeleteMapping("/comments/{commentId}")
+    public ApiResponse<Map<String, Object>> deleteArticleComment(@PathVariable Long commentId) {
+        boolean deleted = contentService.deleteArticleComment(commentId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("deleted", deleted);
+        return ApiResponse.success(result);
     }
 }

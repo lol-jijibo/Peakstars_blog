@@ -2,10 +2,13 @@ const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
 // 业务目的：用一份内存缓存承接三个内容模块的列表数据，避免页面和导航重复请求同一接口。
 // 业务逻辑：每个模块同时维护已完成数据和进行中的 Promise，保证并发场景下只发起一次网络请求。
+// 增加 TTL：缓存超过一定时间后自动失效，确保数据不会过于陈旧。
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 分钟
+
 const contentCache = {
-  techArticles: { data: null, promise: null },
-  worldNews: { data: null, promise: null },
-  aiHotspots: { data: null, promise: null }
+  techArticles: { data: null, promise: null, timestamp: 0 },
+  worldNews: { data: null, promise: null, timestamp: 0 },
+  aiHotspots: { data: null, promise: null, timestamp: 0 }
 }
 
 async function request(url, options = {}) {
@@ -21,10 +24,11 @@ async function request(url, options = {}) {
 }
 
 // 业务目的：复用统一缓存逻辑，减少三个列表接口的重复代码。
-// 业务逻辑：命中缓存直接返回结果，命中进行中的 Promise 则复用同一请求，完成后回填缓存。
+// 业务逻辑：命中有效缓存直接返回结果，命中进行中的 Promise 则复用同一请求，完成后回填缓存。
 function loadWithCache(cacheKey, url) {
   const target = contentCache[cacheKey]
-  if (target.data) {
+  // 缓存有效：未过期且有数据
+  if (target.data && (Date.now() - target.timestamp < CACHE_TTL_MS)) {
     return Promise.resolve(target.data)
   }
 
@@ -35,6 +39,7 @@ function loadWithCache(cacheKey, url) {
   target.promise = request(url)
     .then((data) => {
       target.data = data
+      target.timestamp = Date.now()
       return data
     })
     .finally(() => {
@@ -53,6 +58,7 @@ export function getTechArticles() {
 export function invalidateTechArticlesCache() {
   contentCache.techArticles.data = null
   contentCache.techArticles.promise = null
+  contentCache.techArticles.timestamp = 0
 }
 
 export function getWorldNews() {
@@ -78,5 +84,12 @@ export function addArticleComment(articleKey, data) {
   return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/comments`, {
     method: 'POST',
     body: JSON.stringify(data)
+  })
+}
+
+// 目的: 删除指定评论（软删除），仅评论发布者可操作。
+export function deleteArticleComment(commentId) {
+  return request(`/api/content/comments/${encodeURIComponent(commentId)}`, {
+    method: 'DELETE'
   })
 }

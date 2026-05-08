@@ -69,6 +69,13 @@ public class AdminServiceImpl implements AdminService {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Duration SNAPSHOT_MIN_INTERVAL = Duration.ofSeconds(20);
     private static final int MAX_TREND_POINTS = 12;
+    private static final List<String> DRAFT_EXTRA_JSON_EXCLUDED_KEYS = Arrays.asList(
+        "draftKey",
+        "_draftId",
+        "contentType",
+        "title",
+        "contentHtml"
+    );
 
     private final AdminMapper adminMapper;
     private final AdminContentImportService adminContentImportService;
@@ -1079,8 +1086,11 @@ public class AdminServiceImpl implements AdminService {
         entity.setTitle(defaultString(request.getTitle(), ""));
         entity.setContentHtml(defaultString(request.getContentHtml(), ""));
 
-        // 将 data map 转为 JSON 字符串存入 extra_json
-        Map<String, Object> data = request.getData();
+        /**
+         * 草稿扩展字段只保留真正需要额外恢复的表单数据，避免重复写入超大正文导致字段溢出。
+         * 标题与正文已经落在独立列中，这里移除重复键后再序列化进 extra_json，保证草稿保存稳定。
+         */
+        Map<String, Object> data = buildDraftExtraData(request.getData());
         try {
             entity.setExtraJson(data != null ? OBJECT_MAPPER.writeValueAsString(data) : "{}");
         } catch (Exception e) {
@@ -1124,6 +1134,24 @@ public class AdminServiceImpl implements AdminService {
         resp.setFormData(formData);
 
         return resp;
+    }
+
+    /**
+     * 草稿附加 JSON 只保留独立列之外的表单字段，减少重复数据带来的存储压力。
+     * 通过过滤标题、正文和草稿标识等冗余键，确保 extra_json 更适合存放轻量配置型数据。
+     */
+    private Map<String, Object> buildDraftExtraData(Map<String, Object> sourceData) {
+        Map<String, Object> safeData = new HashMap<>();
+        if (sourceData == null || sourceData.isEmpty()) {
+            return safeData;
+        }
+
+        sourceData.forEach((key, value) -> {
+            if (!DRAFT_EXTRA_JSON_EXCLUDED_KEYS.contains(key)) {
+                safeData.put(key, value);
+            }
+        });
+        return safeData;
     }
 
     /**

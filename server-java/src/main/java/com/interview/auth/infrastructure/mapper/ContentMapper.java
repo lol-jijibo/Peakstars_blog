@@ -85,4 +85,37 @@ public interface ContentMapper {
      * @return 评论列表
      */
     List<Map<String, Object>> findArticleComments(@Param("articleKey") String articleKey);
+
+    /**
+     * 软删除评论（将 status 置为 -1），只有评论存在且状态正常时才执行。
+     *
+     * @param commentId 评论主键ID
+     * @return 影响行数
+     */
+    int softDeleteComment(@Param("commentId") Long commentId);
+
+    /**
+     * 原子递减技术文章的评论数。
+     *
+     * @param articleKey 文章业务主键
+     * @return 影响行数
+     */
+    int decrementCommentCount(@Param("articleKey") String articleKey);
+
+    /**
+     * 根据评论ID查询评论所属的文章业务主键。
+     *
+     * @param commentId 评论主键ID
+     * @return 文章业务主键
+     */
+    String findArticleKeyByCommentId(@Param("commentId") Long commentId);
+
+    /**
+     * 将指定文章标记为浏览历史（幂等操作）。
+     * 仅在 in_history = 0 时更新为 1，避免重复标记。
+     *
+     * @param articleKey 文章业务主键
+     * @return 影响行数（0 表示已标记或文章不存在）
+     */
+    int markArticleInHistory(@Param("articleKey") String articleKey);
 }

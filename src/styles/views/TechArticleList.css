@@ -149,6 +149,11 @@
   padding: 2rem 0 3rem;
 }
 
+.article-hub-page--restoring .article-hub-main,
+.article-hub-page--restoring .article-footer {
+  animation: article-list-fade-up 0.5s ease both;
+}
+
 /* ── 页面标题区 ── */
 .article-page-header {
   margin-bottom: 2rem;
@@ -539,6 +544,18 @@
 .article-footer-copy {
   color: var(--ink-muted);
   font-size: 0.75rem;
+}
+
+@keyframes article-list-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── 响应式 ── */

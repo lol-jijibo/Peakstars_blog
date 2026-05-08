@@ -161,6 +161,7 @@ public class ContentServiceImpl implements ContentService {
     @Override
     public Map<String, Object> incrementArticleReadCount(String articleKey) {
         contentMapper.incrementReadCount(articleKey);
+        contentMapper.markArticleInHistory(articleKey);
         Integer readCount = contentMapper.findReadCount(articleKey);
         Map<String, Object> result = new HashMap<>();
         result.put("readCount", readCount != null ? readCount : 0);
@@ -182,6 +183,11 @@ public class ContentServiceImpl implements ContentService {
             .reduce((first, second) -> second)
             .orElse(Collections.emptyMap());
 
+        // MyBatis Map 默认不包含 null 值列，手动补全 parentId 保证前端结构一致
+        if (!newComment.isEmpty() && !newComment.containsKey("parentId")) {
+            newComment.put("parentId", null);
+        }
+
         return newComment;
     }
 
@@ -190,7 +196,31 @@ public class ContentServiceImpl implements ContentService {
      */
     @Override
     public List<Map<String, Object>> listArticleComments(String articleKey) {
-        return contentMapper.findArticleComments(articleKey);
+        List<Map<String, Object>> comments = contentMapper.findArticleComments(articleKey);
+        // MyBatis Map 默认不包含 null 值列，补全 parentId 保证前端结构一致
+        comments.forEach(c -> {
+            if (!c.containsKey("parentId")) {
+                c.put("parentId", null);
+            }
+        });
+        return comments;
+    }
+
+    /**
+     * 删除指定评论（软删除），同时递减文章的 comment_count。
+     */
+    @Override
+    public boolean deleteArticleComment(Long commentId) {
+        String articleKey = contentMapper.findArticleKeyByCommentId(commentId);
+        if (articleKey == null) {
+            return false;
+        }
+        int rows = contentMapper.softDeleteComment(commentId);
+        if (rows > 0) {
+            contentMapper.decrementCommentCount(articleKey);
+            return true;
+        }
+        return false;
     }
 
     /**

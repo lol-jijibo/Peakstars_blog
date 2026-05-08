@@ -83,7 +83,7 @@
             :key="article.id"
             class="recent-card"
             type="button"
-            @click="router.push('/articles')"
+            @click="router.push(`/articles/${article.id}`)"
           >
             <span class="recent-tag">{{ article.category === 'frontend' ? '前端' : '后端' }}</span>
             <strong>{{ article.title }}</strong>
@@ -113,10 +113,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { recommendedAuthors } from '@/data/techCategories'
 import { useAuthStore } from '@/stores/auth'
+import { getTechArticles } from '@/api/content'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -131,10 +132,10 @@ const navTabs = [
 ]
 
 const followingAuthors = recommendedAuthors.slice(0, 3)
-const recentArticles = []
-const collectedCount = 0
-const likedCount = 0
-const recentCount = 0
+const recentArticles = ref([])
+const collectedCount = ref(0)
+const likedCount = ref(0)
+const recentCount = computed(() => recentArticles.value.length)
 
 const currentUser = computed(() => authStore.currentUser.value)
 
@@ -160,13 +161,13 @@ const joinedLabel = computed(() => {
   return `加入时间 ${formatDate(currentUser.value.joinedAt)}`
 })
 
-const quickEntries = [
+const quickEntries = computed(() => [
   {
     key: 'collect',
     icon: '⭐',
     label: '我的收藏',
     caption: '查看收藏的内容',
-    count: collectedCount,
+    count: collectedCount.value,
     action: () => router.push('/collect')
   },
   {
@@ -174,7 +175,7 @@ const quickEntries = [
     icon: '❤️',
     label: '点赞的文章',
     caption: '回看点过赞的内容',
-    count: likedCount,
+    count: likedCount.value,
     action: () => router.push('/like')
   },
   {
@@ -190,7 +191,7 @@ const quickEntries = [
     icon: '🕘',
     label: '最近浏览',
     caption: '继续上次浏览的位置',
-    count: recentCount,
+    count: recentCount.value,
     action: () => scrollToSection('recent-section')
   },
   {
@@ -201,11 +202,23 @@ const quickEntries = [
     count: 'GO',
     action: () => router.push('/admin/tech')
   }
-]
+])
 
 function handleQuickEntry(item) {
   item.action()
 }
+
+onMounted(async () => {
+  try {
+    const list = await getTechArticles()
+    const articles = Array.isArray(list) ? list : []
+    recentArticles.value = articles.filter((a) => a.inHistory).slice(0, 10)
+    collectedCount.value = articles.filter((a) => a.isCollected).length
+    likedCount.value = articles.filter((a) => a.isLiked).length
+  } catch {
+    // 加载失败时保持空状态
+  }
+})
 
 function handleLogout() {
   authStore.logout()

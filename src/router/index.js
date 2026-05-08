@@ -23,7 +23,7 @@ const routes = [
   {
     path: '/articles',
     component: () => import('@/views/TechArticleList.vue'),
-    meta: { title: '技术文章', requiresAuth: true, animation: 'page-slide-left' }
+    meta: { title: '技术文章', requiresAuth: true }
   },
   {
     path: '/articles/:id',
@@ -94,8 +94,15 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
+    // 浏览器前进/后退时优先恢复 savedPosition
     if (savedPosition) {
       return savedPosition
+    }
+
+    // 列表页返回：由 App.vue 的 onAfterEnter + scrollRestorationMap 处理
+    // 详情页进入：回到顶部
+    if (to.path.match(/^\/articles\/\d+$/)) {
+      return { top: 0 }
     }
 
     if (to.hash) {

@@ -60,4 +60,12 @@ public interface ContentService {
      * @return 评论列表
      */
     List<Map<String, Object>> listArticleComments(String articleKey);
+
+    /**
+     * 删除指定评论（软删除），同时递减文章的 comment_count。
+     *
+     * @param commentId 评论主键ID
+     * @return 是否删除成功
+     */
+    boolean deleteArticleComment(Long commentId);
 }

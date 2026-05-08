@@ -176,7 +176,7 @@
     SELECT read_count FROM tech_article WHERE article_key = #{articleKey} AND status = 1
   </select>
 
-  <insert id="insertArticleComment" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+  <insert id="insertArticleComment">
     INSERT INTO article_comment (article_key, nickname, content, avatar_text, avatar_accent, parent_id)
     VALUES (#{articleKey}, #{nickname}, #{content}, #{avatarText}, #{avatarAccent}, #{parentId})
   </insert>
@@ -202,4 +202,26 @@
     WHERE article_key = #{articleKey} AND status = 1
     ORDER BY created_at ASC
   </select>
+
+  <update id="softDeleteComment">
+    UPDATE article_comment
+    SET status = -1
+    WHERE id = #{commentId} AND status = 1
+  </update>
+
+  <update id="decrementCommentCount">
+    UPDATE tech_article
+    SET comment_count = GREATEST(comment_count - 1, 0)
+    WHERE article_key = #{articleKey} AND status = 1
+  </update>
+
+  <select id="findArticleKeyByCommentId" resultType="java.lang.String">
+    SELECT article_key FROM article_comment WHERE id = #{commentId} AND status = 1
+  </select>
+
+  <update id="markArticleInHistory">
+    UPDATE tech_article
+    SET in_history = 1
+    WHERE article_key = #{articleKey} AND status = 1 AND in_history = 0
+  </update>
 </mapper>
