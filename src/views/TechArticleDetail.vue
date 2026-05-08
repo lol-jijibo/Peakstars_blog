@@ -10,7 +10,6 @@
       <nav class="article-topbar-nav" aria-label="文章导航">
         <button type="button" @click="goArticleList">文章</button>
         <button type="button" @click="scrollToSeries">系列</button>
-        <button type="button" @click="openCategory('frontend')">前端</button>
         <button type="button" @click="openCategory('backend')">后端</button>
       </nav>
 
@@ -63,20 +62,8 @@
         <article ref="articleBodyRef" class="article-body" v-html="articleHtml"></article>
 
         <div class="article-tags">
-          <span v-for="tag in articleTags" :key="tag" class="article-tag"># {{ tag }}</span>
+          <span v-for="tag in articleTags.filter(t => t !== '前端')" :key="tag" class="article-tag"># {{ tag }}</span>
         </div>
-
-        <section class="article-author-card">
-          <div class="article-author-card-header">
-            <div class="article-author-avatar-large">{{ authorAvatarText }}</div>
-            <div>
-              <div class="article-author-card-name">{{ author.name }}</div>
-              <div class="article-author-card-role">{{ author.role }}</div>
-            </div>
-          </div>
-
-          <p>{{ authorIntro }}</p>
-        </section>
 
         <!-- 评论区 -->
         <section class="article-comments">
@@ -524,46 +511,66 @@ function detectLanguage(code) {
   const text = String(code || '').trim()
   if (!text) return 'Plain Text'
 
-  // HTML
-  if (/<\/?[a-z][\s\S]*>/i.test(text) && /<\/\w+>/.test(text)) return 'HTML'
-  // CSS
-  if (/\{[\s\S]*?:[^:]+;[\s\S]*?\}/.test(text) && /@media|@import|@keyframes|#\w+|\.\w+\s*\{/.test(text)) return 'CSS'
-  // SQL
-  if (/^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH)\b/i.test(text)) return 'SQL'
-  // Python
-  if (/^\s*(import |from |def |class |if __name__|print\(|elif |async def )/.test(text) && !/[{;]/.test(text.split('\n')[0])) return 'Python'
-  // Java (not JavaScript)
-  if (/^\s*(package |import java\.|public class |public static void main|System\.out\.)/.test(text)) return 'Java'
-  // Go
-  if (/^\s*(package |func |import \(|func main\(\)|:=|fmt\.Print)/.test(text)) return 'Go'
-  // Rust
-  if (/^\s*(fn |let mut |impl |pub fn |use std::|match |println!)/.test(text)) return 'Rust'
-  // TypeScript
-  if (/(interface\s+\w+|:\s*(string|number|boolean|void|any)\b|<\w+>|as\s+\w+|import type)/.test(text) && /=>|const|let/.test(text)) return 'TypeScript'
-  // JavaScript
-  if (/^\s*(const |let |var |function |import |export |=>|async |await |require\()/.test(text)) return 'JavaScript'
-  // C / C++
-  if (/#include\s*[<"]/.test(text)) return /std::|cout|cin|class\s+\w+\s*\{|template\s*</.test(text) ? 'C++' : 'C'
-  // C#
-  if (/^\s*(using |namespace |public class|Console\.Write|var\s+\w+\s*=)/.test(text)) return 'C#'
-  // PHP
-  if (/<\?php|^\s*\$\w+/.test(text)) return 'PHP'
-  // Ruby
-  if (/^\s*(def |puts |require |module |class |end$|attr_)/.test(text)) return 'Ruby'
-  // Swift
-  if (/^\s*(import |var |let |func |guard |print\(|struct |enum |protocol )/.test(text) && /: /.test(text)) return 'Swift'
-  // Kotlin
-  if (/^\s*(fun |val |var |data class |object |companion|suspend fun)/.test(text)) return 'Kotlin'
-  // Shell
-  if (/^#!\/bin\/(bash|sh|zsh)|^\s*(echo |cd |mkdir |rm |curl |wget |chmod |export )/.test(text)) return 'Shell'
-  // YAML
-  if (/^\s*\w+:\s*$/m.test(text) && /^\s+[\w-]+:/m.test(text) && !/[{;]/.test(text)) return 'YAML'
-  // JSON
+  // HTML: has opening + closing tags or typical HTML structure
+  if (/<\/?[a-z][\w-]*(\s[^>]*)?>/i.test(text) && /<\/\w+>/.test(text) && !/^\s*[{[]/.test(text)) return 'HTML'
+
+  // XML: XML declaration or namespace-prefixed tags
+  if (/^<\?xml/i.test(text) || /xmlns[:=]/i.test(text)) return 'XML'
+
+  // JSON: valid JSON structure
   try { JSON.parse(text); return 'JSON' } catch {}
-  // XML
-  if (/^<\?xml/.test(text)) return 'XML'
-  // Markdown
-  if (/^#{1,6}\s|^\*{3,}$|^\[.*\]\(.*\)/m.test(text)) return 'Markdown'
+
+  // YAML: indented key-value pairs, no braces/semicolons
+  if (/(^|\n)\s*\w[\w.-]*\s*:/m.test(text) && !/[{};]/.test(text) && !/\/\*|\/\/|#include/.test(text)) return 'YAML'
+
+  // Markdown: headings, dividers, or link syntax
+  if (/^#{1,6}\s/m.test(text) || /^\*{3,}$/m.test(text) || /\[.*\]\(.*\)/m.test(text)) return 'Markdown'
+
+  // SQL: typical SQL keywords at line start or inline
+  if (/\b(SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+(TABLE|INDEX|VIEW)|ALTER\s+TABLE|DROP\s+(TABLE|INDEX|VIEW)|WITH\s+RECURSIVE)\b/i.test(text)) return 'SQL'
+
+  // CSS: selectors with braces and colons, or at-rules
+  if (/(@media|@import|@keyframes|@supports|@font-face)\b/.test(text)) return 'CSS'
+  if (/(^|\n)\s*[.#@][\w-]+(\s+[\w-]+)*\s*\{/m.test(text) && /:\s*[^;]+;/.test(text)) return 'CSS'
+
+  // Python: distinctive patterns
+  if (/\bdef\s+\w+\s*\(/.test(text) || /\bimport\s+\w+/.test(text) || /\bfrom\s+\w+\s+import\b/.test(text) || /\bclass\s+\w+\s*[:\(]/.test(text) || /if\s+__name__\s*==\s*['"]__main__['"]/.test(text) || /\bprint\s*\(/.test(text) || /\belif\s+|else:\s*$/.test(text) || /\bself\b/.test(text) && !/[{;}]/.test(text)) return 'Python'
+
+  // Java: distinctive Java-only patterns (check before JavaScript)
+  if (/\bpackage\s+\w/.test(text) || /\bimport\s+(static\s+)?[\w.]+\.\*?\s*;/.test(text) || /\bpublic\s+class\s+\w/.test(text) || /\bpublic\s+static\s+void\s+main\s*\(/.test(text) || /\bSystem\.out\./.test(text) || /\b@Override\b/.test(text) || /\bnew\s+\w+\s*\(/.test(text) && /\b(public|private|protected)\s+(static\s+)?(void|int|String|boolean|long|double|float)/.test(text)) return 'Java'
+
+  // Go
+  if (/\bfunc\s+\w+\s*\(/.test(text) || /\bpackage\s+main\b/.test(text) || /\bimport\s*\(/.test(text) || /:=/.test(text) && /\bfmt\./.test(text) || /\bgo\s+func\b/.test(text) || /\bdefer\s+\w/.test(text) || /\bgo\s+routine\b/i.test(text)) return 'Go'
+
+  // Rust
+  if (/\bfn\s+\w+\s*[<(]/.test(text) || /\blet\s+mut\b/.test(text) || /\bimpl\s+\w/.test(text) || /\bpub\s+fn\b/.test(text) || /\buse\s+std::/.test(text) || /println!\s*\(/.test(text) || /\/\/!|#!\[/.test(text) || /\bstruct\s+\w+\s*\{/.test(text) && /\bpub\b/.test(text)) return 'Rust'
+
+  // C#: namespace/using + typical C# patterns
+  if (/\busing\s+System\b/.test(text) || /\bnamespace\s+\w/.test(text) || /\bConsole\.Write(Line)?\s*\(/.test(text) || /\bvar\s+\w+\s*=\s*new\s+\w+/.test(text) || /\b(public|private|protected|internal)\s+(class|interface|enum)\s+\w/.test(text)) return 'C#'
+
+  // Kotlin
+  if (/\b(fun|val)\s+\w+\s*[{(:]/.test(text) || /\bdata\s+class\b/.test(text) || /\bcompanion\s+object\b/.test(text) || /\bsuspend\s+fun\b/.test(text) || /\bby\s+lazy\b/.test(text) || /\b::class\./.test(text)) return 'Kotlin'
+
+  // Swift
+  if (/\b(func|var|let)\s+\w+\s*[{(:]/.test(text) && /:\s*(String|Int|Bool|Double|Float|\[.*\]|\(.*\))\b/.test(text) || /\bimport\s+Foundation\b/.test(text) || /\b@IBAction\b|\b@IBOutlet\b|\b@State\b|\b@Binding\b|\b@ObservedObject\b/.test(text)) return 'Swift'
+
+  // PHP
+  if (/<\?php/i.test(text) || /\$\w+\s*=\s*/.test(text) || /\$\w+->/.test(text) || /\bnamespace\s+\w/.test(text) && /\$\w+/.test(text)) return 'PHP'
+
+  // Ruby
+  if (/\bdef\s+\w+\s*$/.test(text) || /\bputs\s+/.test(text) || /\brequire\s+['"]/.test(text) || /\bclass\s+\w+\s*<\s*\w/.test(text) || /\battr_(accessor|reader|writer)\b/.test(text) || /\bdo\s*\|/.test(text) && /\bend\b/.test(text)) return 'Ruby'
+
+  // TypeScript: type annotations (check before JavaScript)
+  if (/\binterface\s+\w+\s*\{/.test(text) || /\btype\s+\w+\s*=\s*/.test(text) || /:\s*(string|number|boolean|void|any|never|unknown|Promise)\b/.test(text) || /\benum\s+\w+\s*\{/.test(text) || /\bas\s+\w+/.test(text) && /(const|let|var|function|=>)/.test(text) || /<[A-Z]\w*>/.test(text) && /(const|let|var|function|import|export)/.test(text)) return 'TypeScript'
+
+  // C / C++
+  if (/#include\s*[<"]/.test(text)) return /\b(std::|cout|cin|class\s+\w+\s*\{|template\s*<|vector\s*<|unique_ptr|shared_ptr)\b/.test(text) ? 'C++' : 'C'
+
+  // Shell: shebang or common shell commands
+  if (/^#!\/(bin|usr\/bin)\/(bash|sh|zsh|env)/m.test(text) || /\b(echo|cd|mkdir|rm|curl|wget|chmod|export|grep|sed|awk|npm|yarn|pnpm|git\s+clone)\s+/m.test(text) || /\$\{[A-Z_]+\}/.test(text)) return 'Shell'
+
+  // JavaScript: common JS patterns (check after language-specific ones)
+  if (/\b(const|let|var)\s+\w+\s*=/.test(text) || /\bfunction\s+\w+\s*\(/.test(text) || /\bimport\s+.*\s+from\s+['"]/.test(text) || /\bexport\s+(default|const|function|class)\b/.test(text) || /\bconsole\.log\b/.test(text) || /\bdocument\./.test(text) || /\bwindow\./.test(text) || /\brequire\s*\(/.test(text) || /\baddEventListener\b/.test(text) || /\bnew\s+Promise\b/.test(text) || /\bsetTimeout\b|\bsetInterval\b/.test(text)) return 'JavaScript'
 
   return 'Plain Text'
 }

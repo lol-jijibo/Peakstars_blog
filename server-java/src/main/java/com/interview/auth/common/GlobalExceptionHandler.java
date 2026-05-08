@@ -3,10 +3,12 @@ package com.interview.auth.common;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 统一接住控制器层抛出的业务异常、参数异常和系统异常，保证前端始终拿到标准响应结构。
@@ -43,6 +45,15 @@ public class GlobalExceptionHandler {
             exception.getMessage()
         );
         return ApiResponse.fail(400, "请求参数不合法");
+    }
+
+    /**
+     * 静态资源找不到时降级为 DEBUG 日志，避免封面图片等缺失时频繁刷屏 ERROR。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Void> handleNoResourceFoundException(NoResourceFoundException exception) {
+        log.debug("Static resource not found: {}", exception.getMessage());
+        return ResponseEntity.status(404).build();
     }
 
     /**

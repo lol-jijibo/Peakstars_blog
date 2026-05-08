@@ -355,12 +355,25 @@ async function ensureEditorRuntime() {
               }
             }, true)
 
+            // 监听代码块粘贴事件，自动检测语言
+            editorEl.addEventListener('paste', (e) => {
+              setTimeout(() => {
+                const codeEl = document.activeElement?.closest('.ProseMirror pre code')
+                if (!codeEl) return
+                const wrapper = codeEl.closest('.aie-codeblock-wrapper')
+                if (wrapper) {
+                  autoDetectAndSetLanguage(wrapper)
+                }
+              }, 150)
+            }, true)
+
             // 为每个代码块注入"复制代码"按钮
             injectCopyButtons(editorEl)
 
             // 观察 DOM 变化，新代码块插入时自动注入复制按钮
             // 使用防抖 + 临时断开 observer 避免注入按钮时触发无限循环
             let observerTimer = null
+            let autoDetectTimer = null
             const proseMirror = editorEl.querySelector('.ProseMirror')
             if (proseMirror) {
               const observer = new MutationObserver(() => {
@@ -371,12 +384,115 @@ async function ensureEditorRuntime() {
                   observerTimer = null
                   observer.observe(proseMirror, { childList: true, subtree: true })
                 }, 200)
+
+                // 延迟自动检测语言（在按钮注入之后）
+                if (autoDetectTimer) clearTimeout(autoDetectTimer)
+                autoDetectTimer = setTimeout(() => {
+                  autoDetectAll(editorEl)
+                }, 1000)
               })
               observer.observe(proseMirror, { childList: true, subtree: true })
             }
           }, 500)
         },
       })
+
+      /**
+       * 根据代码内容自动检测编程语言
+       */
+      function detectCodeLanguage(code) {
+        const text = String(code || '').trim()
+        if (!text) return null
+
+        if (/<\/?[a-z][\w-]*(\s[^>]*)?>/i.test(text) && /<\/\w+>/.test(text) && !/^\s*[{[]/.test(text)) return 'HTML'
+        if (/^<\?xml/i.test(text) || /xmlns[:=]/i.test(text)) return 'XML'
+        try { JSON.parse(text); return 'JSON' } catch {}
+        if (/(^|\n)\s*\w[\w.-]*\s*:/m.test(text) && !/[{};]/.test(text) && !/\/\*|\/\/|#include/.test(text)) return 'YAML'
+        if (/^#{1,6}\s/m.test(text) || /^\*{3,}$/m.test(text) || /\[.*\]\(.*\)/m.test(text)) return 'Markdown'
+        if (/\b(SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+(TABLE|INDEX|VIEW)|ALTER\s+TABLE)\b/i.test(text)) return 'SQL'
+        if (/(@media|@import|@keyframes|@supports|@font-face)\b/.test(text)) return 'CSS'
+        if (/(^|\n)\s*[.#@][\w-]+(\s+[\w-]+)*\s*\{/m.test(text) && /:\s*[^;]+;/.test(text)) return 'CSS'
+        if (/\bdef\s+\w+\s*\(/.test(text) || /\bimport\s+\w+/.test(text) || /\bfrom\s+\w+\s+import\b/.test(text) || /\belif\s+|else:\s*$/m.test(text) || /\bprint\s*\(/.test(text) && !/[{;}]/.test(text)) return 'Python'
+        if (/\bpackage\s+\w/.test(text) || /\bimport\s+(static\s+)?[\w.]+\.\*?\s*;/.test(text) || /\bpublic\s+static\s+void\s+main\s*\(/.test(text) || /\bSystem\.out\./.test(text) || /\b@Override\b/.test(text)) return 'Java'
+        if (/\bfunc\s+\w+\s*\(/.test(text) || /\bpackage\s+main\b/.test(text) || /:=/.test(text) && /\bfmt\./.test(text) || /\bgo\s+func\b/.test(text) || /\bdefer\s+\w/.test(text)) return 'Go'
+        if (/\bfn\s+\w+\s*[<(]/.test(text) || /\blet\s+mut\b/.test(text) || /\bimpl\s+\w/.test(text) || /\bpub\s+fn\b/.test(text) || /println!\s*\(/.test(text)) return 'Rust'
+        if (/\busing\s+System\b/.test(text) || /\bnamespace\s+\w/.test(text) || /\bConsole\.Write(Line)?\s*\(/.test(text) || /\bvar\s+\w+\s*=\s*new\s+\w+/.test(text)) return 'C#'
+        if (/<\?php/i.test(text) || /\$\w+\s*=\s*/.test(text) || /\$\w+->/.test(text)) return 'PHP'
+        if (/\binterface\s+\w+\s*\{/.test(text) || /\btype\s+\w+\s*=\s*/.test(text) || /:\s*(string|number|boolean|void|any|never|Promise)\b/.test(text) || /\benum\s+\w+\s*\{/.test(text)) return 'TypeScript'
+        if (/#include\s*[<"]/.test(text)) return /\b(std::|cout|cin|class\s+\w+\s*\{|template\s*<|vector\s*<|unique_ptr)\b/.test(text) ? 'C++' : 'C'
+        if (/^#!\/(bin|usr\/bin)\/(bash|sh|zsh|env)/m.test(text) || /\b(echo|cd|mkdir|rm|curl|wget|chmod|grep|sed|awk|npm|yarn|pnpm)\s+/m.test(text) || /\$\{[A-Z_]+\}/.test(text)) return 'Shell'
+        if (/\b(const|let|var)\s+\w+\s*=/.test(text) || /\bfunction\s+\w+\s*\(/.test(text) || /\bimport\s+.*\s+from\s+['"]/.test(text) || /\bexport\s+(default|const|function|class)\b/.test(text) || /\bconsole\.log\b/.test(text) || /\bdocument\./.test(text) || /\bwindow\./.test(text) || /\brequire\s*\(/.test(text) || /\baddEventListener\b/.test(text) || /\bnew\s+Promise\b/.test(text) || /\bsetTimeout\b|\bsetInterval\b/.test(text)) return 'JavaScript'
+
+        return null
+      }
+
+      /**
+       * 尝试为代码块自动设置检测到的编程语言
+       */
+      function autoDetectAndSetLanguage(wrapper) {
+        const codeEl = wrapper.querySelector('pre code') || wrapper.querySelector('pre')
+        if (!codeEl) return
+        const text = codeEl.textContent || ''
+        if (text.trim().length < 3) return
+
+        const langTool = wrapper.querySelector('.aie-codeblock-tools-lang')
+        if (!langTool) return
+
+        const select = langTool.querySelector('select')
+        if (select) {
+          const currentValue = (select.value || '').toLowerCase().trim()
+          if (currentValue && currentValue !== 'plain text' && currentValue !== 'plaintext' && currentValue !== 'text' && currentValue !== 'tx' && currentValue !== 'auto' && currentValue !== '') {
+            return
+          }
+        } else {
+          const currentText = (langTool.textContent || '').toLowerCase().trim()
+          if (currentText && !/plain\s*text|text|tx|plain/i.test(currentText)) {
+            return
+          }
+        }
+
+        const detectedLang = detectCodeLanguage(text)
+        if (!detectedLang || detectedLang === 'Plain Text') return
+
+        if (select) {
+          const detectedLower = detectedLang.toLowerCase()
+          const options = Array.from(select.options)
+          const matchByValue = options.find((opt) => (opt.value || '').toLowerCase() === detectedLower)
+          const matchByText = options.find((opt) => (opt.textContent || '').toLowerCase().trim() === detectedLower)
+          const matchByPartial = options.find((opt) => {
+            const v = (opt.value || '').toLowerCase()
+            const t = (opt.textContent || '').toLowerCase().trim()
+            return v.includes(detectedLower) || detectedLower.includes(v) || t.includes(detectedLower) || detectedLower.includes(t)
+          })
+          const match = matchByValue || matchByText || matchByPartial
+          if (match) {
+            select.value = match.value
+            select.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        } else {
+          const options = langTool.querySelectorAll('[data-language], [data-lang], [data-value], option, button')
+          const detectedLower = detectedLang.toLowerCase()
+          for (const opt of options) {
+            const langValue = (opt.dataset?.language || opt.dataset?.lang || opt.dataset?.value || opt.value || opt.textContent || '').toLowerCase().trim()
+            if (langValue === detectedLower || langValue.includes(detectedLower) || detectedLower.includes(langValue)) {
+              opt.click()
+              return
+            }
+          }
+          langTool.click()
+          setTimeout(() => {
+            const dropdownOptions = document.querySelectorAll('.aie-dropdown-item, .aie-codeblock-tools-lang-list [data-language], .aie-codeblock-lang-item, [data-lang]')
+            for (const opt of dropdownOptions) {
+              const langValue = (opt.dataset?.language || opt.dataset?.lang || opt.dataset?.value || opt.textContent || '').toLowerCase().trim()
+              if (langValue === detectedLower || langValue.includes(detectedLower) || detectedLower.includes(langValue)) {
+                opt.click()
+                return
+              }
+            }
+            langTool.click()
+          }, 100)
+        }
+      }
 
       /**
        * 为所有代码块工具栏注入"复制代码"按钮
@@ -429,6 +545,19 @@ async function ensureEditorRuntime() {
           } else {
             toolsBar.appendChild(copyBtn)
           }
+
+          // 自动检测代码块语言
+          autoDetectAndSetLanguage(wrapper)
+        })
+      }
+
+      /**
+       * 自动检测所有代码块的语言
+       */
+      function autoDetectAll(container) {
+        const wrappers = container.querySelectorAll('.aie-codeblock-wrapper')
+        wrappers.forEach((wrapper) => {
+          autoDetectAndSetLanguage(wrapper)
         })
       }
     })

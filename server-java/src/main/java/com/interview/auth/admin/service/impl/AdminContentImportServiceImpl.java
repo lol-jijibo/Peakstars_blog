@@ -230,11 +230,11 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
      * 将项目 public 目录下的相对路径资源迁移到 MinIO，实现封面图和正文图片的统一对象存储管理。
      */
     private AssetMigrationResult migrateLocalAsset(
-        String contentType,
-        String localPath,
-        String assetType,
-        ContentStorageService storageService,
-        String originalUrl
+        String contentType, // 内容类型
+        String localPath, // 本地静态资源路径
+        String assetType, // 资产类型
+        ContentStorageService storageService, // 对象存储服务实例
+        String originalUrl // 原始资源 URL
     ) throws Exception {
         String staticDir = contentImportProperties.getLocalStaticDir();
         Path filePath = Paths.get(staticDir, localPath).normalize();

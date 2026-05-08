@@ -684,11 +684,15 @@ function detectLanguage(code, sourceLanguage) {
     return 'typescript'
   }
 
-  if (/\b(public|private|protected|class|interface|implements|extends|System\.out|new\s+[A-Z][\w$]*\(|@Override)\b/.test(content)) {
+  if (/\b(package\s+\w|import\s+(static\s+)?[\w.]+\.\*?\s*;|System\.out|@Override|public\s+static\s+void\s+main)\b/.test(content)) {
     return 'java'
   }
 
-  if (/\b(const|let|var|function|=>|import\s+.+from|export\s+default|console\.log|document\.|window\.)\b/.test(content)) {
+  if (/\b(public|private|protected|class|interface|implements|extends|new\s+[A-Z][\w$]*\()\b/.test(content)) {
+    return 'java'
+  }
+
+  if (/\b(const|let|var|function|=>|import\s+.+from|export\s+default|console\.log|document\.|window\.|addEventListener|Promise\b|async\b|await\b)\b/.test(content)) {
     return 'javascript'
   }
 

@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "app.content-import")
 public class ContentImportProperties {
-
+    // 是否启用内容导入功能
     private boolean enabled = true;
     private boolean migrateAssets = true;
     private boolean strictAssetMigration = false;
@@ -25,6 +25,7 @@ public class ContentImportProperties {
         "image/webp",
         "image/svg+xml"
     );
+    // 允许的附件内容类型
     private List<String> allowedAttachmentContentTypes = List.of(
         "application/pdf",
         "application/zip",
@@ -37,6 +38,7 @@ public class ContentImportProperties {
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "text/plain"
     );
+    // 允许的附件扩展名
     private List<String> attachmentExtensions = List.of(
         "pdf",
         "zip",
