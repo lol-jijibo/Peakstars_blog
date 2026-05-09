@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "app.storage.minio", name = "enabled", havingValue = "true")
 public class MinioContentStorageService implements ContentStorageService {
+
+    @Value("${app.storage.proxy.base-url:/uploads}")
+    private String proxyBaseUrl;
 
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
@@ -99,8 +103,10 @@ public class MinioContentStorageService implements ContentStorageService {
         String normalizedUrl = resourceUrl.trim().toLowerCase(Locale.ROOT);
         String publicBaseUrl = normalizeBaseUrl(minioProperties.getPublicBaseUrl());
         String endpoint = normalizeBaseUrl(minioProperties.getEndpoint());
+        String proxyUrl = normalizeBaseUrl(proxyBaseUrl);
         return (!publicBaseUrl.isBlank() && normalizedUrl.startsWith(publicBaseUrl.toLowerCase(Locale.ROOT)))
-            || (!endpoint.isBlank() && normalizedUrl.startsWith(endpoint.toLowerCase(Locale.ROOT)));
+            || (!endpoint.isBlank() && normalizedUrl.startsWith(endpoint.toLowerCase(Locale.ROOT)))
+            || (!proxyUrl.isBlank() && normalizedUrl.startsWith(proxyUrl.toLowerCase(Locale.ROOT)));
     }
 
     /**
@@ -127,11 +133,7 @@ public class MinioContentStorageService implements ContentStorageService {
      * 优先使用显式配置的静态域名，未配置时退回 MinIO 服务地址以保证导入预览仍可访问。
      */
     private String buildPublicUrl(String objectName) {
-        String baseUrl = normalizeBaseUrl(minioProperties.getPublicBaseUrl());
-        if (baseUrl.isBlank()) {
-            baseUrl = normalizeBaseUrl(minioProperties.getEndpoint());
-        }
-        return baseUrl + "/" + minioProperties.getBucket() + "/" + objectName;
+        return normalizeBaseUrl(proxyBaseUrl) + "/" + objectName;
     }
 
     /**

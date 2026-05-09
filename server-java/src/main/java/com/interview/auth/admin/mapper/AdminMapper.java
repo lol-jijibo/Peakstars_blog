@@ -3,6 +3,7 @@ package com.interview.auth.admin.mapper;
 import com.interview.auth.admin.entity.ContentDraft;
 import com.interview.auth.admin.entity.ContentEditLog;
 import com.interview.auth.domain.entity.AiHotspot;
+import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
@@ -60,6 +61,10 @@ public interface AdminMapper {
     Integer sumInterviewViews();
 
     List<Interview> findAllInterviews();
+
+    Category findCategoryById(@Param("categoryId") Long categoryId);
+
+    Category findCategoryByCode(@Param("categoryCode") String categoryCode);
 
     int saveInterview(Interview interview);
 

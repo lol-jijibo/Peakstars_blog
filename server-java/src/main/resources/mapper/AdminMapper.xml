@@ -97,6 +97,7 @@
     <result column="author" property="author"/>
     <result column="summary" property="summary"/>
     <result column="content" property="content"/>
+    <result column="cover_url" property="coverUrl"/>
     <result column="views" property="views"/>
     <result column="likes" property="likes"/>
     <result column="collects" property="collects"/>
@@ -405,12 +406,26 @@
     ORDER BY publish_date DESC, created_at DESC
   </select>
 
+  <select id="findCategoryById" resultType="com.interview.auth.domain.entity.Category">
+    SELECT id, code, name, sort_order
+    FROM category
+    WHERE id = #{categoryId}
+    LIMIT 1
+  </select>
+
+  <select id="findCategoryByCode" resultType="com.interview.auth.domain.entity.Category">
+    SELECT id, code, name, sort_order
+    FROM category
+    WHERE code = #{categoryCode}
+    LIMIT 1
+  </select>
+
   <insert id="saveInterview" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO interview (
-      id, company_id, category_id, title, author, summary, content,
+      id, company_id, category_id, title, author, summary, content, cover_url,
       views, likes, collects, publish_date, difficulty, tag_list, status
     ) VALUES (
-      #{id}, #{companyId}, #{categoryId}, #{title}, #{author}, #{summary}, #{content},
+      #{id}, #{companyId}, #{categoryId}, #{title}, #{author}, #{summary}, #{content}, #{coverUrl},
       #{views}, #{likes}, #{collects}, #{publishDate}, #{difficulty}, #{tagList}, #{status}
     )
     ON DUPLICATE KEY UPDATE
@@ -420,6 +435,7 @@
       author = VALUES(author),
       summary = VALUES(summary),
       content = VALUES(content),
+      cover_url = VALUES(cover_url),
       views = VALUES(views),
       likes = VALUES(likes),
       collects = VALUES(collects),

@@ -119,4 +119,17 @@ public interface AdminService {
      * @throws Exception 上传或存储异常
      */
     String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
+
+    /**
+     * 业务目的：给后台富文本正文图片提供独立上传能力，保证文章插图统一沉淀到对象存储。
+     * 业务逻辑：复用统一内容存储服务，将正文图片写入富文本目录并返回可直接嵌入 HTML 的地址。
+     *
+     * @param fileName 原始文件名
+     * @param inputStream 文件输入流
+     * @param size 文件字节大小
+     * @param contentType 文件 MIME 类型
+     * @return 上传后的正文图片 URL
+     * @throws Exception 上传或存储异常
+     */
+    String uploadRichTextImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
 }

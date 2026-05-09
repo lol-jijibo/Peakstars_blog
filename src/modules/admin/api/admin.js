@@ -38,6 +38,27 @@ export async function uploadCoverImage(file) {
   return payload.data
 }
 
+/**
+ * 业务目的：让后台富文本正文图片和封面图一样统一上传到 MinIO。
+ * 业务逻辑：正文图片单独走 multipart 上传接口，成功后直接返回可回填到编辑器的图片地址。
+ */
+export async function uploadRichTextImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${BASE_URL}/api/admin/upload/rich-text-image`, {
+    method: 'POST',
+    body: formData
+  })
+
+  const payload = await response.json()
+  if (!response.ok || payload.code !== 0) {
+    throw new Error(payload.message || '正文图片上传失败')
+  }
+
+  return payload.data
+}
+
 export function sendAdminHeartbeat(clientId) {
   return request('/api/admin/heartbeat', {
     method: 'POST',

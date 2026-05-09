@@ -6,10 +6,9 @@
     <!-- 标题 -->
     <h3 class="int-card-title">{{ data.title }}</h3>
 
-    <!-- 难度 + 题数 -->
+    <!-- 难度 -->
     <div class="int-card-meta">
       <span class="int-card-diff" :class="diffClass">{{ diffLabel }}</span>
-      <span class="int-card-count">{{ questionCount }} 题</span>
     </div>
 
     <!-- 进度条 -->
@@ -62,8 +61,6 @@ const diffLabel = computed(() => {
   if (diff.includes('中')) return '中等'
   return '基础'
 })
-
-const questionCount = computed(() => props.data.questionCount || props.data.relatedCount || Math.floor(Math.random() * 8) + 3)
 
 const progressPercent = computed(() => {
   if (props.data.mastery) return Math.min(props.data.mastery, 100)

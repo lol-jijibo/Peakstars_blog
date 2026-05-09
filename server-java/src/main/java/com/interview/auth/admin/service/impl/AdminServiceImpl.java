@@ -20,6 +20,7 @@ import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.BusinessException;
 import com.interview.auth.domain.entity.AiHotspot;
+import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
@@ -581,6 +582,7 @@ public class AdminServiceImpl implements AdminService {
         response.setCategory(resolveInterviewCategoryLabel(interview.getCategoryId()));
         response.setSummary(interview.getSummary());
         response.setAuthorName(interview.getAuthor());
+        response.setCoverUrl(defaultString(interview.getCoverUrl(), ""));
         response.setContentHtml(interview.getContent());
         response.setPublishedAt(formatPublishDate(interview.getPublishDate()));
         response.setViewCount(safeInt(interview.getViews()));
@@ -597,13 +599,15 @@ public class AdminServiceImpl implements AdminService {
      */
     private AdminContentRecordResponse saveInterview(String interviewKey, AdminContentUpsertRequest request) {
         Interview interview = new Interview();
+        Category category = requireInterviewCategory(request.getCategory());
         interview.setId(parseInterviewId(interviewKey));
         interview.setCompanyId(parseCompanyId(request.getCategory()));
-        interview.setCategoryId(parseCategoryId(request.getCategory()));
+        interview.setCategoryId(category.getId());
         interview.setTitle(requireTitle(request.getTitle()));
         interview.setAuthor(defaultString(request.getAuthorName(), "后台编辑"));
         interview.setSummary(defaultString(request.getSummary(), ""));
         interview.setContent(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary())));
+        interview.setCoverUrl(defaultString(request.getCoverUrl(), ""));
         interview.setViews(safeInt(request.getViewCount()));
         interview.setLikes(safeInt(request.getLikeCount()));
         interview.setCollects(safeInt(request.getCollectCount()));
@@ -612,7 +616,9 @@ public class AdminServiceImpl implements AdminService {
         interview.setTagList(joinPipeValues(request.getTags()));
         interview.setStatus(1);
         adminMapper.saveInterview(interview);
-        return toInterviewAdminRecord(interview);
+        AdminContentRecordResponse response = toInterviewAdminRecord(interview);
+        response.setCategory(category.getName());
+        return response;
     }
 
     /**
@@ -633,18 +639,13 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 辅助将面经分类 ID 映射为可读标签。
-     * 根据 category_id 返回前端表格所需分类名，不依赖额外 JOIN。
+     * 把面经分类主键还原成后台可读分类名称。
+     * 根据 category_id 回查分类表名称，避免不同环境主键不一致时后台回显错误标签。
      */
     private String resolveInterviewCategoryLabel(Long categoryId) {
         if (categoryId == null) return "综合";
-        return switch (categoryId.intValue()) {
-            case 2 -> "前端";
-            case 3 -> "Java";
-            case 4 -> "Agent开发";
-            case 5 -> "大模型原理";
-            default -> "综合";
-        };
+        Category category = adminMapper.findCategoryById(categoryId);
+        return category == null ? "综合" : defaultString(category.getName(), "综合");
     }
 
     /**
@@ -667,16 +668,32 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 根据分类文本映射分类 ID，1=全部 2=前端 3=Java 4=Agent开发 5=大模型原理。
+     * 根据后台面经分类编码查询真实分类记录。
+     * 统一兼容中英文分类值并按 category.code 查库，避免依赖固定主键导致外键保存失败。
      */
-    private Long parseCategoryId(String category) {
-        if (category == null) return 1L;
+    private Category requireInterviewCategory(String category) {
+        String normalizedCategoryCode = normalizeInterviewCategoryCode(category);
+        Category resolvedCategory = adminMapper.findCategoryByCode(normalizedCategoryCode);
+        if (resolvedCategory == null) {
+            throw new BusinessException(400, "面经分类不存在，请先检查分类配置");
+        }
+        return resolvedCategory;
+    }
+
+    /**
+     * 标准化后台面经分类入参。
+     * 把中文标签与前端编码收敛成统一 code，确保保存和回显都走同一套分类口径。
+     */
+    private String normalizeInterviewCategoryCode(String category) {
+        if (category == null || category.isBlank()) {
+            return "frontend";
+        }
         return switch (category.trim().toLowerCase()) {
-            case "frontend" -> 2L;
-            case "java" -> 3L;
-            case "agent" -> 4L;
-            case "llm" -> 5L;
-            default -> 1L;
+            case "前端", "frontend" -> "frontend";
+            case "java", "java 后端" -> "java";
+            case "agent开发", "agent" -> "agent";
+            case "大模型原理", "llm" -> "llm";
+            default -> category.trim().toLowerCase();
         };
     }
 
@@ -1161,6 +1178,15 @@ public class AdminServiceImpl implements AdminService {
     @Override
     public String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
         return contentStorageService.upload("cover", fileName, inputStream, size, contentType);
+    }
+
+    /**
+     * 将后台富文本正文图片按正文资源目录沉淀到对象存储。
+     * 复用统一内容存储服务，使用独立正文前缀区分封面图与正文插图。
+     */
+    @Override
+    public String uploadRichTextImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
+        return contentStorageService.upload("rich-text", fileName, inputStream, size, contentType);
     }
 
     private record DashboardSnapshot(

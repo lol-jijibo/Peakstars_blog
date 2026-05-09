@@ -20,6 +20,7 @@ public class Interview {
     private String author;
     private String summary;
     private String content;
+    private String coverUrl;
     private Integer views;
     private Integer likes;
     private Integer collects;

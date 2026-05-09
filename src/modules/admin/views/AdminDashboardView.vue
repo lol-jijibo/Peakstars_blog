@@ -489,7 +489,7 @@
             <input v-model.trim="draftForm.authorName" class="form-input" type="text" placeholder="请输入作者…" />
           </div>
 
-          <div class="form-group">
+          <div v-if="supportsCoverUpload" class="form-group">
             <label class="form-label">封面图片</label>
             <div class="cover-upload-area">
               <input
@@ -513,6 +513,10 @@
               </div>
             </div>
             <input v-model.trim="draftForm.coverUrl" class="form-input form-input--cover-url" type="text" placeholder="或手动输入封面地址…" />
+          </div>
+          <div v-else class="form-group">
+            <label class="form-label">封面说明</label>
+            <div class="form-input-placeholder">{{ coverFieldNotice }}</div>
           </div>
         </div>
 
@@ -778,6 +782,24 @@ const summary = computed(() => currentSummary.value || {
 })
 
 const activeModule = computed(() => moduleOptions.value.find((item) => item.key === currentType.value) || moduleOptions.value[0])
+/**
+ * 只在后端具备封面持久化能力的模块中展示封面上传入口。
+ * 面经与期刊当前没有对应封面字段写库链路，前端需要主动收口避免出现“保存成功但回显丢失”的假象。
+ */
+const supportsCoverUpload = computed(() => ['tech', 'ai'].includes(currentType.value))
+/**
+ * 给暂不支持封面持久化的模块展示明确提示文案。
+ * 直接在表单里说明能力边界，减少运营同学反复保存后误以为系统写库失败。
+ */
+const coverFieldNotice = computed(() => {
+  if (currentType.value === 'interview') {
+    return '面经模块当前只支持正文内容展示，暂不支持单独封面图持久化。'
+  }
+  if (currentType.value === 'world') {
+    return '期刊模块当前使用封面文案组合展示，暂不支持单独封面图持久化。'
+  }
+  return '当前模块支持封面图上传与保存。'
+})
 const currentRecords = computed(() => adminStore.getContentList(currentType.value))
 const pageTitle = computed(() => {
   if (isStatsPage.value) {

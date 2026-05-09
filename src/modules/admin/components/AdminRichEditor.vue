@@ -5,6 +5,9 @@
       <span>支持标题、字号、加粗、列表、引用、图片、表格、代码块和全屏编辑</span>
     </div>
     <div ref="editorRef" class="admin-rich-editor-shell" :class="{ 'no-ai': !aiEnabled }"></div>
+    <p v-if="uploadErrorMessage" class="admin-rich-editor-error">
+      {{ uploadErrorMessage }}
+    </p>
     <p class="admin-rich-editor-tip">
       {{ aiEnabled ? 'AI 已启用，选中文本后可在气泡菜单中调用润色、续写和改写。' : '当前未配置 AI Key，富文本排版能力可正常使用；补齐配置后会自动启用 AI 辅助写作。' }}
     </p>
@@ -24,6 +27,7 @@
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { uploadRichTextImage } from '@/modules/admin/api/admin'
 
 const props = defineProps({
   modelValue: {
@@ -40,7 +44,9 @@ const emit = defineEmits(['update:modelValue'])
 const editorRef = ref(null)
 const aiEnabled = Boolean(import.meta.env.VITE_ADMIN_AI_MODEL && import.meta.env.VITE_ADMIN_AI_API_KEY)
 const showCopyToast = ref(false)
+const uploadErrorMessage = ref('')
 let copyToastTimer = null
+let uploadErrorTimer = null
 let editorInstance = null
 let editorConstructor = null
 let editorRuntimePromise = null
@@ -98,9 +104,18 @@ async function initEditor() {
       removeEmptyParagraphs: true
     },
     image: {
-      allowBase64: true,
+      allowBase64: false,
       defaultSize: 640,
-      bubbleMenuEnable: true
+      bubbleMenuEnable: true,
+      uploader: uploadEditorImageToMinio,
+      uploaderEvent: {
+        onFailed(file, response) {
+          showUploadError((response && response.message) || `图片上传失败：${file.name}`)
+        },
+        onError(file, error) {
+          showUploadError(error?.message || `图片上传失败：${file.name}`)
+        }
+      }
     },
     textSelectionBubbleMenu: {
       enable: true,
@@ -162,6 +177,33 @@ function buildAiConfig() {
       }
     }
   }
+}
+
+/**
+ * 业务目的：把后台正文图片统一托管到 MinIO，避免富文本保存时混入本地 base64 图片。
+ * 业务逻辑：接管编辑器默认图片上传行为，调用后台正文图片接口并按 AiEditor 约定返回 src。
+ */
+async function uploadEditorImageToMinio(file) {
+  const result = await uploadRichTextImage(file)
+  return {
+    errorCode: 0,
+    data: {
+      src: result.url,
+      alt: file.name
+    }
+  }
+}
+
+/**
+ * 业务目的：在正文图片上传失败时给运营同学明确反馈，避免出现“闪一下就没了”的黑盒体验。
+ * 业务逻辑：统一展示上传失败文案并自动消失，方便快速判断是接口异常还是图片本身问题。
+ */
+function showUploadError(message) {
+  uploadErrorMessage.value = message || '图片上传失败'
+  if (uploadErrorTimer) clearTimeout(uploadErrorTimer)
+  uploadErrorTimer = setTimeout(() => {
+    uploadErrorMessage.value = ''
+  }, 2600)
 }
 
 const editorToolbarKeys = [
@@ -232,6 +274,7 @@ onBeforeUnmount(() => {
   editorInstance?.destroy()
   editorInstance = null
   if (copyToastTimer) clearTimeout(copyToastTimer)
+  if (uploadErrorTimer) clearTimeout(uploadErrorTimer)
 })
 
 /**
@@ -825,5 +868,11 @@ async function ensureEditorRuntime() {
   margin: 0;
   font-size: 12px;
   color: #64748b;
+}
+
+.admin-rich-editor-error {
+  margin: -2px 0 0;
+  font-size: 12px;
+  color: #dc2626;
 }
 </style>

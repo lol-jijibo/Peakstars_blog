@@ -95,6 +95,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
         }
 
         Document sanitizedDocument = new Cleaner(buildSafelist()).clean(rawDocument);
+        restoreRelativeImageSources(rawDocument, sanitizedDocument);
         removeEmptyNodes(sanitizedDocument);
         response.setNormalizedHtml(sanitizedDocument.body().html());
         response.setPlainText(sanitizedDocument.text());
@@ -426,6 +427,36 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
         }
         safelist.preserveRelativeLinks(true);
         return safelist;
+    }
+
+    /**
+     * 保留后台正文里统一代理的站内图片地址。
+     * 在清洗完成后按节点顺序回填受信任的相对图片路径，避免 /uploads 资源被白名单协议规则清掉。
+     */
+    private void restoreRelativeImageSources(Document rawDocument, Document sanitizedDocument) {
+        List<Element> rawImages = rawDocument.select("img");
+        List<Element> sanitizedImages = sanitizedDocument.select("img");
+        int imageCount = Math.min(rawImages.size(), sanitizedImages.size());
+        for (int index = 0; index < imageCount; index++) {
+            Element rawImage = rawImages.get(index);
+            Element sanitizedImage = sanitizedImages.get(index);
+            String rawSrc = rawImage.attr("src");
+            if (!sanitizedImage.hasAttr("src") && isTrustedRelativeAssetUrl(rawSrc)) {
+                sanitizedImage.attr("src", rawSrc);
+            }
+        }
+    }
+
+    /**
+     * 限制只回填后台自有静态代理资源。
+     * 当前仅信任站内相对资源地址，其余未知相对路径继续交给清洗规则拦截。
+     */
+    private boolean isTrustedRelativeAssetUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+        String normalizedUrl = url.trim();
+        return normalizedUrl.startsWith("/uploads/") || normalizedUrl.startsWith("/");
     }
 
     /**
