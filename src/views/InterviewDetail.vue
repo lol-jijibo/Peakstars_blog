@@ -6,8 +6,8 @@
       <button @click="$router.push('/interview')" class="detail-error-btn">返回题库列表</button>
     </div>
 
-    <div v-else-if="interview" class="detail-shell">
-      <aside class="detail-left">
+    <div v-else-if="interview" class="detail-shell" :class="{ 'detail-shell--left-collapsed': isLeftPanelCollapsed }">
+      <aside class="detail-left" :class="{ 'is-collapsed': isLeftPanelCollapsed }">
         <div class="detail-left-head">
           <div class="detail-left-title-row">
             <span class="detail-left-menu">☰</span>
@@ -54,6 +54,11 @@
             >
               {{ tag }}
             </span>
+          </div>
+
+          <div v-if="interview.date" class="detail-publish-time">
+            <span class="detail-publish-label">发布时间</span>
+            <span class="detail-publish-value">{{ interview.date }}</span>
           </div>
 
           <div class="detail-meta-row">
@@ -158,6 +163,7 @@ const activeOutlineId = ref('')
 const outlineItems = ref([])
 const relatedArticles = ref([])
 const questionKeyword = ref('')
+const isLeftPanelCollapsed = ref(false)
 const detailContentRef = ref(null)
 const detailPageClass = 'interview-detail-page'
 const codeBlockLanguages = ['auto', 'java', 'javascript', 'typescript', 'python', 'json', 'xml', 'sql', 'bash', 'css', 'yaml', 'text']
@@ -346,20 +352,24 @@ function clearDetailPageShell() {
 async function fetchDetail() {
   loading.value = true
   error.value = ''
+  outlineItems.value = []
+  activeOutlineId.value = ''
 
   try {
     const data = await getInterviewDetail(route.params.id)
     interview.value = data
     localLikes.value = data.likes ?? 0
     await loadRelatedArticles()
-    await nextTick()
-    syncOutline()
-    bootstrapCodeBlocks()
-    updateScrollState()
   } catch {
     error.value = '面经加载失败，请检查后端服务是否已经启动。'
   } finally {
     loading.value = false
+    await nextTick()
+    if (!error.value && interview.value) {
+      syncOutline()
+      bootstrapCodeBlocks()
+      updateScrollState()
+    }
   }
 }
 
@@ -475,9 +485,9 @@ function copyLink() {
   })
 }
 
-function goBack() {
-  if (window.history.length > 1) {
-    router.back()
+function goBack(event) {
+  if (event?.currentTarget?.classList?.contains('detail-left-collapse')) {
+    isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value
     return
   }
   router.push('/interview')

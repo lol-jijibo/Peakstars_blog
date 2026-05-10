@@ -285,6 +285,7 @@ function normalizeInterviewTag(tag) {
     htmlcss: 'HTML/CSS',
     'html/css': 'HTML/CSS',
     jvm: 'JVM',
+    mybatis: 'MyBatis',
     'spring boot': 'Spring Boot',
     springboot: 'Spring Boot',
     elasticsearch: 'Elasticsearch'

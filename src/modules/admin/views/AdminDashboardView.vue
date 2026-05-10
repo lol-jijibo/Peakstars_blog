@@ -224,7 +224,7 @@
             {{ tab.label }}
           </button>
         </div>
-
+        <!-- 面经模块的特殊过滤逻辑：先按一级分类过滤，再根据选中的一级分类动态展示二级标签进行进一步过滤，最后提供一个独立的草稿过滤入口 -->
         <div v-else-if="isContentPage && currentType === 'interview'" class="interview-filter-stack">
           <div class="tab-row interview-top-tabs">
             <button
@@ -2353,7 +2353,11 @@ function normalizeDateTimeLocal(value) {
   if (!value) {
     return formatDateTimeLocal(new Date())
   }
-  return value.replace(' ', 'T').slice(0, 16)
+  const normalizedValue = String(value).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    return `${normalizedValue}T00:00`
+  }
+  return normalizedValue.replace(' ', 'T').slice(0, 16)
 }
 
 function normalizeDateTimePayload(value) {

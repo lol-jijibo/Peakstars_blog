@@ -10,6 +10,7 @@ export const interviewFirstLevelCategories = [
       { key: 'jvm', label: 'JVM', category: 'java' },
       { key: 'concurrent', label: '并发编程', category: 'java' },
       { key: 'springboot', label: 'Spring Boot', category: 'java' },
+      { key: 'mybatis', label: 'MyBatis', category: 'java' },
       { key: 'mysql', label: 'MySQL', category: 'java' },
       { key: 'redis', label: 'Redis', category: 'java' },
       { key: 'system-design', label: 'Elasticsearch', category: 'java' }

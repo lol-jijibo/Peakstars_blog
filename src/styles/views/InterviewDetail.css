@@ -10,6 +10,13 @@
   min-height: 100vh;
   background: #ffffff;
   color: #1f2d3d;
+  --detail-left-width: 276px;
+  --detail-right-width: 240px;
+  --detail-column-gap: 5px; /* 左侧面板与右侧内容区域的间距 */
+  --detail-main-max-width: 860px;
+  --detail-left-offset: calc(var(--detail-left-width) + var(--detail-column-gap));
+  --detail-right-offset: calc(var(--detail-right-width) + var(--detail-column-gap) + 20px);
+  --detail-main-width: min(var(--detail-main-max-width), calc(100vw - var(--detail-left-offset) - var(--detail-right-offset)));
 }
 
 .detail-loading,
@@ -36,26 +43,51 @@
 }
 
 .detail-shell {
-  display: grid;
-  grid-template-columns: 276px minmax(640px, 820px) 220px;
-  gap: 8px;
+  position: relative;
+  display: block;
   width: 100%;
   max-width: none;
   margin: 0;
   padding: 0 0 24px;
   justify-content: start; /*子元素紧紧贴在起始边（左边），剩余空间全部留在右侧*/
 }
-
+/* 左侧面板折叠 */
+.detail-shell--left-collapsed {
+  --detail-left-width: 44px;
+}
+/* 折叠状态下的样式调整：左侧栏占满全宽，显示标题和搜索框，隐藏目录列表，调整内边距和折叠按钮位置 */
 .detail-left {
-  position: sticky;
+  position: fixed;
   top: 0;
-  align-self: start;
+  left: 0;
+  z-index: 20;
+  width: var(--detail-left-width);
   height: 100vh;
   padding: 0 0 20px;
   background: #ffffff;
   border-right: 1px solid #e5ebf2;
   box-shadow: 4px 0 14px rgba(15, 23, 42, 0.03);
   overflow: hidden;
+}
+
+.detail-left.is-collapsed {
+  width: 44px;
+  padding-bottom: 0;
+}
+
+.detail-left.is-collapsed .detail-left-title,
+.detail-left.is-collapsed .detail-left-search,
+.detail-left.is-collapsed .detail-left-list {
+  display: none;
+}
+
+.detail-left.is-collapsed .detail-left-head {
+  justify-content: center;
+  padding: 18px 0 14px;
+}
+
+.detail-left.is-collapsed .detail-left-title-row {
+  display: none;
 }
 
 .detail-left-head {
@@ -90,6 +122,10 @@
   font-size: 26px;
   cursor: pointer;
   line-height: 1;
+}
+
+.detail-left.is-collapsed .detail-left-collapse {
+  transform: rotate(180deg);
 }
 
 .detail-left-search {
@@ -146,18 +182,21 @@
 }
 
 .detail-left-text {
-  display: -webkit-box;
+  display: block;
   overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.55;
   font-size: 14px;
 }
 
 .detail-main {
   min-width: 0;
+  width: var(--detail-main-width);
+  max-width: var(--detail-main-max-width);
+  margin-left: var(--detail-left-offset);
+  margin-right: calc(var(--detail-right-width) + var(--detail-column-gap) + 20px);
   padding-top: 0;
-  width: 100%;
 }
 
 .detail-back-link {
@@ -198,6 +237,24 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 8px;
+}
+
+.detail-publish-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.detail-publish-label {
+  color: #98a2b3;
+}
+
+.detail-publish-value {
+  color: #475467;
+  font-weight: 500;
 }
 
 .detail-level-badge,
@@ -544,16 +601,18 @@ h3.detail-section-title {
 }
 
 .detail-right {
-  position: sticky;
-  top: 8px;
-  align-self: start;
-  width: 220px;
-  justify-self: start;
+  position: fixed;
+  top: 84px;
+  left: calc(var(--detail-left-offset) + var(--detail-main-width) + var(--detail-column-gap));
+  z-index: 15;
+  width: var(--detail-right-width);
 }
 
 .detail-right-wrap {
+  max-height: calc(100vh - 104px);
   padding: 0 0 8px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
 }
 
 .detail-right-head {
@@ -584,6 +643,8 @@ h3.detail-section-title {
   flex-direction: column;
   gap: 2px;
   padding: 6px 8px 0;
+  max-height: calc(100vh - 168px);
+  overflow-y: auto;
 }
 
 .detail-right-link {
@@ -665,8 +726,11 @@ h3.detail-section-title {
 }
 
 @media (max-width: 1380px) {
-  .detail-shell {
-    grid-template-columns: 248px minmax(500px, 680px) 208px;
+  .detail-page {
+    --detail-left-width: 248px;
+    --detail-right-width: 224px;
+    --detail-column-gap: 8px;
+    --detail-main-max-width: 760px;
   }
 }
 
@@ -681,6 +745,14 @@ h3.detail-section-title {
   .detail-right {
     position: static;
     height: auto;
+    width: 100%;
+  }
+
+  .detail-main {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .detail-left {
@@ -688,10 +760,35 @@ h3.detail-section-title {
     border: 1px solid #e6ebf2;
     border-radius: 16px;
   }
+  /* 折叠状态下的样式调整：左侧栏占满全宽，显示标题和搜索框，隐藏目录列表，调整内边距和折叠按钮位置 */
+  .detail-shell--left-collapsed {
+    --detail-left-width: 100%;
+  }
+
+  .detail-left.is-collapsed .detail-left-title,
+  .detail-left.is-collapsed .detail-left-search,
+  .detail-left.is-collapsed .detail-left-list,
+  .detail-left.is-collapsed .detail-left-title-row {
+    display: initial;
+  }
+
+  .detail-left.is-collapsed .detail-left-head {
+    justify-content: space-between;
+    padding: 18px 18px 14px;
+  }
+
+  .detail-left.is-collapsed .detail-left-collapse {
+    transform: none;
+  }
 
   .detail-left-list {
     height: auto;
     max-height: 320px;
+  }
+
+  .detail-right-wrap,
+  .detail-right-toc {
+    max-height: none;
   }
 }
 
