@@ -44,8 +44,8 @@
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-num">{{ aiHotspots.length }}</span>
-              <span class="stat-label">AI 热点</span>
+              <span class="stat-num">{{ interviewCount }}</span>
+              <span class="stat-label">面经数量</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
@@ -306,7 +306,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
-import { getAiHotspots, getTechArticles } from '@/api/content'
+import { getTechArticles } from '@/api/content'
+import { getInterviews } from '@/api/interview'
 import { getLearningRoutes } from '@/api/learningRoute'
 import { useThemeStore } from '@/stores/theme'
 
@@ -314,7 +315,7 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const techArticles = ref([])
 const learningRoutes = ref([])
-const aiHotspots = ref([])
+const interviewCount = ref(0)
 const routeEnrollCount = ref(62) // TODO: 后续接入后端 API 返回实际注册人数
 
 const sortedArticles = computed(() => {
@@ -343,10 +344,10 @@ const popularTags = computed(() => {
 })
 
 async function loadHomeData() {
-  const [articleResult, routeResult, aiResult] = await Promise.allSettled([
+  const [articleResult, routeResult, interviewResult] = await Promise.allSettled([
     getTechArticles(),
     getLearningRoutes(),
-    getAiHotspots()
+    getInterviews({ page: 1, pageSize: 1 })
   ])
 
   if (articleResult.status === 'fulfilled' && Array.isArray(articleResult.value)) {
@@ -357,8 +358,8 @@ async function loadHomeData() {
     learningRoutes.value = routeResult.value
   }
 
-  if (aiResult.status === 'fulfilled' && Array.isArray(aiResult.value)) {
-    aiHotspots.value = aiResult.value
+  if (interviewResult.status === 'fulfilled') {
+    interviewCount.value = Number(interviewResult.value?.total || 0)
   }
 }
 

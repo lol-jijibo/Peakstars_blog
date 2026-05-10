@@ -137,6 +137,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getInterviews } from '@/api/interview.js'
+import { interviewFirstLevelCategories, interviewFirstLevelCategoryApiMap } from '@/data/interviewCategories.js'
 import InterviewCard from '@/components/InterviewCard.vue' 
 
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
@@ -158,37 +159,7 @@ const hotTagCount = ref(0)
 const masteredCount = ref(0)
 
 /* ── 一级分类 ── */
-const firstLevelCategories = [
-  { key: 'all', label: '全部', subCategories: [] },
-  {
-    key: 'backend', label: 'Java 后端',
-    subCategories: [
-      { key: 'all', label: '全部', category: 'all' },
-      { key: 'java', label: 'Java 基础', category: 'java' },
-      { key: 'collection', label: '集合框架', category: 'java' },
-      { key: 'jvm', label: 'JVM', category: 'java' },
-      { key: 'concurrent', label: '并发编程', category: 'java' },
-      { key: 'springboot', label: 'Spring Boot', category: 'java' },
-      { key: 'mysql', label: 'MySQL', category: 'java' },
-      { key: 'redis', label: 'Redis', category: 'java' },
-      { key: 'system-design', label: 'Elasticsearch', category: 'java' }
-    ]
-  },
-  {
-    key: 'frontend', label: '前端',
-    subCategories: [
-      { key: 'all', label: '全部', category: 'frontend' },
-      { key: 'html', label: 'HTML/CSS', category: 'frontend' },
-      { key: 'javascript', label: 'JavaScript', category: 'frontend' },
-      { key: 'typescript', label: 'TypeScript', category: 'frontend' },
-      { key: 'vue', label: 'Vue', category: 'frontend' },
-      { key: 'react', label: 'React', category: 'frontend' },
-    ]
-  },
-  { key: 'agent', label: 'Agent 开发', subCategories: [] },
-  { key: 'llm', label: '大模型原理', subCategories: [] },
-  { key: 'algorithm', label: '算法', subCategories: [] }
-]
+const firstLevelCategories = interviewFirstLevelCategories
 
 /* ── 当前选中状态 ── */
 const initialCategory = typeof route.query.category === 'string' ? route.query.category : 'all'
@@ -202,10 +173,7 @@ const visibleFirstLevelCategories = computed(() =>
  * 目的：统一一级分类与后端接口分类参数的映射关系。
  * 逻辑：把前端展示态的 backend 转成后端真实支持的 java，保证“Java后端-全部”能命中完整数据。
  */
-const firstLevelCategoryApiMap = {
-  backend: 'java',
-  frontend: 'frontend'
-}
+const firstLevelCategoryApiMap = interviewFirstLevelCategoryApiMap
 
 function resolveFirstLevel(category) {
   if (category === 'frontend') return firstLevelCategories.find((f) => f.key === 'frontend')
@@ -221,10 +189,22 @@ const activeCategory = computed(() => {
   if (activeFirstLevel.value.key === 'agent') return 'agent'
   if (activeFirstLevel.value.key === 'llm') return 'llm'
   if (activeFirstLevel.value.key === 'algorithm') return 'all'
+  if (activeFirstLevel.value.key === 'backend' || activeFirstLevel.value.key === 'frontend') {
+    return firstLevelCategoryApiMap[activeFirstLevel.value.key] || activeFirstLevel.value.key
+  }
   if (selectedSubCategory.value === 'all') {
     return firstLevelCategoryApiMap[activeFirstLevel.value.key] || activeFirstLevel.value.key
   }
   return selectedSubCategory.value
+})
+
+const activeTag = computed(() => {
+  if (!activeFirstLevel.value.subCategories.length || selectedSubCategory.value === 'all') {
+    return ''
+  }
+
+  const matchedSubCategory = activeFirstLevel.value.subCategories.find((item) => item.key === selectedSubCategory.value)
+  return normalizeInterviewTag(matchedSubCategory?.label || '')
 })
 
 /* ── 分类切换 ── */
@@ -249,6 +229,7 @@ async function fetchList() {
   try {
     const result = await getInterviews({
       category: activeCategory.value,
+      tag: activeTag.value,
       keyword: keyword.value.trim()
     })
     list.value = result.list || []
@@ -269,7 +250,7 @@ function goDetail(id) {
 }
 
 /* ── Watchers ── */
-watch(activeCategory, () => { fetchList() })
+watch([activeCategory, activeTag], () => { fetchList() })
 
 watch(keyword, () => {
   clearTimeout(debounceTimer)
@@ -290,6 +271,27 @@ watch(() => route.query.category, (nextCategory) => {
 /* ── Lifecycle ── */
 onMounted(() => { fetchList() })
 onBeforeUnmount(() => { clearTimeout(debounceTimer) })
+
+function normalizeInterviewTag(tag) {
+  const normalizedTag = String(tag || '').trim().toLowerCase()
+  const tagMap = {
+    mysql: 'MySQL',
+    java: 'Java',
+    redis: 'Redis',
+    vue: 'Vue',
+    react: 'React',
+    typescript: 'TypeScript',
+    javascript: 'JavaScript',
+    htmlcss: 'HTML/CSS',
+    'html/css': 'HTML/CSS',
+    jvm: 'JVM',
+    'spring boot': 'Spring Boot',
+    springboot: 'Spring Boot',
+    elasticsearch: 'Elasticsearch'
+  }
+
+  return tagMap[normalizedTag] || String(tag || '').trim()
+}
 </script>
 
 <style scoped src="../styles/views/InterviewList.css"></style>

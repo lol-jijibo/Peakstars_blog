@@ -212,7 +212,7 @@
           </div>
         </section>
 
-        <div v-if="isContentPage" class="tab-row">
+        <div v-if="isContentPage && currentType !== 'interview'" class="tab-row">
           <button
             v-for="tab in filterTabs"
             :key="tab.key"
@@ -223,6 +223,42 @@
           >
             {{ tab.label }}
           </button>
+        </div>
+
+        <div v-else-if="isContentPage && currentType === 'interview'" class="interview-filter-stack">
+          <div class="tab-row interview-top-tabs">
+            <button
+              v-for="firstLevel in adminInterviewFirstLevelCategories"
+              :key="firstLevel.key"
+              class="tab"
+              :class="{ active: currentFilter !== 'draft' && adminInterviewFirstLevelKey === firstLevel.key }"
+              type="button"
+              @click="selectAdminInterviewFirstLevel(firstLevel.key)"
+            >
+              {{ firstLevel.label }} ({{ resolveInterviewFirstLevelCount(firstLevel.key) }})
+            </button>
+            <button
+              class="tab"
+              :class="{ active: currentFilter === 'draft' }"
+              type="button"
+              @click="currentFilter = 'draft'"
+            >
+              待编辑{{ drafts.length ? ` (${drafts.length})` : '' }}
+            </button>
+          </div>
+
+          <div v-if="currentFilter !== 'draft' && adminInterviewTagOptions.length" class="interview-sub-tabs">
+            <button
+              v-for="tag in adminInterviewTagOptions"
+              :key="tag.key"
+              class="interview-sub-tab"
+              :class="{ active: adminInterviewSelectedTagKey === tag.key }"
+              type="button"
+              @click="selectAdminInterviewTag(tag.key)"
+            >
+              {{ tag.label }} <span class="interview-sub-tab-count">{{ tag.count }}</span>
+            </button>
+          </div>
         </div>
 
         <div v-if="isContentPage" class="two-col">
@@ -468,8 +504,25 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">{{ activeModule.formTagLabel }}</label>
+            <label class="form-label">{{ activeModule.formTagLabel }}（可选）</label>
+            <!-- 面经模块：根据分类动态加载标签，多选模式 -->
+            <div v-if="currentType === 'interview'" class="tag-checkbox-group">
+              <label v-for="tag in availableTags" :key="tag" class="tag-checkbox-item">
+                <input
+                  type="checkbox"
+                  :value="tag"
+                  v-model="draftForm.selectedTags"
+                  class="tag-checkbox"
+                />
+                <span class="tag-checkbox-label">{{ tag }}</span>
+              </label>
+              <div v-if="availableTags.length === 0" class="tag-empty-tip">
+                暂无可用标签，请先在分类下创建一些面经并添加标签
+              </div>
+            </div>
+            <!-- 其他模块：保持原有文本输入 -->
             <input
+              v-else
               v-model.trim="draftForm.tagsText"
               class="form-input"
               type="text"
@@ -579,9 +632,10 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
+import { getInterviewTagOptions, interviewFirstLevelCategories } from '@/data/interviewCategories.js'
 import { useAdminConsoleStore } from '@/modules/admin/stores/adminConsole'
 import { listAdminDrafts, saveAdminDraft, deleteAdminDraft, previewImportedAdminContent, uploadCoverImage } from '@/modules/admin/api/admin'
 import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
@@ -683,7 +737,7 @@ const moduleOptions = computed(() => [
     sideTitle: '面试分类',
     formCategoryLabel: '分类',
     formTagLabel: '标签',
-    formTagPlaceholder: '例如 Java, 集合框架, JVM',
+    formTagPlaceholder: '例如 Java 基础, 集合框架, JVM',
     statLabels: {
       total: '面经总数',
       views: '总阅读量',
@@ -771,6 +825,80 @@ const coverUploading = ref(false)
 const importPreviewLoading = ref(false)
 const importFileName = ref('')
 const draftForm = reactive(createEmptyDraft())
+
+// 标签相关：根据分类动态加载可选标签
+const availableTags = ref([])
+const selectedTags = ref([])
+const adminInterviewSupportedFirstLevelKeys = ['all', 'backend', 'frontend', 'agent', 'llm']
+const adminInterviewFirstLevelKey = ref('all')
+const adminInterviewSelectedTagKey = ref('all')
+const adminInterviewFirstLevelCategories = computed(() =>
+  interviewFirstLevelCategories.filter((item) => adminInterviewSupportedFirstLevelKeys.includes(item.key))
+)
+const adminInterviewActiveFirstLevel = computed(() =>
+  adminInterviewFirstLevelCategories.value.find((item) => item.key === adminInterviewFirstLevelKey.value)
+  || adminInterviewFirstLevelCategories.value[0]
+  || interviewFirstLevelCategories[0]
+)
+const adminInterviewTagOptions = computed(() => {
+  const activeFirstLevel = adminInterviewActiveFirstLevel.value
+  if (!activeFirstLevel || activeFirstLevel.key === 'all') {
+    return []
+  }
+
+  const configuredTags = Array.isArray(activeFirstLevel.subCategories) ? activeFirstLevel.subCategories : []
+  if (configuredTags.length) {
+    return configuredTags.map((item) => ({
+      key: item.key,
+      label: item.label,
+      count: item.key === 'all'
+        ? resolveInterviewFirstLevelCount(activeFirstLevel.key)
+        : resolveInterviewTagCount(activeFirstLevel.key, item.label)
+    }))
+  }
+
+  const derivedTags = collectInterviewTagsByFirstLevel(activeFirstLevel.key)
+  if (!derivedTags.length) {
+    return []
+  }
+
+  return [
+    {
+      key: 'all',
+      label: '全部',
+      count: resolveInterviewFirstLevelCount(activeFirstLevel.key)
+    },
+    ...derivedTags.map((label) => ({
+      key: slugifyInterviewTag(label),
+      label,
+      count: resolveInterviewTagCount(activeFirstLevel.key, label)
+    }))
+  ]
+})
+
+// 监听分类变化，动态加载标签并清空已选中的标签
+watch(() => draftForm.category, (newCategory) => {
+  if (currentType.value === 'interview' && newCategory) {
+    draftForm.selectedTags = [] // 分类变化时清空已选中的标签
+    fetchTagsByCategory(newCategory)
+  }
+})
+
+// 根据用户端面经分类配置同步生成后台可选标签
+function fetchTagsByCategory(category) {
+  availableTags.value = getInterviewTagOptions(category)
+}
+
+watch(adminInterviewTagOptions, (options) => {
+  if (!options.some((item) => item.key === adminInterviewSelectedTagKey.value)) {
+    adminInterviewSelectedTagKey.value = 'all'
+  }
+})
+
+// 初始化时加载一次标签（默认分类）
+if (currentType.value === 'interview') {
+  fetchTagsByCategory(draftForm.category)
+}
 
 const summary = computed(() => currentSummary.value || {
   onlineUsers: 0,
@@ -934,7 +1062,9 @@ const filteredRecords = computed(() => {
     }))
   }
 
-  const baseList = currentRecords.value.filter((record) => matchFilter(record, currentFilter.value))
+  const baseList = currentRecords.value
+    .filter((record) => matchFilter(record, currentFilter.value))
+    .filter((record) => matchInterviewBrowser(record))
   const searchValue = keyword.value.trim().toLowerCase()
   if (!searchValue) {
     return baseList
@@ -1174,6 +1304,7 @@ async function removeDraftRecord(draft) {
 watch(routeSection, (nextSection) => {
   keyword.value = ''
   currentFilter.value = 'all'
+  resetAdminInterviewBrowser()
   if (contentSectionKeys.includes(nextSection)) {
     currentType.value = nextSection
     loadDrafts(nextSection)
@@ -1241,6 +1372,28 @@ function matchFilter(record, filterKey) {
   }[filterKey]
 }
 
+function matchInterviewBrowser(record) {
+  if (currentType.value !== 'interview') {
+    return true
+  }
+
+  const firstLevelKey = adminInterviewFirstLevelKey.value
+  if (firstLevelKey !== 'all' && resolveInterviewRecordFirstLevelKey(record.category) !== firstLevelKey) {
+    return false
+  }
+
+  if (adminInterviewSelectedTagKey.value === 'all') {
+    return true
+  }
+
+  const selectedTag = adminInterviewTagOptions.value.find((item) => item.key === adminInterviewSelectedTagKey.value)
+  if (!selectedTag) {
+    return true
+  }
+
+  return interviewRecordHasTag(record, selectedTag.label)
+}
+
 function resolveMeta(record) {
   if (record.type === 'tech') {
     return `${record.publishedAt || '--'} / ${record.authorName || '匿名作者'}`
@@ -1262,6 +1415,7 @@ function resolveCategory(record) {
     return record.issueLabel || '期刊'
   }
   if (record.type === 'interview') {
+    record.category = normalizeInterviewCategoryValue(record.category)
     const interviewCategoryMap = {
       frontend: '前端',
       java: 'Java后端',
@@ -1366,6 +1520,117 @@ function countBy(records, predicate) {
   return records.filter(predicate).length
 }
 
+function resetAdminInterviewBrowser() {
+  adminInterviewFirstLevelKey.value = 'all'
+  adminInterviewSelectedTagKey.value = 'all'
+}
+
+function selectAdminInterviewFirstLevel(firstLevelKey) {
+  currentFilter.value = 'all'
+  adminInterviewFirstLevelKey.value = firstLevelKey
+  adminInterviewSelectedTagKey.value = 'all'
+}
+
+function selectAdminInterviewTag(tagKey) {
+  currentFilter.value = 'all'
+  adminInterviewSelectedTagKey.value = tagKey
+}
+
+function resolveInterviewFirstLevelCount(firstLevelKey) {
+  if (firstLevelKey === 'all') {
+    return currentRecords.value.length
+  }
+  return countBy(currentRecords.value, (record) => resolveInterviewRecordFirstLevelKey(record.category) === firstLevelKey)
+}
+
+function resolveInterviewTagCount(firstLevelKey, tagLabel) {
+  return countBy(currentRecords.value, (record) =>
+    resolveInterviewRecordFirstLevelKey(record.category) === firstLevelKey
+    && interviewRecordHasTag(record, tagLabel)
+  )
+}
+
+function collectInterviewTagsByFirstLevel(firstLevelKey) {
+  return Array.from(new Set(
+    currentRecords.value
+      .filter((record) => resolveInterviewRecordFirstLevelKey(record.category) === firstLevelKey)
+      .flatMap((record) => Array.isArray(record.tags) ? record.tags : [])
+      .map((tag) => normalizeInterviewTagLabel(tag))
+      .filter(Boolean)
+  ))
+}
+
+function resolveInterviewRecordFirstLevelKey(category) {
+  const normalizedCategory = normalizeInterviewCategoryValue(category)
+  if (normalizedCategory === 'java') {
+    return 'backend'
+  }
+  if (normalizedCategory === 'frontend') {
+    return 'frontend'
+  }
+  if (normalizedCategory === 'agent') {
+    return 'agent'
+  }
+  if (normalizedCategory === 'llm') {
+    return 'llm'
+  }
+  return 'all'
+}
+
+function normalizeInterviewCategoryValue(category) {
+  const normalizedCategory = String(category || '').trim().toLowerCase()
+  const categoryMap = {
+    frontend: 'frontend',
+    '前端': 'frontend',
+    java: 'java',
+    backend: 'java',
+    'java后端': 'java',
+    'java 后端': 'java',
+    'java基础': 'java',
+    agent: 'agent',
+    'agent开发': 'agent',
+    'agent 开发': 'agent',
+    llm: 'llm',
+    '大模型原理': 'llm'
+  }
+
+  return categoryMap[normalizedCategory] || normalizedCategory
+}
+
+function interviewRecordHasTag(record, tagLabel) {
+  const normalizedTag = normalizeInterviewTagLabel(tagLabel)
+  return (record.tags || []).some((tag) => normalizeInterviewTagLabel(tag) === normalizedTag)
+}
+
+function normalizeInterviewTagLabel(tag) {
+  const normalizedTag = String(tag || '').trim().toLowerCase()
+  const tagMap = {
+    mysql: 'MySQL',
+    java: 'Java',
+    redis: 'Redis',
+    vue: 'Vue',
+    react: 'React',
+    typescript: 'TypeScript',
+    javascript: 'JavaScript',
+    htmlcss: 'HTML/CSS',
+    'html/css': 'HTML/CSS',
+    jvm: 'JVM',
+    'spring boot': 'Spring Boot',
+    springboot: 'Spring Boot',
+    elasticsearch: 'Elasticsearch'
+  }
+
+  return tagMap[normalizedTag] || String(tag || '').trim()
+}
+
+function slugifyInterviewTag(tag) {
+  return String(tag || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 function isCurrentMonth(value) {
   if (!value) {
     return false
@@ -1416,12 +1681,24 @@ function openCreateDialog() {
   isEditing.value = false
   Object.assign(draftForm, createEmptyDraft())
   dialogVisible.value = true
+  // 打开创建对话框时，根据当前分类加载标签
+  if (currentType.value === 'interview') {
+    nextTick(() => {
+      fetchTagsByCategory(draftForm.category)
+    })
+  }
 }
 
 function openEditDialog(record) {
   isEditing.value = true
   Object.assign(draftForm, createDraftFromRecord(record))
   dialogVisible.value = true
+  // 打开编辑对话框时，根据记录的分类加载标签
+  if (currentType.value === 'interview') {
+    nextTick(() => {
+      fetchTagsByCategory(draftForm.category)
+    })
+  }
 }
 
 function closeDialog() {
@@ -1782,6 +2059,7 @@ function createEmptyDraft() {
     today: false,
     highlightsText: '',
     tagsText: '',
+    selectedTags: [], // 选中的标签数组
     visualStatus: 'published',
     importHtml: '',
     importSourceType: 'html',
@@ -1812,6 +2090,7 @@ function createDraftFromRecord(record) {
     today: Boolean(record.today),
     highlightsText: [record.coverKicker, ...(record.highlights || [])].filter(Boolean).join(', '),
     tagsText: (record.tags || []).join(', '),
+    selectedTags: record.tags || [], // 从 record.tags 初始化选中的标签
     visualStatus: inferVisualStatus(record),
     importHtml: '',
     importSourceType: 'html',
@@ -1821,8 +2100,8 @@ function createDraftFromRecord(record) {
 
 function mapInterviewCategory(category) {
   if (category === '前端' || category === 'frontend') return 'frontend'
-  if (category === 'Java' || category === 'java' || category === 'Java 后端') return 'java'
-  if (category === 'Agent开发' || category === 'agent') return 'agent'
+  if (category === 'Java' || category === 'java' || category === 'Java 后端' || category === 'Java后端') return 'java'
+  if (category === 'Agent 开发' || category === 'Agent开发' || category === 'agent') return 'agent'
   if (category === '大模型原理' || category === 'llm') return 'llm'
   return 'frontend'
 }
@@ -1888,7 +2167,10 @@ function buildSavePayload(form, type) {
       authorName: form.authorName || '后台编辑',
       category: form.category || 'frontend',
       track: form.difficulty || 'easy',
-      tags: splitCommaText(form.tagsText),
+      // 优先使用选中的标签（多选模式），如果没有选中则使用文本输入
+      tags: (Array.isArray(form.selectedTags) && form.selectedTags.length > 0)
+        ? form.selectedTags
+        : splitCommaText(form.tagsText),
       publishedAt: normalizeDateTimePayload(form.publishedAt),
       viewCount: 0,
       likeCount: 0,

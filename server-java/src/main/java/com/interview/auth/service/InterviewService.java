@@ -23,7 +23,7 @@ public interface InterviewService {
      * @param pageSize 每页条数
      * @return 分页后的面经列表
      */
-    PageResult<InterviewListResponse> listInterviews(String category, String keyword, int page, int pageSize);
+    PageResult<InterviewListResponse> listInterviews(String category, String tag, String keyword, int page, int pageSize);
 
     /**
      * 根据面经 ID 获取完整详情。
@@ -59,4 +59,13 @@ public interface InterviewService {
      * @return 分类列表
      */
     List<CategoryResponse> listCategories();
+
+    /**
+     * 根据分类代码查询该分类下所有面经使用过的标签列表。
+     * 用于后台管理新增面经时，根据选择的分类动态加载可选标签。
+     *
+     * @param categoryCode 分类代码，如 frontend / java / agent
+     * @return 标签名称列表（去重）
+     */
+    List<String> listTagsByCategory(String categoryCode);
 }

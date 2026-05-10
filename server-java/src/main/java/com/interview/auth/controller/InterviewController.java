@@ -5,6 +5,7 @@ import com.interview.auth.domain.dto.response.InterviewDetailResponse;
 import com.interview.auth.domain.dto.response.InterviewListResponse;
 import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.service.InterviewService;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,11 +42,12 @@ public class InterviewController {
     @GetMapping
     public ApiResponse<PageResult<InterviewListResponse>> listInterviews(
         @RequestParam(defaultValue = "all") String category,
+        @RequestParam(defaultValue = "") String tag,
         @RequestParam(defaultValue = "") String keyword,
         @RequestParam(defaultValue = "1") int page,
         @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return ApiResponse.success(interviewService.listInterviews(category, keyword, page, pageSize));
+        return ApiResponse.success(interviewService.listInterviews(category, tag, keyword, page, pageSize));
     }
 
     /**
@@ -83,6 +85,24 @@ public class InterviewController {
     @PostMapping("/{id}/collect")
     public ApiResponse<Map<String, Object>> collectInterview(@PathVariable Long id) {
         return ApiResponse.success(interviewService.collectInterview(id));
+    }
+
+    /**
+     * 提供根据分类获取标签列表的接口，用于后台管理新增面经时动态加载可选标签。
+     * 返回该分类下所有面经使用过的标签列表（去重）。
+     *
+     * @param category 分类代码，如 frontend / java / agent，传 all 或空返回所有标签
+     * @return 标签名称列表
+     */
+    @GetMapping("/tags")
+    public ApiResponse<List<String>> getTagsByCategory(
+        @RequestParam(defaultValue = "all") String category
+    ) {
+        if ("all".equalsIgnoreCase(category) || category == null || category.trim().isEmpty()) {
+            // 如果传 all 或空，返回所有标签
+            return ApiResponse.success(interviewService.listTagsByCategory(null));
+        }
+        return ApiResponse.success(interviewService.listTagsByCategory(category));
     }
 
 }

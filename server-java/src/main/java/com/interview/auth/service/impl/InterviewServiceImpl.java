@@ -39,15 +39,15 @@ public class InterviewServiceImpl implements InterviewService {
      *         最后包装为 PageResult 返回。已处理空列表和空标签的边界。
      */
     @Override
-    public PageResult<InterviewListResponse> listInterviews(String category, String keyword, int page, int pageSize) {
+    public PageResult<InterviewListResponse> listInterviews(String category, String tag, String keyword, int page, int pageSize) {
         int offset = (page - 1) * pageSize;
-        long total = interviewMapper.countInterviews(category, keyword);
+        long total = interviewMapper.countInterviews(category, tag, keyword);
 
         if (total == 0) {
             return new PageResult<>(Collections.emptyList(), 0, page, pageSize);
         }
 
-        List<Map<String, Object>> rows = interviewMapper.findInterviewList(category, keyword, offset, pageSize);
+        List<Map<String, Object>> rows = interviewMapper.findInterviewList(category, tag, keyword, offset, pageSize);
         List<InterviewListResponse> list = rows.stream()
             .map(this::toInterviewListResponse)
             .collect(Collectors.toList());
@@ -114,6 +114,18 @@ public class InterviewServiceImpl implements InterviewService {
             .stream()
             .map(this::toCategoryResponse)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 根据分类代码查询该分类下所有面经使用过的标签列表。
+     * 直接调用 Mapper 查询，返回去重后的标签名称列表。
+     *
+     * @param categoryCode 分类代码，如 frontend / java / agent
+     * @return 标签名称列表
+     */
+    @Override
+    public List<String> listTagsByCategory(String categoryCode) {
+        return interviewMapper.findTagsByCategory(categoryCode);
     }
 
     /**

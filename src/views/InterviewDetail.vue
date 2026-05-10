@@ -75,13 +75,15 @@
 
         <article ref="detailContentRef" class="detail-content-card" @click="handleCodeBlockAction" @change="handleCodeBlockAction">
           <section class="detail-answer-block">
-            <h2
-              v-if="summaryBlock"
+            <component
+              v-if="summaryBlock && summaryBlock.title"
+              :is="'h' + summaryBlock.level"
               :id="summaryBlock.id"
-              class="detail-section-title detail-section-title--highlight"
+              class="detail-section-title"
+              :class="{ 'detail-section-title--highlight': summaryBlock.level === 2 }"
             >
               {{ summaryBlock.title }}
-            </h2>
+            </component>
             <div
               v-if="summaryBlock"
               class="detail-section-body"
@@ -94,9 +96,15 @@
             :key="section.id"
             class="detail-analysis-block"
           >
-            <h2 :id="section.id" class="detail-section-title">
+            <component
+              v-if="section.title"
+              :is="'h' + section.level"
+              :id="section.id"
+              class="detail-section-title"
+              :class="{ 'detail-section-title--highlight': section.level === 2 }"
+            >
               {{ section.title }}
-            </h2>
+            </component>
             <div class="detail-section-body" v-html="section.html"></div>
           </section>
         </article>
@@ -114,7 +122,7 @@
               :key="item.id"
               :href="'#' + item.id"
               class="detail-right-link"
-              :class="{ active: activeOutlineId === item.id, sub: item.level > 2 }"
+              :class="[activeOutlineId === item.id ? 'active' : '', 'h' + item.level]"
               @click.prevent="scrollToHeading(item.id)"
             >
               <span class="detail-right-text">{{ item.text }}</span>
@@ -184,7 +192,7 @@ const normalizedSections = computed(() => {
     return [
       {
         id: 'outline-summary',
-        title: '精选回答',
+        title: '',
         level: 2,
         html: enhanceCodeBlocks(content)
       }
@@ -201,8 +209,17 @@ const normalizedSections = computed(() => {
   let paragraphBuffer = []
 
   const flushParagraph = () => {
-    if (!currentSection || paragraphBuffer.length === 0) {
+    if (paragraphBuffer.length === 0) {
       return
+    }
+    if (!currentSection) {
+      currentSection = {
+        id: `outline-${sections.length + 1}`,
+        title: '',
+        level: 0,
+        parts: []
+      }
+      sections.push(currentSection)
     }
     currentSection.parts.push(`<p>${styleInline(paragraphBuffer.join(' '))}</p>`)
     paragraphBuffer = []
@@ -219,27 +236,19 @@ const normalizedSections = computed(() => {
     sections.push(currentSection)
   }
 
-  pushSection('精选回答', 2)
-
   lines.forEach((line) => {
     const normalizedLine = line.replace(/\*+/g, '*')
 
     if (normalizedLine.startsWith('### ')) {
       flushParagraph()
-      if (!currentSection) {
-        pushSection(normalizedLine.replace(/^### /, ''), 3)
-        return
-      }
-      currentSection.parts.push(
-        `<h3 class="detail-inline-heading">${styleInline(normalizedLine.replace(/^### /, ''))}</h3>`
-      )
+      pushSection(normalizedLine.replace(/^### /, ''), 3)
       return
     }
 
     if (normalizedLine.startsWith('**') && normalizedLine.endsWith('**')) {
       const title = normalizedLine.replace(/^\*\*/, '').replace(/\*\*$/, '').trim()
-      if (title && title !== '精选回答') {
-        pushSection(title, sections.length === 0 ? 2 : 2)
+      if (title) {
+        pushSection(title, 2)
       }
       return
     }
@@ -247,7 +256,7 @@ const normalizedSections = computed(() => {
     if (/^\d+\./.test(normalizedLine) || /^-\s/.test(normalizedLine)) {
       flushParagraph()
       if (!currentSection) {
-        pushSection('扩展分析', 2)
+        pushSection('', 0)
       }
       currentSection.parts.push(
         `<p class="detail-list-item">${styleInline(
@@ -343,8 +352,8 @@ async function fetchDetail() {
     interview.value = data
     localLikes.value = data.likes ?? 0
     await loadRelatedArticles()
-    syncOutline()
     await nextTick()
+    syncOutline()
     bootstrapCodeBlocks()
     updateScrollState()
   } catch {
@@ -368,13 +377,33 @@ async function loadRelatedArticles() {
  * 目录来源于页面拆分后的块级章节，保证滚动定位与布局标题完全一致
  */
 function syncOutline() {
-  outlineItems.value = normalizedSections.value.map((section, index) => ({
-    id: section.id,
-    text: section.title,
-    level: section.level,
-    index: index + 1
-  }))
-  activeOutlineId.value = outlineItems.value[0]?.id || ''
+  const container = detailContentRef.value
+  if (!container) {
+    outlineItems.value = []
+    return
+  }
+
+  const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
+  const items = []
+
+  headings.forEach((heading, index) => {
+    if (!heading.id) {
+      heading.id = `heading-${index + 1}`
+    }
+
+    const text = heading.textContent.trim()
+    if (!text) return
+
+    items.push({
+      id: heading.id,
+      text,
+      level: parseInt(heading.tagName.charAt(1)),
+      index: items.length + 1
+    })
+  })
+
+  outlineItems.value = items
+  activeOutlineId.value = items[0]?.id || ''
 }
 
 function updateScrollState() {

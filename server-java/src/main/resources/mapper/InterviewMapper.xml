@@ -34,6 +34,18 @@
     <if test="category != null and category != 'all' and category != ''">
       AND c.code = #{category}
     </if>
+    <if test="tag != null and tag != ''">
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM interview_tag fit
+          JOIN tag ft ON fit.tag_id = ft.id
+          WHERE fit.interview_id = i.id
+            AND LOWER(ft.name) = LOWER(#{tag})
+        )
+        OR LOWER(IFNULL(i.tag_list, '')) LIKE CONCAT('%', LOWER(#{tag}), '%')
+      )
+    </if>
     <if test="keyword != null and keyword != ''">
       AND (i.title LIKE CONCAT('%', #{keyword}, '%')
         OR i.author LIKE CONCAT('%', #{keyword}, '%')
@@ -56,6 +68,18 @@
     WHERE i.status = 1
     <if test="category != null and category != 'all' and category != ''">
       AND c.code = #{category}
+    </if>
+    <if test="tag != null and tag != ''">
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM interview_tag fit
+          JOIN tag ft ON fit.tag_id = ft.id
+          WHERE fit.interview_id = i.id
+            AND LOWER(ft.name) = LOWER(#{tag})
+        )
+        OR LOWER(IFNULL(i.tag_list, '')) LIKE CONCAT('%', LOWER(#{tag}), '%')
+      )
     </if>
     <if test="keyword != null and keyword != ''">
       AND (i.title LIKE CONCAT('%', #{keyword}, '%')
@@ -145,6 +169,49 @@
     SELECT id, code, name, sort_order
     FROM category
     ORDER BY sort_order ASC
+  </select>
+
+  <!--
+    业务目的：根据分类代码查询该分类下所有面经使用过的标签列表。
+    业务逻辑：通过 interview → category 关联过滤分类，再 JOIN interview_tag 和 tag 表获取标签，
+             使用 DISTINCT 去重，按标签名称排序保证稳定性。
+             当 categoryCode 为 null 或空时，查询所有标签。
+  -->
+  <select id="findTagsByCategory" resultType="java.lang.String">
+    SELECT DISTINCT merged.tag_name
+    FROM (
+      SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(i.tag_list, '|', seq.n), '|', -1)) AS tag_name
+      FROM interview i
+      JOIN category c ON i.category_id = c.id
+      JOIN (
+        SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+        UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10
+        UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+        UNION ALL SELECT 16 UNION ALL SELECT 17 UNION ALL SELECT 18 UNION ALL SELECT 19 UNION ALL SELECT 20
+      ) seq
+        ON i.tag_list IS NOT NULL
+       AND i.tag_list != ''
+       AND seq.n &lt;= 1 + LENGTH(i.tag_list) - LENGTH(REPLACE(i.tag_list, '|', ''))
+      WHERE i.status = 1
+      <if test="categoryCode != null and categoryCode != '' and categoryCode != 'all'">
+        AND c.code = #{categoryCode}
+      </if>
+
+      UNION
+
+      SELECT t.name AS tag_name
+      FROM interview i
+      JOIN interview_tag it ON i.id = it.interview_id
+      JOIN tag t ON it.tag_id = t.id
+      JOIN category c ON i.category_id = c.id
+      WHERE i.status = 1
+      <if test="categoryCode != null and categoryCode != '' and categoryCode != 'all'">
+        AND c.code = #{categoryCode}
+      </if>
+    ) merged
+    WHERE merged.tag_name IS NOT NULL
+      AND merged.tag_name != ''
+    ORDER BY merged.tag_name ASC
   </select>
 
 </mapper>

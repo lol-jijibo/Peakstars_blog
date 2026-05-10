@@ -29,6 +29,7 @@ public interface InterviewMapper {
      */
     List<Map<String, Object>> findInterviewList(
         @Param("category") String category,
+        @Param("tag") String tag,
         @Param("keyword") String keyword,
         @Param("offset") int offset,
         @Param("pageSize") int pageSize
@@ -44,6 +45,7 @@ public interface InterviewMapper {
      */
     long countInterviews(
         @Param("category") String category,
+        @Param("tag") String tag,
         @Param("keyword") String keyword
     );
 
@@ -100,4 +102,13 @@ public interface InterviewMapper {
      * @return 分类列表
      */
     List<Category> findAllCategories();
+
+    /**
+     * 根据分类代码查询该分类下所有面经使用过的标签列表。
+     * 用于后台管理新增面经时，根据选择的分类动态加载可选标签。
+     *
+     * @param categoryCode 分类代码，如 frontend / java / agent
+     * @return 标签名称列表（去重）
+     */
+    List<String> findTagsByCategory(@Param("categoryCode") String categoryCode);
 }

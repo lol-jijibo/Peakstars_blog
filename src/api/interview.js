@@ -30,6 +30,7 @@ async function request(url, options = {}) {
 export function getInterviews(params = {}) {
   const query = new URLSearchParams()
   if (params.category && params.category !== 'all') query.set('category', params.category)
+  if (params.tag) query.set('tag', params.tag)
   if (params.keyword) query.set('keyword', params.keyword)
   if (params.page) query.set('page', params.page)
   if (params.pageSize) query.set('pageSize', params.pageSize)

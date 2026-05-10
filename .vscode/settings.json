@@ -8,14 +8,17 @@
     "francek",
     "hotspot",
     "hotspots",
+    "htmlcss",
     "linkify",
     "pinia",
     "Songti",
+    "springboot",
     "topbar",
     "vibecoding",
     "VITE",
     "xiaomiyu",
     "yuque"
   ],
-  "liveServer.settings.port": 8081
+  "liveServer.settings.port": 8081,
+  "java.debug.settings.onBuildFailureProceed": true
 }
