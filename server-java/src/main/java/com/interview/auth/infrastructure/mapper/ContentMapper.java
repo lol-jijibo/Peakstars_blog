@@ -9,57 +9,89 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * 统一承接内容模块的数据库查询，避免为三个频道拆成多套相似的数据访问代码。
- * 查询层只返回已发布内容，排序规则固定在 XML，保证前端不同页面拿到一致的数据顺序。
+ * 统一承接内容模块的数据库查询入口。
+ * XML 中集中维护筛选与排序规则，保证不同页面拿到一致的数据口径。
  */
 @Mapper
 public interface ContentMapper {
 
     /**
-     * 读取已发布技术文章列表，服务文章页、导航下拉和 AI 频道榜单。
-     * 排序优先级由 XML 维护，确保精选内容始终优先展示。
+     * 读取已发布技术文章列表。
+     * 列表顺序由 XML 统一维护，首页和详情侧栏可以直接复用同一结果。
      */
     List<TechArticle> findPublishedTechArticles();
 
     /**
-     * 读取已发布看天下期刊列表，服务频道首页展示。
-     * 按发布时间倒序返回，让最新期刊默认出现在最前面。
+     * 读取已发布看天下期刊列表。
+     * 首页默认按发布时间倒序展示，让最新一期始终优先出现在最前面。
      */
     List<WorldNewsIssue> findPublishedWorldNewsIssues();
 
     /**
-     * 读取已发布 AI 热点列表，服务推荐流与最新流切换。
-     * 基础列表按业务排序返回，前端可继续按热度或发布时间切换视图。
+     * 按关键词分页检索看天下期刊。
+     * 同时匹配标题、封面文案和正文摘要，支撑频道页统一搜索入口。
+     */
+    List<WorldNewsIssue> searchWorldNewsIssues(
+        @Param("keyword") String keyword,
+        @Param("offset") int offset,
+        @Param("size") int size
+    );
+
+    /**
+     * 统计关键词检索命中的看天下期刊总数。
+     * 总数字段与分页列表复用同一套匹配条件，避免分页器和结果列表口径不一致。
+     */
+    long countWorldNewsIssuesByKeyword(@Param("keyword") String keyword);
+
+    /**
+     * 读取看天下搜索框联想词。
+     * 从标题和封面文案里提取候选内容，供搜索框下拉建议直接展示。
+     */
+    List<String> suggestWorldNewsKeywords(@Param("keyword") String keyword, @Param("size") int size);
+
+    /**
+     * 按榜单类型分页读取看天下期刊。
+     * 排序表达式放在 XML 中按类型切换，保证各榜单口径长期稳定。
+     */
+    List<WorldNewsIssue> findWorldNewsRanking(
+        @Param("type") String type,
+        @Param("offset") int offset,
+        @Param("size") int size
+    );
+
+    /**
+     * 读取看天下热门推荐列表。
+     * 热门区域优先使用今日阅读和推荐值排序，适合首页卡片区直接复用。
+     */
+    List<WorldNewsIssue> findPopularWorldNewsIssues(@Param("size") int size);
+
+    /**
+     * 根据期刊业务键读取单条看天下详情。
+     * 返回完整正文和封面字段，供频道页详情浮层按需展示。
+     */
+    WorldNewsIssue findWorldNewsIssueByKey(@Param("issueKey") String issueKey);
+
+    /**
+     * 读取已发布 AI 热点列表。
+     * 基础列表先按业务顺序返回，前端再按推荐流或最新流切换展示。
      */
     List<AiHotspot> findPublishedAiHotspots();
 
     /**
-     * 原子自增技术文章的阅读数，在详情页请求时触发。
-     * 使用原子 UPDATE 保证并发安全，不阻塞主查询返回。
-     *
-     * @param articleKey 文章业务主键
-     * @return 影响行数（0 表示文章不存在）
+     * 原子自增技术文章的阅读数。
+     * 详情页打开时直接更新数据库，避免先查后改带来的并发覆盖问题。
      */
     int incrementReadCount(@Param("articleKey") String articleKey);
 
     /**
-     * 根据 article_key 查询技术文章的阅读数，供阅读量递增后返回最新值。
-     *
-     * @param articleKey 文章业务主键
-     * @return 最新阅读数
+     * 根据文章主键读取最新阅读数。
+     * 阅读数更新后立即回查结果，方便前端无刷新同步数字。
      */
     Integer findReadCount(@Param("articleKey") String articleKey);
 
     /**
      * 新增一条技术文章评论。
-     *
-     * @param articleKey 文章业务主键
-     * @param nickname   评论者昵称
-     * @param content    评论内容
-     * @param avatarText 头像文字
-     * @param avatarAccent 头像背景渐变
-     * @param parentId   父评论ID（null表示顶级评论）
-     * @return 影响行数
+     * 评论内容和头像展示信息一起落库，前端可以直接回填最新评论。
      */
     int insertArticleComment(
         @Param("articleKey") String articleKey,
@@ -72,50 +104,37 @@ public interface ContentMapper {
 
     /**
      * 原子自增技术文章的评论数。
-     *
-     * @param articleKey 文章业务主键
-     * @return 影响行数
+     * 新评论写入后同步回写统计值，避免后台和详情页展示不一致。
      */
     int incrementCommentCount(@Param("articleKey") String articleKey);
 
     /**
-     * 查询指定文章的评论列表，按创建时间正序排列。
-     *
-     * @param articleKey 文章业务主键
-     * @return 评论列表
+     * 查询指定文章的评论列表。
+     * 结果按创建时间正序返回，方便前端直接组装楼层和回复关系。
      */
     List<Map<String, Object>> findArticleComments(@Param("articleKey") String articleKey);
 
     /**
-     * 软删除评论（将 status 置为 -1），只有评论存在且状态正常时才执行。
-     *
-     * @param commentId 评论主键ID
-     * @return 影响行数
+     * 软删除一条评论记录。
+     * 只修改状态字段保留操作痕迹，后续仍可用于审计和统计回收。
      */
     int softDeleteComment(@Param("commentId") Long commentId);
 
     /**
      * 原子递减技术文章的评论数。
-     *
-     * @param articleKey 文章业务主键
-     * @return 影响行数
+     * 删除评论后同步下调统计值，并限制不小于零。
      */
     int decrementCommentCount(@Param("articleKey") String articleKey);
 
     /**
-     * 根据评论ID查询评论所属的文章业务主键。
-     *
-     * @param commentId 评论主键ID
-     * @return 文章业务主键
+     * 根据评论 ID 查询所属文章主键。
+     * 删除评论前先定位文章，用来同步回收文章上的评论统计值。
      */
     String findArticleKeyByCommentId(@Param("commentId") Long commentId);
 
     /**
-     * 将指定文章标记为浏览历史（幂等操作）。
-     * 仅在 in_history = 0 时更新为 1，避免重复标记。
-     *
-     * @param articleKey 文章业务主键
-     * @return 影响行数（0 表示已标记或文章不存在）
+     * 把指定文章标记为浏览历史。
+     * 只在首次阅读时更新状态，减少重复写库造成的无意义变更。
      */
     int markArticleInHistory(@Param("articleKey") String articleKey);
 }

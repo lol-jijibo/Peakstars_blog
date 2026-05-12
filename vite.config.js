@@ -1,9 +1,26 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
+import path from 'node:path'
+
+function resolveBackendTarget() {
+  const portFile = path.resolve(process.cwd(), 'server-java/target/runtime-port.txt')
+  try {
+    const runtimePort = fs.readFileSync(portFile, 'utf-8').trim()
+    if (runtimePort) {
+      return `http://localhost:${runtimePort}`
+    }
+  } catch (error) {
+    // 回退到默认开发端口，等后端真正启动后再自动更新
+  }
+
+  return 'http://localhost:8080'
+}
 
 export default defineConfig({
   plugins: [vue()],
+  envPrefix: ['VITE_', 'SERVER_'],
   build: {
     rollupOptions: {
       output: {
@@ -37,12 +54,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/auth-api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_JAVA_API_BASE_URL ? new URL(process.env.VITE_JAVA_API_BASE_URL, 'http://localhost').origin : resolveBackendTarget(),
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/auth-api/, '')
       },
       '/uploads': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_JAVA_API_BASE_URL ? new URL(process.env.VITE_JAVA_API_BASE_URL, 'http://localhost').origin : resolveBackendTarget(),
         changeOrigin: true
       }
     }

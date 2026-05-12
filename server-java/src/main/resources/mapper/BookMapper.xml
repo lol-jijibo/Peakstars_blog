@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.auth.infrastructure.mapper.BookMapper">
+
+  <resultMap id="BookResultMap" type="com.interview.auth.domain.entity.Book">
+    <id column="id" property="id"/>
+    <result column="book_key" property="bookKey"/>
+    <result column="title" property="title"/>
+    <result column="author" property="author"/>
+    <result column="publisher" property="publisher"/>
+    <result column="category" property="category"/>
+    <result column="summary" property="summary"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="tag_list" property="tagList"/>
+    <result column="word_count" property="wordCount"/>
+    <result column="chapter_count" property="chapterCount"/>
+    <result column="read_count" property="readCount"/>
+    <result column="rating" property="rating"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <resultMap id="BookChapterResultMap" type="com.interview.auth.domain.entity.BookChapter">
+    <id column="id" property="id"/>
+    <result column="chapter_key" property="chapterKey"/>
+    <result column="book_key" property="bookKey"/>
+    <result column="chapter_no" property="chapterNo"/>
+    <result column="title" property="title"/>
+    <result column="subtitle" property="subtitle"/>
+    <result column="content_html" property="contentHtml"/>
+    <result column="word_count" property="wordCount"/>
+    <result column="is_free" property="isFree"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <select id="findPublishedBooks" resultMap="BookResultMap">
+    SELECT *
+    FROM book
+    WHERE status = 1
+    ORDER BY published_at DESC, sort_order ASC, updated_at DESC
+  </select>
+
+  <select id="findPublishedBookByKey" resultMap="BookResultMap">
+    SELECT *
+    FROM book
+    WHERE book_key = #{bookKey}
+      AND status = 1
+    LIMIT 1
+  </select>
+
+  <select id="findPublishedChaptersByBookKey" resultMap="BookChapterResultMap">
+    SELECT *
+    FROM book_chapter
+    WHERE book_key = #{bookKey}
+      AND status = 1
+    ORDER BY sort_order ASC, chapter_no ASC, id ASC
+  </select>
+
+  <select id="findPublishedChapterByKey" resultMap="BookChapterResultMap">
+    SELECT *
+    FROM book_chapter
+    WHERE book_key = #{bookKey}
+      AND chapter_key = #{chapterKey}
+      AND status = 1
+    LIMIT 1
+  </select>
+</mapper>

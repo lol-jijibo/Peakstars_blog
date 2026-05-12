@@ -36,6 +36,11 @@ const routes = [
     meta: { title: '看天下', requiresAuth: true, animation: 'page-scale-in' }
   },
   {
+    path: '/book/:id',
+    component: () => import('@/modules/world/BookReaderView.vue'),
+    meta: { title: '书籍阅读', requiresAuth: true }
+  },
+  {
     path: '/ai-hotspot',
     component: () => import('@/modules/ai/AiHotspotView.vue'),
     meta: { title: 'AI 热点', requiresAuth: true, animation: 'page-rotate-in' }
@@ -84,7 +89,11 @@ const routes = [
     redirect: '/admin/tech'
   },
   {
-    path: '/admin/:section(tech|world|ai|interview|stats|comment)',
+    path: '/admin/books',
+    redirect: '/admin/books-import'
+  },
+  {
+    path: '/admin/:section(tech|world|ai|interview|books-import|books-list|stats|comment)',
     component: () => import('@/modules/admin/views/AdminDashboardView.vue'),
     meta: { title: '管理后台', requiresAuth: false }
   }
@@ -94,13 +103,10 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    // 浏览器前进/后退时优先恢复 savedPosition
     if (savedPosition) {
       return savedPosition
     }
 
-    // 列表页返回：由 App.vue 的 onAfterEnter + scrollRestorationMap 处理
-    // 详情页进入：回到顶部
     if (to.path.match(/^\/articles\/\d+$/)) {
       return { top: 0 }
     }
@@ -117,8 +123,6 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  // 业务目的：对需要登录的页面做统一鉴权，避免未登录状态直接进入用户内容页。
-  // 业务逻辑：管理后台当前开放直达，其余业务页仍通过 token 状态决定是否跳转登录页。
   if (to.meta.requiresAuth && !isAuthenticated()) {
     stopEntryTransitionLoader()
     return {
@@ -127,8 +131,6 @@ router.beforeEach((to) => {
     }
   }
 
-  // 业务目的：已登录用户再次访问登录页时自动回到业务页，减少重复登录操作。
-  // 业务逻辑：优先读取 redirect 参数，没有则回到首页，并在跳转前展示统一过渡反馈。
   if (to.path === '/login' && isAuthenticated()) {
     const redirect = resolveLoginRedirect(to.query)
 

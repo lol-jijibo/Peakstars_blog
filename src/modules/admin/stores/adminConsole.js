@@ -9,7 +9,11 @@ import {
   sendAdminHeartbeat,
   updateAdminContent
 } from '@/modules/admin/api/admin'
-import { invalidateTechArticlesCache } from '@/api/content'
+import {
+  invalidateAiHotspotsCache,
+  invalidateTechArticlesCache,
+  invalidateWorldNewsCache
+} from '@/api/content'
 
 // 业务目的：集中管理后台管理台的仪表盘、内容列表、轮询状态和编辑动作。
 // 业务逻辑：页面只和 Pinia 仓库交互，避免把轮询、缓存和错误处理散落到多个组件里。
@@ -130,6 +134,14 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
   function invalidateFrontendContentCache(type) {
     if (type === 'tech') {
       invalidateTechArticlesCache()
+      return
+    }
+    if (type === 'world') {
+      invalidateWorldNewsCache()
+      return
+    }
+    if (type === 'ai') {
+      invalidateAiHotspotsCache()
     }
   }
 

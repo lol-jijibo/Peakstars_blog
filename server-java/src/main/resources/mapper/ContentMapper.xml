@@ -49,6 +49,7 @@
     <result column="cover_headline" property="coverHeadline"/>
     <result column="cover_summary" property="coverSummary"/>
     <result column="cover_footer" property="coverFooter"/>
+    <result column="content_html" property="contentHtml"/>
     <result column="published_at" property="publishedAt"/>
     <result column="status" property="status"/>
     <result column="sort_order" property="sortOrder"/>
@@ -78,6 +79,42 @@
     <result column="created_at" property="createdAt"/>
     <result column="updated_at" property="updatedAt"/>
   </resultMap>
+
+  <sql id="WorldNewsBaseColumns">
+    id,
+    issue_key,
+    title,
+    issue_label,
+    category,
+    today_reads,
+    recommendation,
+    description,
+    cover_accent,
+    cover_kicker,
+    cover_headline,
+    cover_summary,
+    cover_footer,
+    content_html,
+    published_at,
+    status,
+    sort_order,
+    created_at,
+    updated_at
+  </sql>
+
+  <sql id="WorldNewsKeywordCondition">
+    (
+      title LIKE #{keyword}
+      OR issue_label LIKE #{keyword}
+      OR category LIKE #{keyword}
+      OR description LIKE #{keyword}
+      OR cover_kicker LIKE #{keyword}
+      OR cover_headline LIKE #{keyword}
+      OR cover_summary LIKE #{keyword}
+      OR cover_footer LIKE #{keyword}
+      OR content_html LIKE #{keyword}
+    )
+  </sql>
 
   <select id="findPublishedTechArticles" resultMap="TechArticleResultMap">
     SELECT
@@ -116,27 +153,92 @@
 
   <select id="findPublishedWorldNewsIssues" resultMap="WorldNewsIssueResultMap">
     SELECT
-      id,
-      issue_key,
-      title,
-      issue_label,
-      category,
-      today_reads,
-      recommendation,
-      description,
-      cover_accent,
-      cover_kicker,
-      cover_headline,
-      cover_summary,
-      cover_footer,
-      published_at,
-      status,
-      sort_order,
-      created_at,
-      updated_at
+      <include refid="WorldNewsBaseColumns"/>
     FROM world_news_issue
     WHERE status = 1
     ORDER BY published_at DESC, sort_order ASC
+  </select>
+
+  <select id="searchWorldNewsIssues" resultMap="WorldNewsIssueResultMap">
+    SELECT
+      <include refid="WorldNewsBaseColumns"/>
+    FROM world_news_issue
+    WHERE status = 1
+      AND <include refid="WorldNewsKeywordCondition"/>
+    ORDER BY published_at DESC, today_reads DESC, recommendation DESC, sort_order ASC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="countWorldNewsIssuesByKeyword" resultType="long">
+    SELECT COUNT(*)
+    FROM world_news_issue
+    WHERE status = 1
+      AND <include refid="WorldNewsKeywordCondition"/>
+  </select>
+
+  <select id="suggestWorldNewsKeywords" resultType="java.lang.String">
+    SELECT suggestion
+    FROM (
+      SELECT title AS suggestion, published_at
+      FROM world_news_issue
+      WHERE status = 1 AND title LIKE #{keyword}
+      UNION
+      SELECT cover_headline AS suggestion, published_at
+      FROM world_news_issue
+      WHERE status = 1 AND cover_headline LIKE #{keyword}
+      UNION
+      SELECT cover_kicker AS suggestion, published_at
+      FROM world_news_issue
+      WHERE status = 1 AND cover_kicker LIKE #{keyword}
+    ) suggestion_pool
+    WHERE suggestion IS NOT NULL AND suggestion != ''
+    ORDER BY published_at DESC
+    LIMIT #{size}
+  </select>
+
+  <select id="findWorldNewsRanking" resultMap="WorldNewsIssueResultMap">
+    SELECT
+      <include refid="WorldNewsBaseColumns"/>
+    FROM world_news_issue
+    WHERE status = 1
+    ORDER BY
+      <choose>
+        <when test="type == 'newbook'">
+          published_at DESC, recommendation DESC, today_reads DESC, sort_order ASC
+        </when>
+        <when test="type == 'overall'">
+          recommendation DESC, today_reads DESC, published_at DESC, sort_order ASC
+        </when>
+        <when test="type == 'masterpiece'">
+          CASE WHEN recommendation &gt;= 80 THEN 0 ELSE 1 END ASC,
+          recommendation DESC,
+          today_reads DESC,
+          published_at DESC,
+          sort_order ASC
+        </when>
+        <otherwise>
+          today_reads DESC, recommendation DESC, published_at DESC, sort_order ASC
+        </otherwise>
+      </choose>
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="findPopularWorldNewsIssues" resultMap="WorldNewsIssueResultMap">
+    SELECT
+      <include refid="WorldNewsBaseColumns"/>
+    FROM world_news_issue
+    WHERE status = 1
+    ORDER BY today_reads DESC, recommendation DESC, published_at DESC, sort_order ASC
+    LIMIT #{size}
+  </select>
+
+  <select id="findWorldNewsIssueByKey" resultMap="WorldNewsIssueResultMap">
+    SELECT
+      <include refid="WorldNewsBaseColumns"/>
+    FROM world_news_issue
+    WHERE issue_key = #{issueKey}
+      AND status = 1
+    LIMIT 1
   </select>
 
   <select id="findPublishedAiHotspots" resultMap="AiHotspotResultMap">

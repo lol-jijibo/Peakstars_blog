@@ -1,9 +1,6 @@
 const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
-// 业务目的：用一份内存缓存承接三个内容模块的列表数据，避免页面和导航重复请求同一接口。
-// 业务逻辑：每个模块同时维护已完成数据和进行中的 Promise，保证并发场景下只发起一次网络请求。
-// 增加 TTL：缓存超过一定时间后自动失效，确保数据不会过于陈旧。
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 分钟
+const CACHE_TTL_MS = 5 * 60 * 1000
 
 const contentCache = {
   techArticles: { data: null, promise: null, timestamp: 0 },
@@ -23,11 +20,8 @@ async function request(url, options = {}) {
   return payload.data
 }
 
-// 业务目的：复用统一缓存逻辑，减少三个列表接口的重复代码。
-// 业务逻辑：命中有效缓存直接返回结果，命中进行中的 Promise 则复用同一请求，完成后回填缓存。
 function loadWithCache(cacheKey, url) {
   const target = contentCache[cacheKey]
-  // 缓存有效：未过期且有数据
   if (target.data && (Date.now() - target.timestamp < CACHE_TTL_MS)) {
     return Promise.resolve(target.data)
   }
@@ -53,8 +47,6 @@ export function getTechArticles() {
   return loadWithCache('techArticles', '/api/content/tech-articles')
 }
 
-// 目的: 后台新增、编辑或删除技术文章后，让前台重新读取 MySQL 最新内容。
-// 逻辑: 主动清空技术文章缓存和进行中的请求引用，下一次进入列表或详情页会重新请求后端接口。
 export function invalidateTechArticlesCache() {
   contentCache.techArticles.data = null
   contentCache.techArticles.promise = null
@@ -65,21 +57,50 @@ export function getWorldNews() {
   return loadWithCache('worldNews', '/api/content/world-news')
 }
 
+export function invalidateWorldNewsCache() {
+  contentCache.worldNews.data = null
+  contentCache.worldNews.promise = null
+  contentCache.worldNews.timestamp = 0
+}
+
+export function searchWorldNews(query, page = 0, size = 20) {
+  return request(`/api/content/world-news/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`)
+}
+
+export function suggestWorldNews(query, size = 8) {
+  return request(`/api/content/world-news/suggest?q=${encodeURIComponent(query)}&size=${size}`)
+}
+
+export function getWorldNewsRanking(type, page = 0, size = 6) {
+  return request(`/api/content/world-news/ranking?type=${encodeURIComponent(type)}&page=${page}&size=${size}`)
+}
+
+export function getPopularWorldNews(size = 4) {
+  return request(`/api/content/world-news/popular?size=${size}`)
+}
+
+export function getWorldNewsDetail(issueKey) {
+  return request(`/api/content/world-news/${encodeURIComponent(issueKey)}`)
+}
+
 export function getAiHotspots() {
   return loadWithCache('aiHotspots', '/api/content/ai-hotspots')
 }
 
-// 目的: 用户打开文章详情页时递增阅读数，与面经的 incrementViews 逻辑一致。
+export function invalidateAiHotspotsCache() {
+  contentCache.aiHotspots.data = null
+  contentCache.aiHotspots.promise = null
+  contentCache.aiHotspots.timestamp = 0
+}
+
 export function incrementArticleReadCount(articleKey) {
   return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/read`, { method: 'POST' })
 }
 
-// 目的: 获取指定文章的评论列表。
 export function getArticleComments(articleKey) {
   return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/comments`)
 }
 
-// 目的: 为指定文章新增评论。
 export function addArticleComment(articleKey, data) {
   return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/comments`, {
     method: 'POST',
@@ -87,7 +108,6 @@ export function addArticleComment(articleKey, data) {
   })
 }
 
-// 目的: 删除指定评论（软删除），仅评论发布者可操作。
 export function deleteArticleComment(commentId) {
   return request(`/api/content/comments/${encodeURIComponent(commentId)}`, {
     method: 'DELETE'

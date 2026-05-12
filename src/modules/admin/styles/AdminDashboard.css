@@ -89,6 +89,28 @@
   color: var(--accent);
 }
 
+.nav-item-book {
+  padding-left: 34px;
+  position: relative;
+}
+
+.nav-item-book::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(110, 127, 150, 0.8);
+  transform: translateY(-50%);
+}
+
+.nav-item-book.active::before {
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(32, 215, 212, 0.45);
+}
+
 .icon {
   display: flex;
   align-items: center;
@@ -113,38 +135,7 @@
   font-size: 18px;
 }
 
-/* 业务目的：把左侧数据区和系统区入口也统一成彩色图标，保持整套导航的模板感。
-业务逻辑：保留原有 DOM 结构，只隐藏旧占位文字并通过伪元素补上对应彩色图标，减少模板结构改动。 */
-.nav > .nav-item:nth-of-type(4) .icon,
-.nav > .nav-item:nth-of-type(5) .icon,
-.nav > .nav-item:nth-of-type(6) .icon,
-.nav > .nav-item:nth-of-type(7) .icon {
-  font-size: 0;
-}
-
-.nav > .nav-item:nth-of-type(4) .icon::before,
-.nav > .nav-item:nth-of-type(5) .icon::before,
-.nav > .nav-item:nth-of-type(6) .icon::before,
-.nav > .nav-item:nth-of-type(7) .icon::before {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.nav > .nav-item:nth-of-type(4) .icon::before {
-  content: '📊';
-}
-
-.nav > .nav-item:nth-of-type(5) .icon::before {
-  content: '💬';
-}
-
-.nav > .nav-item:nth-of-type(6) .icon::before {
-  content: '🆕';
-}
-
-.nav > .nav-item:nth-of-type(7) .icon::before {
-  content: '📤';
-}
+/* 业务目的：侧栏图标已统一在模板中通过 emoji 直接渲染，不再依赖 CSS 伪元素替换。 */
 
 .nav-badge {
   margin-left: auto;

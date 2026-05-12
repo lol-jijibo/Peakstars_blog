@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.interview.auth.admin.mapper.AdminBookMapper">
+
+  <resultMap id="BookImportJobResultMap" type="com.interview.auth.admin.entity.BookImportJob">
+    <id column="id" property="id"/>
+    <result column="job_key" property="jobKey"/>
+    <result column="book_key" property="bookKey"/>
+    <result column="title" property="title"/>
+    <result column="author" property="author"/>
+    <result column="publisher" property="publisher"/>
+    <result column="summary" property="summary"/>
+    <result column="category" property="category"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="source_file_key" property="sourceFileKey"/>
+    <result column="import_type" property="importType"/>
+    <result column="source_url" property="sourceUrl"/>
+    <result column="original_format" property="originalFormat"/>
+    <result column="file_size" property="fileSize"/>
+    <result column="status" property="status"/>
+    <result column="progress" property="progress"/>
+    <result column="total_chapters" property="totalChapters"/>
+    <result column="success_chapters" property="successChapters"/>
+    <result column="fail_chapters" property="failChapters"/>
+    <result column="message" property="message"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <resultMap id="BookImportStageResultMap" type="com.interview.auth.admin.entity.BookImportChapterStage">
+    <id column="id" property="id"/>
+    <result column="job_key" property="jobKey"/>
+    <result column="temp_chapter_key" property="tempChapterKey"/>
+    <result column="source_path" property="sourcePath"/>
+    <result column="chapter_no" property="chapterNo"/>
+    <result column="title" property="title"/>
+    <result column="subtitle" property="subtitle"/>
+    <result column="content_html" property="contentHtml"/>
+    <result column="plain_text" property="plainText"/>
+    <result column="word_count" property="wordCount"/>
+    <result column="warning_json" property="warningJson"/>
+    <result column="review_status" property="reviewStatus"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <resultMap id="BookResultMap" type="com.interview.auth.domain.entity.Book">
+    <id column="id" property="id"/>
+    <result column="book_key" property="bookKey"/>
+    <result column="title" property="title"/>
+    <result column="author" property="author"/>
+    <result column="publisher" property="publisher"/>
+    <result column="category" property="category"/>
+    <result column="summary" property="summary"/>
+    <result column="cover_url" property="coverUrl"/>
+    <result column="tag_list" property="tagList"/>
+    <result column="word_count" property="wordCount"/>
+    <result column="chapter_count" property="chapterCount"/>
+    <result column="read_count" property="readCount"/>
+    <result column="rating" property="rating"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="published_at" property="publishedAt"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
+  <insert id="saveSourceFile">
+    INSERT INTO book_source_file (
+      file_key,
+      original_name,
+      storage_url,
+      file_size,
+      file_hash
+    ) VALUES (
+      #{fileKey},
+      #{originalName},
+      #{storageUrl},
+      #{fileSize},
+      #{fileHash}
+    )
+  </insert>
+
+  <insert id="saveImportJob">
+    INSERT INTO book_import_job (
+      job_key,
+      book_key,
+      title,
+      author,
+      publisher,
+      summary,
+      category,
+      cover_url,
+      source_file_key,
+      import_type,
+      source_url,
+      original_format,
+      file_size,
+      status,
+      progress,
+      total_chapters,
+      success_chapters,
+      fail_chapters,
+      message
+    ) VALUES (
+      #{jobKey},
+      #{bookKey},
+      #{title},
+      #{author},
+      #{publisher},
+      #{summary},
+      #{category},
+      #{coverUrl},
+      #{sourceFileKey},
+      #{importType},
+      #{sourceUrl},
+      #{originalFormat},
+      COALESCE(#{fileSize}, 0),
+      #{status},
+      COALESCE(#{progress}, 0),
+      COALESCE(#{totalChapters}, 0),
+      COALESCE(#{successChapters}, 0),
+      COALESCE(#{failChapters}, 0),
+      #{message}
+    )
+  </insert>
+
+  <select id="findImportJobByKey" resultMap="BookImportJobResultMap">
+    SELECT *
+    FROM book_import_job
+    WHERE job_key = #{jobKey}
+    LIMIT 1
+  </select>
+
+  <update id="updateImportJob">
+    UPDATE book_import_job
+    SET
+      book_key = #{bookKey},
+      title = #{title},
+      author = #{author},
+      publisher = #{publisher},
+      summary = #{summary},
+      category = #{category},
+      cover_url = #{coverUrl},
+      source_file_key = #{sourceFileKey},
+      import_type = #{importType},
+      source_url = #{sourceUrl},
+      original_format = #{originalFormat},
+      file_size = COALESCE(#{fileSize}, 0),
+      status = #{status},
+      progress = COALESCE(#{progress}, 0),
+      total_chapters = COALESCE(#{totalChapters}, 0),
+      success_chapters = COALESCE(#{successChapters}, 0),
+      fail_chapters = COALESCE(#{failChapters}, 0),
+      message = #{message},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE job_key = #{jobKey}
+  </update>
+
+  <delete id="deleteImportStageByJobKey">
+    DELETE FROM book_import_chapter_stage
+    WHERE job_key = #{jobKey}
+  </delete>
+
+  <insert id="batchInsertImportStages">
+    INSERT INTO book_import_chapter_stage (
+      job_key,
+      temp_chapter_key,
+      source_path,
+      chapter_no,
+      title,
+      subtitle,
+      content_html,
+      plain_text,
+      word_count,
+      warning_json,
+      review_status,
+      sort_order
+    ) VALUES
+    <foreach collection="stages" item="item" separator=",">
+      (
+        #{item.jobKey},
+        #{item.tempChapterKey},
+        #{item.sourcePath},
+        #{item.chapterNo},
+        #{item.title},
+        #{item.subtitle},
+        #{item.contentHtml},
+        #{item.plainText},
+        #{item.wordCount},
+        #{item.warningJson},
+        #{item.reviewStatus},
+        #{item.sortOrder}
+      )
+    </foreach>
+  </insert>
+
+  <select id="findImportStagesByJobKey" resultMap="BookImportStageResultMap">
+    SELECT *
+    FROM book_import_chapter_stage
+    WHERE job_key = #{jobKey}
+    ORDER BY sort_order ASC, chapter_no ASC, id ASC
+  </select>
+
+  <select id="findImportStageByKey" resultMap="BookImportStageResultMap">
+    SELECT *
+    FROM book_import_chapter_stage
+    WHERE job_key = #{jobKey}
+      AND temp_chapter_key = #{tempChapterKey}
+    LIMIT 1
+  </select>
+
+  <update id="updateImportStage">
+    UPDATE book_import_chapter_stage
+    SET
+      chapter_no = #{chapterNo},
+      title = #{title},
+      subtitle = #{subtitle},
+      content_html = #{contentHtml},
+      plain_text = #{plainText},
+      word_count = #{wordCount},
+      warning_json = #{warningJson},
+      review_status = #{reviewStatus},
+      sort_order = #{sortOrder},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE temp_chapter_key = #{tempChapterKey}
+  </update>
+
+  <insert id="saveBook">
+    INSERT INTO book (
+      book_key,
+      title,
+      author,
+      publisher,
+      category,
+      summary,
+      cover_url,
+      tag_list,
+      word_count,
+      chapter_count,
+      read_count,
+      rating,
+      status,
+      sort_order,
+      published_at
+    ) VALUES (
+      #{bookKey},
+      #{title},
+      #{author},
+      #{publisher},
+      #{category},
+      #{summary},
+      #{coverUrl},
+      #{tagList},
+      #{wordCount},
+      #{chapterCount},
+      #{readCount},
+      #{rating},
+      #{status},
+      #{sortOrder},
+      #{publishedAt}
+    )
+    ON DUPLICATE KEY UPDATE
+      title = VALUES(title),
+      author = VALUES(author),
+      publisher = VALUES(publisher),
+      category = VALUES(category),
+      summary = VALUES(summary),
+      cover_url = VALUES(cover_url),
+      tag_list = VALUES(tag_list),
+      word_count = VALUES(word_count),
+      chapter_count = VALUES(chapter_count),
+      read_count = VALUES(read_count),
+      rating = VALUES(rating),
+      status = VALUES(status),
+      sort_order = VALUES(sort_order),
+      published_at = VALUES(published_at),
+      updated_at = CURRENT_TIMESTAMP
+  </insert>
+
+  <delete id="deleteBookChaptersByBookKey">
+    DELETE FROM book_chapter
+    WHERE book_key = #{bookKey}
+  </delete>
+
+  <insert id="batchInsertBookChapters">
+    INSERT INTO book_chapter (
+      chapter_key,
+      book_key,
+      chapter_no,
+      title,
+      subtitle,
+      content_html,
+      word_count,
+      is_free,
+      status,
+      sort_order
+    ) VALUES
+    <foreach collection="chapters" item="item" separator=",">
+      (
+        #{item.chapterKey},
+        #{item.bookKey},
+        #{item.chapterNo},
+        #{item.title},
+        #{item.subtitle},
+        #{item.contentHtml},
+        #{item.wordCount},
+        #{item.isFree},
+        #{item.status},
+        #{item.sortOrder}
+      )
+    </foreach>
+  </insert>
+
+  <select id="findAllBooks" resultMap="BookResultMap">
+    SELECT *
+    FROM book
+    ORDER BY updated_at DESC, sort_order ASC, published_at DESC
+  </select>
+
+  <select id="listImportJobs" resultMap="BookImportJobResultMap">
+    SELECT *
+    FROM book_import_job
+    ORDER BY updated_at DESC
+    LIMIT #{limit}
+  </select>
+</mapper>

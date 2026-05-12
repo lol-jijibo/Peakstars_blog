@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 承接看天下期刊页的前端展示结构，确保频道页继续沿用现有字段命名。
- * 后端直接输出封面与统计字段，前端只负责遍历渲染，不再依赖本地静态数据。
+ * 承接看天下频道页、榜单区和详情浮层共用的期刊展示字段。
+ * 后端把数据库原始列统一收口到这里，前端可以直接复用同一份结构渲染不同区域。
  */
 @Getter
 @Setter
@@ -24,4 +24,6 @@ public class WorldNewsIssueResponse {
     private String coverHeadline;
     private String coverSummary;
     private String coverFooter;
+    private String publishedAt;
+    private String contentHtml;
 }

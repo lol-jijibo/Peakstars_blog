@@ -60,22 +60,32 @@
 
         <div class="nav-section">数据</div>
         <button class="nav-item" :class="{ active: isStatsPage }" type="button" @click="scrollToAnalytics">
-          <span class="icon">数</span>
+          <span class="icon icon-emoji" aria-hidden="true">📊</span>
           数据分析
         </button>
         <button class="nav-item" :class="{ active: isCommentsPage }" type="button" @click="scrollToCommentSection">
-          <span class="icon">评</span>
+          <span class="icon icon-emoji" aria-hidden="true">💬</span>
           评论管理
           <span class="nav-badge">{{ formatCount(summary.totalComments) }}</span>
         </button>
 
+        <div class="nav-section">书籍</div>
+        <button class="nav-item nav-item-book" :class="{ active: isBooksImportPage }" type="button" @click="openBookImportPage">
+          <span class="icon icon-emoji" aria-hidden="true">📚</span>
+          书籍导入
+        </button>
+        <button class="nav-item nav-item-book" :class="{ active: isBooksOverviewPage }" type="button" @click="openBookOverviewPage">
+          <span class="icon icon-emoji" aria-hidden="true">📖</span>
+          书籍总览
+        </button>
+
         <div class="nav-section">系统</div>
         <button v-if="isContentPage" class="nav-item" type="button" @click="openCreateDialog">
-          <span class="icon">建</span>
+          <span class="icon icon-emoji" aria-hidden="true">🆕</span>
           新建内容
         </button>
         <button v-if="isContentPage" class="nav-item" type="button" @click="handleExportCurrentModule">
-          <span class="icon">出</span>
+          <span class="icon icon-emoji" aria-hidden="true">📤</span>
           导出内容
         </button>
       </nav>
@@ -211,6 +221,9 @@
             <div v-else class="activity-empty">当前暂无热点内容数据。</div>
           </div>
         </section>
+
+        <AdminBookImportView v-if="isBooksImportPage" :key="route.fullPath" :standalone="false" />
+        <AdminBookOverviewView v-else-if="isBooksOverviewPage" :key="route.fullPath" />
 
         <div v-if="isContentPage && currentType !== 'interview'" class="tab-row">
           <button
@@ -641,6 +654,8 @@ import { listAdminDrafts, saveAdminDraft, deleteAdminDraft, previewImportedAdmin
 import AdminTrendChart from '@/modules/admin/components/AdminTrendChart.vue'
 import AdminModuleChart from '@/modules/admin/components/AdminModuleChart.vue'
 import AdminCommentChart from '@/modules/admin/components/AdminCommentChart.vue'
+import AdminBookImportView from '@/modules/admin/views/AdminBookImportView.vue'
+import AdminBookOverviewView from '@/modules/admin/views/AdminBookOverviewView.vue'
 
 const AdminRichEditor = defineAsyncComponent(() => import('@/modules/admin/components/AdminRichEditor.vue'))
 
@@ -659,11 +674,7 @@ const sidebarEmojiMap = {
   tech: '📝',
   world: '📰',
   ai: '✨',
-  interview: '🎙️',
-  analytics: '📊',
-  comment: '💬',
-  create: '🆕',
-  export: '📤'
+  interview: '🎙️'
 }
 
 // 业务目的：严格贴合模板布局时，所有可变标题、文案和字段映射都从模块配置统一生成。
@@ -811,6 +822,9 @@ function cancelConfirm() {
 const contentSectionKeys = ['tech', 'world', 'ai', 'interview']
 const routeSection = computed(() => String(route.params.section || 'tech'))
 const isContentPage = computed(() => contentSectionKeys.includes(routeSection.value))
+const isBooksImportPage = computed(() => routeSection.value === 'books-import')
+const isBooksOverviewPage = computed(() => routeSection.value === 'books-list')
+const isBookSubPage = computed(() => isBooksImportPage.value || isBooksOverviewPage.value)
 const isStatsPage = computed(() => routeSection.value === 'stats')
 const isCommentsPage = computed(() => routeSection.value === 'comment')
 const currentType = ref('tech')
@@ -912,7 +926,7 @@ const summary = computed(() => currentSummary.value || {
 const activeModule = computed(() => moduleOptions.value.find((item) => item.key === currentType.value) || moduleOptions.value[0])
 /**
  * 只在后端具备封面持久化能力的模块中展示封面上传入口。
- * 面经与期刊当前没有对应封面字段写库链路，前端需要主动收口避免出现“保存成功但回显丢失”的假象。
+ * 面经与期刊当前没有对应封面字段写库链路，前端需要主动收口避免出现"保存成功但回显丢失"的假象。
  */
 const supportsCoverUpload = computed(() => ['tech', 'ai'].includes(currentType.value))
 /**
@@ -930,6 +944,15 @@ const coverFieldNotice = computed(() => {
 })
 const currentRecords = computed(() => adminStore.getContentList(currentType.value))
 const pageTitle = computed(() => {
+  if (isBooksImportPage.value) {
+    return '书籍导入'
+  }
+  if (isBooksOverviewPage.value) {
+    return '书籍总览'
+  }
+  if (isBookSubPage.value) {
+    return '书籍管理'
+  }
   if (isStatsPage.value) {
     return '数据分析'
   }
@@ -1322,6 +1345,18 @@ function switchType(type) {
   router.push(`/admin/${type}`)
 }
 
+/**
+ * 从管理后台侧边栏进入独立的书籍导入页。
+ * 保持书籍导入只属于后台系统能力，避免用户端页面直接暴露后台操作入口。
+ */
+function openBookImportPage() {
+  router.push('/admin/books-import')
+}
+
+function openBookOverviewPage() {
+  router.push('/admin/books-list')
+}
+
 // 业务目的：按模块 key 返回左侧导航的彩色图标字符，保证每个模块都有稳定图标。
 // 业务逻辑：已配置模块直接返回对应 emoji，未命中时回退到文章图标，避免导航出现空白占位。
 function resolveSidebarEmoji(iconKey) {
@@ -1666,6 +1701,16 @@ function resolveModuleCount(type) {
 }
 
 async function refreshPageData() {
+  if (isBookSubPage.value) {
+    await router.replace({
+      path: route.fullPath,
+      query: {
+        ...route.query,
+        _refresh: `${Date.now()}`
+      }
+    })
+    return
+  }
   if (isContentPage.value) {
     await adminStore.refreshAll(currentType.value).catch(() => null)
     return

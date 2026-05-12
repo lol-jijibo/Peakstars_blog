@@ -5,6 +5,12 @@ dist/
 node_modules/
 server/node_modules/
 
+# Local AI / tooling workspace
+.claude/
+.codebuddy/
+.run/
+.workbuddy/
+
 # Lock files (should not be tracked)
 server/package-lock.json
 
