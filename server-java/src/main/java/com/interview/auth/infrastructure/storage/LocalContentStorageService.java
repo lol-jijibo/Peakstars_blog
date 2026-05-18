@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Slf4j
-@ConditionalOnProperty(prefix = "app.storage.minio", name = "enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnExpression("!'${app.storage.minio.enabled:false}'.equals('true') && !'${app.storage.oss.enabled:false}'.equals('true')")
 public class LocalContentStorageService implements ContentStorageService {
 
     @Value("${app.storage.local.upload-dir:${java.io.tmpdir}/peakstars-uploads}")
@@ -57,6 +57,22 @@ public class LocalContentStorageService implements ContentStorageService {
 
         log.debug("文件已保存到本地: {}", targetFile);
         return baseUrl + "/" + relativePath;
+    }
+
+    @Override
+    public InputStream download(String resourceUrl) throws Exception {
+        String relativePath = resourceUrl.trim();
+        if (relativePath.startsWith(baseUrl)) {
+            relativePath = relativePath.substring(baseUrl.length());
+        }
+        while (relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        Path filePath = Paths.get(uploadDir).resolve(relativePath).normalize();
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            throw new java.io.FileNotFoundException("本地文件不存在: " + filePath);
+        }
+        return Files.newInputStream(filePath);
     }
 
     @Override

@@ -61,10 +61,24 @@ export function getBookImportJobChapters(jobKey) {
   return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/chapters`)
 }
 
+export function updateBookImportJobMetadata(jobKey, payload) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/metadata`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  })
+}
+
 export function updateBookImportJobChapter(jobKey, tempChapterKey, payload) {
   return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/chapters/${encodeURIComponent(tempChapterKey)}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
+  })
+}
+
+export function updateBookImportJobChapters(jobKey, chapters) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/chapters`, {
+    method: 'PUT',
+    body: JSON.stringify({ chapters })
   })
 }
 
@@ -74,6 +88,71 @@ export function publishBookImportJob(jobKey) {
   })
 }
 
+export function approveBookImportJobs(jobKeys) {
+  return request('/api/admin/books/import-jobs/batch/approve', {
+    method: 'POST',
+    body: JSON.stringify({ jobKeys })
+  })
+}
+
+export function rejectBookImportJobs(jobKeys, reason = '') {
+  return request('/api/admin/books/import-jobs/batch/reject', {
+    method: 'POST',
+    body: JSON.stringify({ jobKeys, reason })
+  })
+}
+
+export function publishBookImportJobs(jobKeys) {
+  return request('/api/admin/books/import-jobs/batch/publish', {
+    method: 'POST',
+    body: JSON.stringify({ jobKeys })
+  })
+}
+
 export function getAdminBooks() {
   return request('/api/admin/books')
+}
+
+export function updateAdminBookCategory(bookKey, category) {
+  return request(`/api/admin/books/${encodeURIComponent(bookKey)}/category`, {
+    method: 'PUT',
+    body: JSON.stringify({ category })
+  })
+}
+
+export function deleteAdminBook(bookKey) {
+  return request(`/api/admin/books/${encodeURIComponent(bookKey)}`, {
+    method: 'DELETE'
+  })
+}
+
+export function deleteImportJob(jobKey) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}`, {
+    method: 'DELETE'
+  })
+}
+
+export function restoreImportJob(jobKey) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/restore`, {
+    method: 'POST'
+  })
+}
+
+export function batchDeleteImportJobs(jobKeys) {
+  return request('/api/admin/books/import-jobs/batch/delete', {
+    method: 'POST',
+    body: JSON.stringify({ jobKeys })
+  })
+}
+
+export function deleteImportJobsByCategory(category) {
+  return request(`/api/admin/books/import-jobs/category/${encodeURIComponent(category)}`, {
+    method: 'DELETE'
+  })
+}
+
+export function repairImportJobCover(jobKey) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/repair-cover`, {
+    method: 'POST'
+  })
 }

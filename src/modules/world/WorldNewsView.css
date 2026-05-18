@@ -197,61 +197,16 @@
 .world-bookshelf-large-cover {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
     linear-gradient(160deg, var(--cover-accent) 0%, color-mix(in srgb, var(--cover-accent) 68%, #ffffff 32%) 100%);
   overflow: hidden;
 }
 
-.world-bookshelf-mini-cover::before,
-.world-bookshelf-large-cover::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0, rgba(0, 0, 0, 0.16) 7px, transparent 7px),
-    radial-gradient(circle at 78% 18%, var(--cover-glow) 0, transparent 34%);
-}
-
 .world-bookshelf-mini-cover {
-  width: 42px;
-  height: 62px;
+  width: 58px;
+  height: 84px;
   border-radius: 3px;
   flex-shrink: 0;
-}
-
-.world-bookshelf-mini-cover-text,
-.world-bookshelf-large-cover-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  z-index: 1;
-}
-
-.world-bookshelf-mini-cover-text {
-  padding: 7px 6px;
-}
-
-.world-bookshelf-mini-cover-text span,
-.world-bookshelf-large-cover-text span,
-.world-bookshelf-large-cover-text small {
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.world-bookshelf-mini-cover-text span {
-  font-size: 8px;
-  line-height: 1.2;
-}
-
-.world-bookshelf-mini-cover-text strong {
-  color: #ffffff;
-  font-size: 12px;
-  line-height: 1.15;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  align-self: flex-start;
-  letter-spacing: 1px;
+  box-shadow: 0 8px 18px rgba(26, 46, 77, 0.14);
 }
 
 .world-bookshelf-reading-copy {
@@ -259,7 +214,8 @@
 }
 
 .world-bookshelf-reading-copy h3,
-.world-bookshelf-recommend-card h3 {
+.world-bookshelf-recommend-card h3,
+.world-bookshelf-recommend-author {
   margin: 0;
   color: #102746;
   font-weight: 500;
@@ -292,49 +248,40 @@
 }
 
 .world-bookshelf-recommend-card {
-  padding: 14px 14px 18px;
+  padding: 20px 18px 22px;
   text-align: center;
 }
 
 .world-bookshelf-cover-frame {
-  height: 178px;
+  height: 212px;
   display: grid;
   place-items: center;
+  margin-bottom: 14px;
 }
 
 .world-bookshelf-large-cover {
-  width: min(76px, 100%);
+  width: min(118px, 74%);
   aspect-ratio: 0.72;
-  border-radius: 3px;
-  box-shadow: 0 10px 24px rgba(26, 46, 77, 0.14);
-}
-
-.world-bookshelf-large-cover-text {
-  padding: 11px 8px;
-}
-
-.world-bookshelf-large-cover-text span {
-  font-size: 8px;
-  line-height: 1.3;
-}
-
-.world-bookshelf-large-cover-text strong {
-  color: #ffffff;
-  font-size: 17px;
-  line-height: 1.04;
-  letter-spacing: 1px;
-}
-
-.world-bookshelf-large-cover-text small {
-  font-size: 8px;
-  line-height: 1.3;
+  border-radius: 4px;
+  box-shadow: 0 14px 30px rgba(26, 46, 77, 0.18);
 }
 
 .world-bookshelf-recommend-card h3 {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.world-bookshelf-recommend-author {
+  margin-top: 6px;
+  color: #67778e;
+  font-size: 12px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -393,6 +340,7 @@ html[data-theme='dark'] .world-bookshelf-search svg,
 html[data-theme='dark'] .world-bookshelf-hotwords-label,
 html[data-theme='dark'] .world-bookshelf-divider,
 html[data-theme='dark'] .world-bookshelf-reading-copy p,
+html[data-theme='dark'] .world-bookshelf-recommend-author,
 html[data-theme='dark'] .world-bookshelf-empty p {
   color: #93a3b8;
 }
@@ -469,6 +417,10 @@ html[data-theme='dark'] .world-bookshelf-link {
   }
 
   .world-bookshelf-cover-frame {
-    height: 240px;
+    height: 280px;
+  }
+
+  .world-bookshelf-large-cover {
+    width: min(150px, 62%);
   }
 }

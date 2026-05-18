@@ -2,6 +2,7 @@ package com.interview.auth.infrastructure.storage;
 
 import com.interview.auth.config.MinioProperties;
 import io.minio.BucketExistsArgs;
+import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -88,6 +89,39 @@ public class MinioContentStorageService implements ContentStorageService {
                 .build()
         );
         return buildPublicUrl(objectName);
+    }
+
+    @Override
+    public InputStream download(String resourceUrl) throws Exception {
+        if (!bucketReady) {
+            tryInitializeBucket();
+        }
+        String objectName = extractObjectName(resourceUrl);
+        return minioClient.getObject(
+            GetObjectArgs.builder()
+                .bucket(minioProperties.getBucket())
+                .object(objectName)
+                .build()
+        );
+    }
+
+    /**
+     * 从公开访问地址中解析 MinIO 对象键。
+     * 同时兼容 proxyBaseUrl、publicBaseUrl 和 endpoint 构造的地址。
+     */
+    private String extractObjectName(String resourceUrl) {
+        String url = resourceUrl.trim();
+        String proxyUrl = normalizeBaseUrl(proxyBaseUrl);
+        if (!proxyUrl.isBlank() && url.startsWith(proxyUrl)) {
+            return url.substring(proxyUrl.length() + 1);
+        }
+        String publicBaseUrl = normalizeBaseUrl(minioProperties.getPublicBaseUrl());
+        if (!publicBaseUrl.isBlank() && url.startsWith(publicBaseUrl)) {
+            return url.substring(publicBaseUrl.length() + 1);
+        }
+        java.net.URI uri = java.net.URI.create(url);
+        String path = uri.getPath();
+        return path.startsWith("/") ? path.substring(1) : path;
     }
 
     /**

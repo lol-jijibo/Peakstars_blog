@@ -10,6 +10,7 @@
     <result column="book_key" property="bookKey"/>
     <result column="title" property="title"/>
     <result column="author" property="author"/>
+    <result column="translator" property="translator"/>
     <result column="publisher" property="publisher"/>
     <result column="summary" property="summary"/>
     <result column="category" property="category"/>
@@ -52,6 +53,7 @@
     <result column="book_key" property="bookKey"/>
     <result column="title" property="title"/>
     <result column="author" property="author"/>
+    <result column="translator" property="translator"/>
     <result column="publisher" property="publisher"/>
     <result column="category" property="category"/>
     <result column="summary" property="summary"/>
@@ -84,12 +86,20 @@
     )
   </insert>
 
+  <select id="findSourceFileByKey" resultType="com.interview.auth.admin.entity.BookSourceFile">
+    SELECT *
+    FROM book_source_file
+    WHERE file_key = #{fileKey}
+    LIMIT 1
+  </select>
+
   <insert id="saveImportJob">
     INSERT INTO book_import_job (
       job_key,
       book_key,
       title,
       author,
+      translator,
       publisher,
       summary,
       category,
@@ -110,6 +120,7 @@
       #{bookKey},
       #{title},
       #{author},
+      COALESCE(#{translator}, ''),
       #{publisher},
       #{summary},
       #{category},
@@ -141,6 +152,7 @@
       book_key = #{bookKey},
       title = #{title},
       author = #{author},
+      translator = COALESCE(#{translator}, ''),
       publisher = #{publisher},
       summary = #{summary},
       category = #{category},
@@ -234,6 +246,7 @@
       book_key,
       title,
       author,
+      translator,
       publisher,
       category,
       summary,
@@ -250,6 +263,7 @@
       #{bookKey},
       #{title},
       #{author},
+      COALESCE(#{translator}, ''),
       #{publisher},
       #{category},
       #{summary},
@@ -266,6 +280,7 @@
     ON DUPLICATE KEY UPDATE
       title = VALUES(title),
       author = VALUES(author),
+      translator = VALUES(translator),
       publisher = VALUES(publisher),
       category = VALUES(category),
       summary = VALUES(summary),
@@ -285,6 +300,24 @@
     DELETE FROM book_chapter
     WHERE book_key = #{bookKey}
   </delete>
+
+  <update id="updatePublishedBookFromImportJob">
+    UPDATE book
+    SET
+      title = #{title},
+      author = #{author},
+      translator = #{translator},
+      publisher = #{publisher},
+      category = #{category},
+      summary = #{summary},
+      cover_url = #{coverUrl},
+      tag_list = #{tagList},
+      word_count = #{wordCount},
+      chapter_count = #{chapterCount},
+      status = #{status},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE book_key = #{bookKey}
+  </update>
 
   <insert id="batchInsertBookChapters">
     INSERT INTO book_chapter (
@@ -321,10 +354,108 @@
     ORDER BY updated_at DESC, sort_order ASC, published_at DESC
   </select>
 
+  <select id="findBookByKey" resultMap="BookResultMap">
+    SELECT *
+    FROM book
+    WHERE book_key = #{bookKey}
+    LIMIT 1
+  </select>
+
+  <update id="updateBookCategory">
+    UPDATE book
+    SET
+      category = #{category},
+      tag_list = #{category},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE book_key = #{bookKey}
+  </update>
+
+  <update id="updateBookStatusByKey">
+    UPDATE book
+    SET
+      status = #{status},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE book_key = #{bookKey}
+  </update>
+
+  <update id="updateImportJobCategoryByBookKey">
+    UPDATE book_import_job
+    SET
+      category = #{category},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE book_key = #{bookKey}
+  </update>
+
+  <delete id="deleteImportStageByBookKey">
+    DELETE stage
+    FROM book_import_chapter_stage stage
+    INNER JOIN book_import_job job ON job.job_key = stage.job_key
+    WHERE job.book_key = #{bookKey}
+  </delete>
+
+  <delete id="deleteImportJobByBookKey">
+    DELETE FROM book_import_job
+    WHERE book_key = #{bookKey}
+  </delete>
+
+  <delete id="deleteBookByKey">
+    DELETE FROM book
+    WHERE book_key = #{bookKey}
+  </delete>
+
   <select id="listImportJobs" resultMap="BookImportJobResultMap">
     SELECT *
     FROM book_import_job
     ORDER BY updated_at DESC
     LIMIT #{limit}
   </select>
+
+  <select id="findImportJobsByBookKey" resultMap="BookImportJobResultMap">
+    SELECT *
+    FROM book_import_job
+    WHERE book_key = #{bookKey}
+    ORDER BY updated_at DESC
+  </select>
+
+  <update id="updateImportJobDeletedByKey">
+    UPDATE book_import_job
+    SET
+      status = 'deleted',
+      message = #{message},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE job_key = #{jobKey}
+      AND status != 'deleted'
+  </update>
+
+  <update id="restoreImportJobStatusByKey">
+    UPDATE book_import_job
+    SET
+      status = CASE
+        WHEN message LIKE 'DELETE_PREVIOUS_STATUS=%;%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(message, ';', 1), '=', -1)
+        ELSE 'await_review'
+      END,
+      message = #{message},
+      updated_at = CURRENT_TIMESTAMP
+    WHERE job_key = #{jobKey}
+      AND status = 'deleted'
+  </update>
+
+  <select id="findImportJobsByCategory" resultMap="BookImportJobResultMap">
+    SELECT *
+    FROM book_import_job
+    WHERE category = #{category}
+    ORDER BY updated_at DESC
+  </select>
+
+  <delete id="deleteImportStagesByCategory">
+    DELETE stage
+    FROM book_import_chapter_stage stage
+    INNER JOIN book_import_job job ON job.job_key = stage.job_key
+    WHERE job.category = #{category}
+  </delete>
+
+  <delete id="deleteImportJobsByCategory">
+    DELETE FROM book_import_job
+    WHERE category = #{category}
+  </delete>
 </mapper>

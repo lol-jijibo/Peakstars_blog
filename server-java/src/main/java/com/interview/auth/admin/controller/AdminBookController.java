@@ -1,7 +1,12 @@
 package com.interview.auth.admin.controller;
 
+import com.interview.auth.admin.dto.request.AdminBookCategoryUpdateRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportBatchRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportChapterBatchUpdateRequest;
 import com.interview.auth.admin.dto.request.AdminBookImportChapterUpdateRequest;
 import com.interview.auth.admin.dto.request.AdminBookImportExternalRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportMetadataUpdateRequest;
+import com.interview.auth.admin.dto.response.AdminBookImportBatchResponse;
 import com.interview.auth.admin.dto.response.AdminBookImportChapterResponse;
 import com.interview.auth.admin.dto.response.AdminBookImportJobResponse;
 import com.interview.auth.admin.service.AdminBookService;
@@ -10,6 +15,7 @@ import com.interview.auth.domain.dto.response.BookResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -108,6 +114,18 @@ public class AdminBookController {
     }
 
     /**
+     * 更新导入任务的书籍元数据。
+     * 发布前保存书名、作者和译者修正结果，后续发布流程直接复用任务字段。
+     */
+    @PutMapping("/import-jobs/{jobKey}/metadata")
+    public ApiResponse<AdminBookImportJobResponse> updateImportJobMetadata(
+        @PathVariable String jobKey,
+        @Valid @RequestBody AdminBookImportMetadataUpdateRequest request
+    ) {
+        return ApiResponse.success(adminBookService.updateImportJobMetadata(jobKey, request));
+    }
+
+    /**
      * 更新导入章节暂存内容。
      */
     @PutMapping("/import-jobs/{jobKey}/chapters/{tempChapterKey}")
@@ -120,6 +138,18 @@ public class AdminBookController {
     }
 
     /**
+     * 批量更新导入章节暂存内容。
+     * 前端汇总多个章节草稿后一次提交，减少逐章保存的重复请求。
+     */
+    @PutMapping("/import-jobs/{jobKey}/chapters")
+    public ApiResponse<List<AdminBookImportChapterResponse>> updateImportJobChapters(
+        @PathVariable String jobKey,
+        @Valid @RequestBody AdminBookImportChapterBatchUpdateRequest request
+    ) {
+        return ApiResponse.success(adminBookService.updateImportJobChapters(jobKey, request));
+    }
+
+    /**
      * 发布导入任务中的整本书。
      */
     @PostMapping("/import-jobs/{jobKey}/publish")
@@ -128,10 +158,115 @@ public class AdminBookController {
     }
 
     /**
+     * 批量通过导入任务审核。
+     * 接收任务主键集合后统一标记通过，前端可继续选择批量发布。
+     */
+    @PostMapping("/import-jobs/batch/approve")
+    public ApiResponse<AdminBookImportBatchResponse> approveImportJobs(
+        @Valid @RequestBody AdminBookImportBatchRequest request
+    ) {
+        return ApiResponse.success(adminBookService.approveImportJobs(request));
+    }
+
+    /**
+     * 批量拒绝导入任务审核。
+     * 接收任务主键集合和原因后统一标记拒绝，防止误进入发布队列。
+     */
+    @PostMapping("/import-jobs/batch/reject")
+    public ApiResponse<AdminBookImportBatchResponse> rejectImportJobs(
+        @Valid @RequestBody AdminBookImportBatchRequest request
+    ) {
+        return ApiResponse.success(adminBookService.rejectImportJobs(request));
+    }
+
+    /**
+     * 批量发布导入任务中的书籍。
+     * 按任务逐本复用发布流程并汇总结果，单本异常不会影响其他任务。
+     */
+    @PostMapping("/import-jobs/batch/publish")
+    public ApiResponse<AdminBookImportBatchResponse> publishImportJobs(
+        @Valid @RequestBody AdminBookImportBatchRequest request
+    ) {
+        return ApiResponse.success(adminBookService.publishImportJobs(request));
+    }
+
+    /**
      * 查询书籍列表。
      */
     @GetMapping
     public ApiResponse<List<BookResponse>> listBooks() {
         return ApiResponse.success(adminBookService.listBooks());
+    }
+
+    /**
+     * 更新书籍分类标签。
+     * 根据书籍业务主键修改分类，并同步导入任务里的分类字段。
+     */
+    @PutMapping("/{bookKey}/category")
+    public ApiResponse<BookResponse> updateBookCategory(
+        @PathVariable String bookKey,
+        @Valid @RequestBody AdminBookCategoryUpdateRequest request
+    ) {
+        return ApiResponse.success(adminBookService.updateBookCategory(bookKey, request));
+    }
+
+    /**
+     * 删除书籍及关联导入记录。
+     * 确认后清理正式书籍、章节快照和导入暂存数据。
+     */
+    @DeleteMapping("/{bookKey}")
+    public ApiResponse<Void> deleteBook(@PathVariable String bookKey) {
+        adminBookService.deleteBook(bookKey);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 删除指定导入任务及其关联数据。
+     * 清理暂存章节和导入主记录；若任务已发布，同步删除正式书籍和章节。
+     */
+    @DeleteMapping("/import-jobs/{jobKey}")
+    public ApiResponse<Void> deleteImportJob(@PathVariable String jobKey) {
+        adminBookService.deleteImportJob(jobKey);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 恢复已删除的导入任务和关联书籍。
+     * 后台从已删除列表触发后还原任务状态，并让已发布书籍重新进入展示列表。
+     */
+    @PostMapping("/import-jobs/{jobKey}/restore")
+    public ApiResponse<AdminBookImportJobResponse> restoreImportJob(@PathVariable String jobKey) {
+        return ApiResponse.success(adminBookService.restoreImportJob(jobKey));
+    }
+
+    /**
+     * 批量删除导入任务。
+     * 接收任务主键集合后逐个删除，单条失败不影响其他任务。
+     */
+    @PostMapping("/import-jobs/batch/delete")
+    public ApiResponse<AdminBookImportBatchResponse> batchDeleteImportJobs(
+        @Valid @RequestBody AdminBookImportBatchRequest request
+    ) {
+        return ApiResponse.success(adminBookService.batchDeleteImportJobs(request));
+    }
+
+    /**
+     * 按分类删除导入任务。
+     * 清理指定分类下所有导入记录及其暂存章节，已发布的正式书籍不受影响。
+     */
+    @DeleteMapping("/import-jobs/category/{category}")
+    public ApiResponse<Integer> deleteImportJobsByCategory(@PathVariable String category) {
+        int count = adminBookService.deleteImportJobsByCategory(category);
+        return ApiResponse.success(count);
+    }
+
+    /**
+     * 重新从源文件中解析封面并更新导入任务。
+     * 已导入但封面未正确解析或封面图丢失的任务可调用此接口，
+     * 无需重新上传 ZIP 即可从已有源文件中恢复封面图片。
+     */
+    @PostMapping("/import-jobs/{jobKey}/repair-cover")
+    public ApiResponse<AdminBookImportJobResponse> repairImportJobCover(@PathVariable String jobKey) throws Exception {
+        return ApiResponse.success(adminBookService.repairImportJobCover(jobKey));
     }
 }

@@ -29,6 +29,16 @@ public interface ContentStorageService {
     ) throws Exception;
 
     /**
+     * 从存储中下载已上传的资源。
+     * 用于封面修复、章节重新解析等需要回读原始文件内容的场景。
+     *
+     * @param resourceUrl upload 方法返回的对外访问地址
+     * @return 资源输入流，调用方负责关闭
+     * @throws Exception 下载异常（文件不存在或存储不可达）
+     */
+    InputStream download(String resourceUrl) throws Exception;
+
+    /**
      * 判断当前链接是否已经属于本站资源。
      * 避免重复迁移已落到自有对象存储的图片或附件，降低导入链路的冗余上传成本。
      *

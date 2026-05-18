@@ -12,9 +12,11 @@ import lombok.Setter;
 public class AdminBookImportJobResponse {
 
     private String jobKey;
+    private String previousStatus;
     private String bookKey;
     private String title;
     private String author;
+    private String translator;
     private String publisher;
     private String summary;
     private String category;

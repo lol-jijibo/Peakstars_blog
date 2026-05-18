@@ -26,26 +26,26 @@
     </header>
 
     <main class="reader-stage">
-      <div class="reader-side-nav reader-side-nav-left">
-        <button class="reader-side-nav-btn" type="button" :disabled="!canGoPrev" @click="prevChapter">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path d="M15 19 8 12l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" />
-          </svg>
-          <span>PREVIOUS</span>
-        </button>
-      </div>
-
-      <div class="reader-side-nav reader-side-nav-right">
-        <button class="reader-side-nav-btn" type="button" :disabled="!canGoNext" @click="nextChapter">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" />
-          </svg>
-          <span>NEXT PAGE</span>
-        </button>
-      </div>
-
       <div class="reader-shell">
         <div class="reader-card">
+          <div class="reader-side-nav reader-side-nav-left">
+            <button class="reader-side-nav-btn" type="button" :disabled="!canGoPrev" @click="prevChapter">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="M15 19 8 12l7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" />
+              </svg>
+              <span>上一页</span>
+            </button>
+          </div>
+
+          <div class="reader-side-nav reader-side-nav-right">
+            <button class="reader-side-nav-btn" type="button" :disabled="!canGoNext" @click="nextChapter">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                <path d="m9 5 7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" />
+              </svg>
+              <span>下一页</span>
+            </button>
+          </div>
+
           <div class="reader-progress-top">
             <div class="reader-progress-top-fill" :style="{ width: `${progressPercent}%` }"></div>
           </div>
@@ -61,35 +61,32 @@
 
           <template v-else>
             <div class="reader-layout">
-              <section class="reader-columns">
-                <article class="reader-column">
-                  <div class="reader-column-meta">
-                    <span class="reader-column-chip">{{ currentChapterLabel }}</span>
-                    <span class="reader-column-submeta">{{ currentChapter?.subtitle || book.author || '阅读中' }}</span>
-                  </div>
+              <section class="reader-page-frame">
+                <div class="reader-column-meta">
+                  <span class="reader-column-chip">{{ currentChapterLabel }}</span>
+                  <span class="reader-column-submeta">{{ currentChapter?.subtitle || book.author || '阅读中' }}</span>
+                </div>
 
-                  <div class="reader-column-body">
-                    <div class="reader-rich-html" v-html="leftPageHtml"></div>
-                  </div>
+                <div ref="pageViewportRef" class="reader-page-viewport" @wheel.prevent>
+                  <div
+                    ref="pageTrackRef"
+                    class="reader-rich-html reader-paginated-track"
+                    :style="paginatedTrackStyle"
+                    v-html="chapterContentHtml"
+                  ></div>
+                </div>
 
+                <div class="reader-page-footer">
                   <div class="reader-column-footer">
                     <span>PAGE {{ leftPageNumber }}</span>
                     <span class="reader-column-footer-note">{{ footerTitle }}</span>
                   </div>
-                </article>
 
-                <article class="reader-column reader-column-right">
-                  <div class="reader-column-spacer"></div>
-
-                  <div class="reader-column-body">
-                    <div class="reader-rich-html" v-html="rightPageHtml"></div>
+                  <div class="reader-column-footer reader-column-footer--right">
+                    <span>{{ rightFooterPageLabel }}</span>
+                    <span class="reader-column-footer-badge">{{ currentSpreadLabel }}</span>
                   </div>
-
-                  <div class="reader-column-footer">
-                    <span>PAGE {{ rightPageNumber }}</span>
-                    <span class="reader-column-footer-badge">{{ progressPercent }}% READ</span>
-                  </div>
-                </article>
+                </div>
               </section>
             </div>
           </template>
@@ -171,16 +168,6 @@
       </div>
     </aside>
 
-    <footer class="reader-bottom-hint">
-      <div class="reader-bottom-hint-inner">
-        <span>Use ← → to navigate</span>
-        <span>•</span>
-        <span>Auto-scroll: OFF</span>
-        <span>•</span>
-        <span>Immersion Mode: ON</span>
-      </div>
-    </footer>
-
     <div class="reader-corner-badge">
       <div>{{ avatarText }}</div>
     </div>
@@ -188,7 +175,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getBookChapterDetail, getBookChapters, getBookDetail } from '@/api/book'
 
@@ -216,11 +203,24 @@ const currentChapterId = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 const showChapterDrawer = ref(false)
+const pageViewportRef = ref(null)
+const pageTrackRef = ref(null)
+const currentSpreadIndex = ref(0)
+const totalSpreadCount = ref(1)
+const columnsPerSpread = ref(2)
+const pendingSpreadPlacement = ref('start')
+const readerPageHeight = ref(520)
+
+let paginationFrame = 0
+let trackMediaCleanup = []
 
 const bookKey = computed(() => String(route.params.id || '').trim())
 const currentIndex = computed(() => chapters.value.findIndex((item) => item.id === currentChapterId.value))
-const canGoPrev = computed(() => currentIndex.value > 0)
-const canGoNext = computed(() => currentIndex.value >= 0 && currentIndex.value < chapters.value.length - 1)
+const canGoPrev = computed(() => currentSpreadIndex.value > 0 || currentIndex.value > 0)
+const canGoNext = computed(() =>
+  currentSpreadIndex.value < totalSpreadCount.value - 1 ||
+  (currentIndex.value >= 0 && currentIndex.value < chapters.value.length - 1)
+)
 const progressPercent = computed(() => {
   if (!chapters.value.length || currentIndex.value < 0) {
     return 0
@@ -235,36 +235,25 @@ const currentChapterLabel = computed(() => {
   const chapterNo = Number(currentChapter.value?.chapterNo || currentIndex.value + 1 || 1)
   return `CHAPTER ${String(chapterNo).padStart(2, '0')}`
 })
-const footerTitle = computed(() => {
-  return `${book.value.author || 'PeakStars Reader'} / ${book.value.title || 'Book Reader'}`
-})
-const pageSegments = computed(() => {
+const footerTitle = computed(() => `${book.value.author || 'PeakStars Reader'} / ${book.value.title || 'Book Reader'}`)
+const chapterContentHtml = computed(() => {
   const html = normalizeContentHtml(currentChapter.value?.contentHtml)
   if (!html) {
-    return ['<p class="reader-placeholder">暂无章节内容</p>', '<p class="reader-placeholder">请选择其他章节继续阅读</p>']
+    return '<p class="reader-placeholder">暂无章节内容</p><p class="reader-placeholder">请选择其他章节继续阅读</p>'
   }
-
-  const blocks = splitHtmlBlocks(html)
-  if (blocks.length <= 1) {
-    return [html, '<p class="reader-placeholder">本页内容已阅读完毕</p>']
-  }
-
-  const midpoint = Math.ceil(blocks.length / 2)
-  const left = blocks.slice(0, midpoint).join('')
-  const right = blocks.slice(midpoint).join('')
-
-  return [left || '<p class="reader-placeholder">暂无章节内容</p>', right || '<p class="reader-placeholder">本页内容已阅读完毕</p>']
+  return decoratePartHeadings(html)
 })
-const leftPageHtml = computed(() => pageSegments.value[0])
-const rightPageHtml = computed(() => pageSegments.value[1])
-const leftPageNumber = computed(() => {
-  const base = currentIndex.value < 0 ? 1 : currentIndex.value * 2 + 1
-  return String(base).padStart(2, '0')
-})
-const rightPageNumber = computed(() => {
-  const base = currentIndex.value < 0 ? 2 : currentIndex.value * 2 + 2
-  return String(base).padStart(2, '0')
-})
+const paginatedTrackStyle = computed(() => ({
+  transform: `translate3d(-${currentSpreadIndex.value * 100}%, 0, 0)`,
+  '--reader-page-columns': String(columnsPerSpread.value),
+  '--reader-page-height': `${readerPageHeight.value}px`
+}))
+const currentSpreadLabel = computed(() => `${currentSpreadIndex.value + 1} / ${totalSpreadCount.value}`)
+const leftPageNumber = computed(() => String(currentSpreadIndex.value * columnsPerSpread.value + 1).padStart(2, '0'))
+const rightPageNumber = computed(() => String(currentSpreadIndex.value * columnsPerSpread.value + 2).padStart(2, '0'))
+const rightFooterPageLabel = computed(() => (
+  columnsPerSpread.value > 1 ? `PAGE ${rightPageNumber.value}` : `PAGE ${leftPageNumber.value}`
+))
 
 const coverStyle = computed(() => {
   if (book.value.coverUrl) {
@@ -281,16 +270,26 @@ const coverStyle = computed(() => {
 })
 
 onMounted(() => {
+  updateColumnsPerSpread()
   reloadBookData()
   window.addEventListener('keydown', handleKeydown)
+  window.addEventListener('resize', handleResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', handleResize)
+  cleanupTrackMediaListeners()
+  cancelAnimationFrame(paginationFrame)
 })
 
 watch(bookKey, () => {
+  pendingSpreadPlacement.value = 'start'
   reloadBookData()
+})
+
+watch([chapterContentHtml, columnsPerSpread], async () => {
+  await syncPaginationLayout()
 })
 
 async function reloadBookData() {
@@ -340,8 +339,9 @@ async function loadChapter(chapterId) {
   errorMessage.value = ''
 
   try {
-    currentChapter.value = await getBookChapterDetail(bookKey.value, chapterId)
-    currentChapterId.value = chapterId
+    const loadedChapter = await getBookChapterDetail(bookKey.value, chapterId)
+    currentChapter.value = loadedChapter
+    currentChapterId.value = loadedChapter?.id || chapterId
     showChapterDrawer.value = false
   } catch (error) {
     errorMessage.value = error.message || '章节内容加载失败'
@@ -351,25 +351,40 @@ async function loadChapter(chapterId) {
 }
 
 function selectChapter(chapterId) {
+  pendingSpreadPlacement.value = 'start'
   loadChapter(chapterId)
 }
 
 function prevChapter() {
+  if (currentSpreadIndex.value > 0) {
+    currentSpreadIndex.value -= 1
+    return
+  }
+
   if (!canGoPrev.value) {
     return
   }
+
   const prev = chapters.value[currentIndex.value - 1]
   if (prev) {
+    pendingSpreadPlacement.value = 'end'
     loadChapter(prev.id)
   }
 }
 
 function nextChapter() {
+  if (currentSpreadIndex.value < totalSpreadCount.value - 1) {
+    currentSpreadIndex.value += 1
+    return
+  }
+
   if (!canGoNext.value) {
     return
   }
+
   const next = chapters.value[currentIndex.value + 1]
   if (next) {
+    pendingSpreadPlacement.value = 'start'
     loadChapter(next.id)
   }
 }
@@ -392,6 +407,224 @@ function handleKeydown(event) {
   if (event.key === 'Escape' && showChapterDrawer.value) {
     showChapterDrawer.value = false
   }
+}
+
+function handleResize() {
+  updateColumnsPerSpread()
+  schedulePaginationMetrics()
+}
+
+function updateColumnsPerSpread() {
+  columnsPerSpread.value = window.innerWidth <= 1100 ? 1 : 2
+}
+
+async function syncPaginationLayout() {
+  cleanupTrackMediaListeners()
+  await nextTick()
+  bindTrackMediaListeners()
+  cancelAnimationFrame(paginationFrame)
+  paginationFrame = requestAnimationFrame(() => {
+    updatePaginationMetrics()
+    applyPendingSpreadPlacement()
+  })
+}
+
+function schedulePaginationMetrics() {
+  cancelAnimationFrame(paginationFrame)
+  paginationFrame = requestAnimationFrame(() => {
+    updatePaginationMetrics()
+  })
+}
+
+function updatePaginationMetrics() {
+  const viewport = pageViewportRef.value
+  const track = pageTrackRef.value
+  if (!viewport || !track) {
+    totalSpreadCount.value = 1
+    currentSpreadIndex.value = 0
+    return
+  }
+
+  const viewportWidth = viewport.clientWidth
+  if (!viewportWidth) {
+    return
+  }
+
+  readerPageHeight.value = viewport.clientHeight || readerPageHeight.value
+  const nextSpreadCount = Math.max(1, Math.ceil(track.scrollWidth / viewportWidth))
+  totalSpreadCount.value = nextSpreadCount
+  currentSpreadIndex.value = Math.min(currentSpreadIndex.value, nextSpreadCount - 1)
+}
+
+function applyPendingSpreadPlacement() {
+  currentSpreadIndex.value = pendingSpreadPlacement.value === 'end'
+    ? Math.max(totalSpreadCount.value - 1, 0)
+    : 0
+  pendingSpreadPlacement.value = 'start'
+}
+
+function bindTrackMediaListeners() {
+  const track = pageTrackRef.value
+  if (!track) {
+    return
+  }
+
+  const images = Array.from(track.querySelectorAll('img'))
+  images.forEach((image) => {
+    applyImageOrientation(image)
+    if (image.complete) {
+      return
+    }
+
+    const handler = () => {
+      applyImageOrientation(image)
+      schedulePaginationMetrics()
+    }
+
+    image.addEventListener('load', handler)
+    image.addEventListener('error', handler)
+    trackMediaCleanup.push(() => {
+      image.removeEventListener('load', handler)
+      image.removeEventListener('error', handler)
+    })
+  })
+}
+
+function applyImageOrientation(image) {
+  const holder = image.closest('.reader-image-page')
+  if (!holder) {
+    return
+  }
+
+  const orientation = resolveImageOrientation(image, holder)
+  const isWideSource = image.naturalWidth > image.naturalHeight
+  const isTallSource = image.naturalHeight > image.naturalWidth
+  holder.classList.toggle('is-rotate-landscape', orientation === 'landscape' && isTallSource)
+  holder.classList.toggle('is-rotate-portrait', orientation === 'portrait' && isWideSource)
+  holder.classList.toggle('is-keep-portrait', orientation === 'portrait' && !isWideSource)
+}
+
+function resolveImageOrientation(image, holder) {
+  const rawValue = [
+    image.dataset.readerOrientation,
+    image.dataset.orientation,
+    holder.dataset.readerOrientation,
+    image.getAttribute('data-reader-orientation'),
+    image.getAttribute('data-orientation'),
+    image.getAttribute('alt'),
+    image.getAttribute('title'),
+    image.currentSrc,
+    image.src
+  ].find(Boolean)
+
+  const value = String(rawValue || '').toLowerCase()
+  if (/(rotate|landscape|horizontal|横排|横向|横版)/i.test(value)) {
+    return 'landscape'
+  }
+  if (/(portrait|vertical|竖排|竖向|竖版)/i.test(value)) {
+    return 'portrait'
+  }
+
+  if (isBookCoverLikeImage(image)) {
+    return 'portrait'
+  }
+
+  if (image.naturalWidth && image.naturalHeight) {
+    const widthRatio = image.naturalWidth / image.naturalHeight
+    if (widthRatio >= 1.18 && widthRatio <= 1.9 && isLikelyRotatedTitlePage(image)) {
+      return 'portrait'
+    }
+  }
+
+  return 'auto'
+}
+
+function isLikelyRotatedTitlePage(image) {
+  const hint = [
+    image.getAttribute('alt'),
+    image.getAttribute('title'),
+    image.getAttribute('src'),
+    image.currentSrc
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (/(title[-_ ]?page|front|cover|fm|page[-_ ]?0?3|chapter[-_ ]?0?3|扉页|封面|标题页)/i.test(hint)) {
+    return true
+  }
+
+  return isMostlyLightImage(image)
+}
+
+function isMostlyLightImage(image) {
+  try {
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) {
+      return false
+    }
+
+    canvas.width = 24
+    canvas.height = 24
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+    let lightPixels = 0
+    let sampledPixels = 0
+
+    for (let index = 0; index < data.length; index += 16) {
+      const alpha = data[index + 3]
+      if (alpha < 32) {
+        continue
+      }
+      const brightness = (data[index] + data[index + 1] + data[index + 2]) / 3
+      sampledPixels += 1
+      if (brightness > 220) {
+        lightPixels += 1
+      }
+    }
+
+    return sampledPixels > 0 && lightPixels / sampledPixels > 0.68
+  } catch (error) {
+    return false
+  }
+}
+
+function isBookCoverLikeImage(image) {
+  const coverIdentity = normalizeImageIdentity(book.value.coverUrl)
+  const imageIdentities = [
+    image.currentSrc,
+    image.src,
+    image.getAttribute('src')
+  ].map(normalizeImageIdentity).filter(Boolean)
+
+  if (coverIdentity && imageIdentities.some((item) => item === coverIdentity || item.endsWith(coverIdentity) || coverIdentity.endsWith(item))) {
+    return true
+  }
+
+  const hint = [
+    image.getAttribute('alt'),
+    image.getAttribute('title'),
+    image.getAttribute('src')
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  return /(cover|front|title[-_ ]?page|fm|封面|书封|扉页)/i.test(hint)
+}
+
+function normalizeImageIdentity(value) {
+  const raw = String(value || '').trim()
+  if (!raw || raw.startsWith('data:')) {
+    return ''
+  }
+
+  try {
+    const parsed = new URL(raw, window.location.origin)
+    return parsed.pathname.replace(/^\/+/, '').toLowerCase()
+  } catch (error) {
+    return raw.split(/[?#]/)[0].replace(/^\/+/, '').toLowerCase()
+  }
+}
+
+function cleanupTrackMediaListeners() {
+  trackMediaCleanup.forEach((cleanup) => cleanup())
+  trackMediaCleanup = []
 }
 
 function formatCount(value) {
@@ -417,15 +650,88 @@ function normalizeContentHtml(contentHtml) {
     .trim()
 }
 
-function splitHtmlBlocks(html) {
-  const normalized = html
-    .replace(/<\/(p|h1|h2|h3|h4|h5|h6|blockquote|ul|ol|pre|table|div)>/gi, '$&<!--BLOCK_SPLIT-->')
-    .replace(/<br\s*\/?>/gi, '<br /><!--BLOCK_SPLIT-->')
+function decoratePartHeadings(html) {
+  if (typeof document === 'undefined') {
+    return html
+  }
 
-  return normalized
-    .split('<!--BLOCK_SPLIT-->')
-    .map((item) => item.trim())
-    .filter(Boolean)
+  const template = document.createElement('template')
+  template.innerHTML = html
+  decorateReaderImages(template.content)
+  const candidates = Array.from(template.content.querySelectorAll('p, h1, h2, h3, h4, h5, h6, div'))
+
+  candidates.forEach((node) => {
+    const text = normalizePartHeadingText(node.textContent)
+    if (!text || node.querySelector('img, video, table, ul, ol, blockquote')) {
+      return
+    }
+
+    const partPage = document.createElement('section')
+    partPage.className = 'reader-part-page'
+    partPage.dataset.partLabel = text
+    partPage.setAttribute('aria-label', text)
+    partPage.innerHTML = `<span class="reader-part-title">${escapeHtml(text)}</span>`
+    node.replaceWith(partPage)
+  })
+
+  return template.innerHTML
+}
+
+function decorateReaderImages(root) {
+  const images = Array.from(root.querySelectorAll('img'))
+  images.forEach((image) => {
+    if (image.closest('.reader-image-page')) {
+      return
+    }
+
+    const holder = findImageOnlyHolder(image)
+    const normalizedImage = image.cloneNode(true)
+    normalizedImage.removeAttribute('width')
+    normalizedImage.removeAttribute('height')
+    normalizedImage.removeAttribute('style')
+
+    const figure = document.createElement('figure')
+    figure.className = 'reader-image-page'
+    figure.setAttribute('aria-label', image.getAttribute('alt') || 'book image')
+    figure.appendChild(normalizedImage)
+
+    if (holder) {
+      holder.replaceWith(figure)
+      return
+    }
+
+    image.replaceWith(figure)
+  })
+}
+
+function findImageOnlyHolder(image) {
+  const holder = image.parentElement
+  if (!holder || !['P', 'DIV', 'FIGURE'].includes(holder.tagName)) {
+    return null
+  }
+
+  const hasOnlyImage = Array.from(holder.childNodes).every((node) => {
+    if (node === image) {
+      return true
+    }
+    return node.nodeType === Node.TEXT_NODE && !node.textContent.trim()
+  })
+
+  return hasOnlyImage ? holder : null
+}
+
+function normalizePartHeadingText(text) {
+  const normalized = String(text || '').replace(/\s+/g, '')
+  return /^第[零〇一二三四五六七八九十百千万两\d]+部$/.test(normalized) ? normalized : ''
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 </script>
 

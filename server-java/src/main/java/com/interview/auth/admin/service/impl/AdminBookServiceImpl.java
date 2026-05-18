@@ -1,10 +1,16 @@
-package com.interview.auth.admin.service.impl;
+﻿package com.interview.auth.admin.service.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.interview.auth.admin.dto.request.AdminBookCategoryUpdateRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportBatchRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportChapterBatchUpdateRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportChapterBatchUpdateItem;
 import com.interview.auth.admin.dto.request.AdminBookImportChapterUpdateRequest;
 import com.interview.auth.admin.dto.request.AdminBookImportExternalRequest;
+import com.interview.auth.admin.dto.request.AdminBookImportMetadataUpdateRequest;
 import com.interview.auth.admin.dto.request.AdminContentImportPreviewRequest;
+import com.interview.auth.admin.dto.response.AdminBookImportBatchResponse;
 import com.interview.auth.admin.dto.response.AdminBookImportChapterResponse;
 import com.interview.auth.admin.dto.response.AdminBookImportJobResponse;
 import com.interview.auth.admin.dto.response.AdminContentImportPreviewResponse;
@@ -24,6 +30,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
@@ -38,9 +45,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import nl.siegmann.epublib.domain.Author;
+import nl.siegmann.epublib.domain.Metadata;
+import nl.siegmann.epublib.domain.Relator;
+import nl.siegmann.epublib.domain.Resource;
 import nl.siegmann.epublib.domain.Spine;
 import nl.siegmann.epublib.domain.SpineReference;
 import nl.siegmann.epublib.epub.EpubReader;
@@ -49,6 +62,9 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,12 +73,18 @@ import org.springframework.transaction.annotation.Transactional;
  * 复用现有富文本清洗与资源迁移能力，支持 ZIP/EPUB/PDF/TXT/MD/DOCX/HTML 多格式导入。
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AdminBookServiceImpl implements AdminBookService {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final String CONTENT_TYPE_BOOK = "book";
+    private static final String STATUS_AWAIT_REVIEW = "await_review";
+    private static final String STATUS_APPROVED = "approved";
+    private static final String STATUS_REJECTED = "rejected";
+    private static final String STATUS_PUBLISHED = "published";
+    private static final String STATUS_DELETED = "deleted";
     private static final long MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 
     private static final Map<String, String> FORMAT_LABELS = Map.of(
@@ -74,6 +96,15 @@ public class AdminBookServiceImpl implements AdminBookService {
         "html", "HTML",
         "htm", "HTML",
         "zip", "ZIP"
+    );
+
+    private static final List<String> BOOK_CATEGORY_OPTIONS = List.of(
+        "精品书籍",
+        "历史",
+        "文学",
+        "悬疑",
+        "人物传记",
+        "名家代表"
     );
 
     private final AdminBookMapper adminBookMapper;
@@ -107,7 +138,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         BookImportJob job = createInitialJob(normalizedName, fileKey, "zip", "zip", zipBytes.length);
         adminBookMapper.saveImportJob(job);
 
-        ParsedBookPackage parsedBook = parseBookPackage(zipBytes, job.getJobKey());
+        ParsedBookPackage parsedBook = parseBookPackage(zipBytes, job.getJobKey(), normalizedName);
         updateJobWithParsedData(job, parsedBook);
         adminBookMapper.updateImportJob(job);
 
@@ -155,15 +186,22 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setProgress(10);
         adminBookMapper.saveImportJob(job);
 
-        List<BookImportChapterStage> stages = parseSingleFile(extension, fileBytes, job.getJobKey());
+        ParsedBookPackage parsedBook = parseSingleFilePackage(extension, normalizedName, fileBytes, job.getJobKey());
+        List<BookImportChapterStage> stages = parsedBook.stages();
 
-        String title = extractTitleFromFileName(normalizedName);
-        job.setTitle(title);
+        job.setBookKey(parsedBook.bookKey());
+        job.setTitle(parsedBook.title());
+        job.setAuthor(parsedBook.author());
+        job.setTranslator(parsedBook.translator());
+        job.setPublisher(parsedBook.publisher());
+        job.setSummary(parsedBook.summary());
+        job.setCategory(parsedBook.category());
+        job.setCoverUrl(parsedBook.coverUrl());
         job.setTotalChapters(stages.size());
         job.setSuccessChapters(stages.size());
         job.setFailChapters(0);
         job.setProgress(80);
-        job.setStatus("await_review");
+        job.setStatus(STATUS_AWAIT_REVIEW);
         job.setMessage("解析完成，共 " + stages.size() + " 章，等待审核");
         adminBookMapper.updateImportJob(job);
 
@@ -188,9 +226,10 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setBookKey("");
         job.setTitle(defaultString(request.getTitle(), "外部资源导入"));
         job.setAuthor(defaultString(request.getAuthor(), ""));
+        job.setTranslator("");
         job.setPublisher(defaultString(request.getPublisher(), ""));
         job.setSummary(defaultString(request.getSummary(), ""));
-        job.setCategory(defaultString(request.getCategory(), "书籍"));
+        job.setCategory(normalizeBookCategory(request.getCategory(), null, null, List.of()));
         job.setCoverUrl("");
         job.setSourceFileKey("");
         job.setImportType(importType);
@@ -205,18 +244,21 @@ public class AdminBookServiceImpl implements AdminBookService {
         try {
             byte[] content = fetchExternalContent(sourceUrl);
             String detectedFormat = detectFormatFromUrl(sourceUrl);
-            List<BookImportChapterStage> stages = parseSingleFile(detectedFormat, content, job.getJobKey());
+            ParsedBookPackage parsedBook = parseSingleFilePackage(detectedFormat, extractTitleFromUrl(sourceUrl) + "." + detectedFormat, content, job.getJobKey());
+            List<BookImportChapterStage> stages = parsedBook.stages();
 
-            job.setTitle(defaultString(request.getTitle(), extractTitleFromUrl(sourceUrl)));
-            job.setAuthor(defaultString(request.getAuthor(), ""));
+            job.setBookKey(parsedBook.bookKey());
+            job.setTitle(defaultString(request.getTitle(), parsedBook.title()));
+            job.setAuthor(defaultString(request.getAuthor(), parsedBook.author()));
+            job.setTranslator(parsedBook.translator());
             job.setPublisher(defaultString(request.getPublisher(), ""));
-            job.setSummary(defaultString(request.getSummary(), ""));
-            job.setCategory(defaultString(request.getCategory(), "书籍"));
+            job.setSummary(defaultString(request.getSummary(), parsedBook.summary()));
+            job.setCategory(normalizeBookCategory(request.getCategory(), parsedBook.title(), parsedBook.summary(), parsedBook.stages()));
             job.setTotalChapters(stages.size());
             job.setSuccessChapters(stages.size());
             job.setFailChapters(0);
             job.setProgress(80);
-            job.setStatus("await_review");
+            job.setStatus(STATUS_AWAIT_REVIEW);
             job.setMessage("外部资源解析完成，共 " + stages.size() + " 章");
             adminBookMapper.updateImportJob(job);
 
@@ -250,15 +292,67 @@ public class AdminBookServiceImpl implements AdminBookService {
 
     @Override
     public List<AdminBookImportChapterResponse> listImportJobChapters(String jobKey) {
-        requireImportJob(jobKey);
-        return adminBookMapper.findImportStagesByJobKey(jobKey).stream().map(this::toImportChapterResponse).toList();
+        BookImportJob job = requireImportJob(jobKey);
+        String coverUrlFallback = normalizeCoverUrlForDisplay(job.getCoverUrl());
+        return adminBookMapper.findImportStagesByJobKey(jobKey).stream()
+            .map(stage -> toImportChapterResponse(stage, coverUrlFallback))
+            .toList();
+    }
+
+    /**
+     * 更新导入任务的书名、作者、译者与封面字段。
+     * 校验必填字段后写回任务表，发布时沿用最新审核结果。
+     */
+    @Override
+    @Transactional
+    public AdminBookImportJobResponse updateImportJobMetadata(String jobKey, AdminBookImportMetadataUpdateRequest request) {
+        BookImportJob job = requireImportJob(jobKey);
+        job.setTitle(requireText(request.getTitle(), "书籍标题不能为空"));
+        job.setAuthor(requireText(request.getAuthor(), "作者不能为空"));
+        job.setTranslator(defaultString(request.getTranslator(), "无"));
+        job.setCategory(normalizeBookCategory(request.getCategory(), request.getTitle(), job.getSummary(), adminBookMapper.findImportStagesByJobKey(jobKey)));
+        job.setCoverUrl(defaultString(request.getCoverUrl(), ""));
+        adminBookMapper.updateImportJob(job);
+        syncPublishedBookIfNeeded(job);
+        return toImportJobResponse(job);
     }
 
     @Override
     @Transactional
     public AdminBookImportChapterResponse updateImportJobChapter(String jobKey, String tempChapterKey, AdminBookImportChapterUpdateRequest request) {
-        requireImportJob(jobKey);
+        BookImportJob job = requireImportJob(jobKey);
         BookImportChapterStage stage = requireImportStage(jobKey, tempChapterKey);
+        applyChapterUpdate(stage, request);
+        adminBookMapper.updateImportStage(stage);
+        syncPublishedBookIfNeeded(job);
+        return toImportChapterResponse(stage, normalizeCoverUrlForDisplay(job.getCoverUrl()));
+    }
+
+    /**
+     * 批量更新导入任务下的章节暂存内容。
+     * 逐个定位章节并复用单章字段更新规则，最后返回本次更新后的章节结果。
+     */
+    @Override
+    @Transactional
+    public List<AdminBookImportChapterResponse> updateImportJobChapters(String jobKey, AdminBookImportChapterBatchUpdateRequest request) {
+        BookImportJob job = requireImportJob(jobKey);
+        String coverUrlFallback = normalizeCoverUrlForDisplay(job.getCoverUrl());
+        List<AdminBookImportChapterResponse> responses = new ArrayList<>();
+        for (AdminBookImportChapterBatchUpdateItem item : request.getChapters()) {
+            BookImportChapterStage stage = requireImportStage(jobKey, item.getTempChapterKey());
+            applyChapterUpdate(stage, item);
+            adminBookMapper.updateImportStage(stage);
+            responses.add(toImportChapterResponse(stage, coverUrlFallback));
+        }
+        syncPublishedBookIfNeeded(job);
+        return responses;
+    }
+
+    /**
+     * 应用章节审核修改字段。
+     * 统一重算纯文本和字数并标记已编辑，保证单章和批量保存结果一致。
+     */
+    private void applyChapterUpdate(BookImportChapterStage stage, AdminBookImportChapterUpdateRequest request) {
         stage.setTitle(request.getTitle().trim());
         stage.setSubtitle(defaultString(request.getSubtitle(), ""));
         stage.setContentHtml(request.getContentHtml());
@@ -266,14 +360,17 @@ public class AdminBookServiceImpl implements AdminBookService {
         stage.setWordCount(countWords(stage.getPlainText()));
         stage.setSortOrder(request.getSortOrder() == null ? stage.getSortOrder() : request.getSortOrder());
         stage.setReviewStatus("edited");
-        adminBookMapper.updateImportStage(stage);
-        return toImportChapterResponse(stage);
     }
 
+    /**
+     * 将审核通过的导入任务发布为正式书籍。
+     * 读取最新任务元数据和章节暂存内容，写入书籍表与章节表后标记任务已发布。
+     */
     @Override
     @Transactional
     public BookResponse publishImportJob(String jobKey) {
         BookImportJob job = requireImportJob(jobKey);
+        assertPublishableJob(job);
         List<BookImportChapterStage> stages = adminBookMapper.findImportStagesByJobKey(jobKey).stream()
             .sorted(Comparator.comparing(BookImportChapterStage::getSortOrder).thenComparing(BookImportChapterStage::getChapterNo))
             .toList();
@@ -282,36 +379,84 @@ public class AdminBookServiceImpl implements AdminBookService {
             throw new BusinessException(400, "当前导入任务没有可发布章节");
         }
 
+        Book book = buildBookFromImportJob(job, stages);
+        book.setRating(BigDecimal.valueOf(9.0));
+        book.setSortOrder(0);
+        book.setPublishedAt(LocalDateTime.now());
+        adminBookMapper.saveBook(book);
+
+        replacePublishedBookChapters(book.getBookKey(), stages);
+
+        job.setBookKey(book.getBookKey());
+        job.setStatus(STATUS_PUBLISHED);
+        job.setProgress(100);
+        job.setMessage("书籍已发布到用户端");
+        adminBookMapper.updateImportJob(job);
+        return toBookResponse(book);
+    }
+
+    /**
+     * 同步已发布书籍的正式数据。
+     * 仅在任务已发布且存在书籍键时执行，将审核页改动即时反映到用户端。
+     */
+    private void syncPublishedBookIfNeeded(BookImportJob job) {
+        if (!STATUS_PUBLISHED.equals(job.getStatus()) || defaultString(job.getBookKey(), "").isBlank()) {
+            return;
+        }
+        List<BookImportChapterStage> stages = adminBookMapper.findImportStagesByJobKey(job.getJobKey()).stream()
+            .sorted(Comparator.comparing(BookImportChapterStage::getSortOrder).thenComparing(BookImportChapterStage::getChapterNo))
+            .toList();
+        if (stages.isEmpty()) {
+            return;
+        }
+        Book book = buildBookFromImportJob(job, stages);
+        adminBookMapper.updatePublishedBookFromImportJob(book);
+        replacePublishedBookChapters(book.getBookKey(), stages, normalizeCoverUrlForDisplay(book.getCoverUrl()));
+    }
+
+    /**
+     * 从导入任务构造正式书籍主记录。
+     * 统一计算字数、章节数和展示字段，保证发布与发布后修改使用同一套映射。
+     */
+    private Book buildBookFromImportJob(BookImportJob job, List<BookImportChapterStage> stages) {
         int totalWords = stages.stream().map(BookImportChapterStage::getWordCount).mapToInt(this::defaultInt).sum();
         Book book = new Book();
         book.setBookKey(defaultString(job.getBookKey(), "book-" + shortId()));
         book.setTitle(requireText(job.getTitle(), "书籍标题不能为空"));
         book.setAuthor(defaultString(job.getAuthor(), "未知作者"));
+        book.setTranslator(defaultString(job.getTranslator(), "无"));
         book.setPublisher(defaultString(job.getPublisher(), ""));
-        book.setCategory(defaultString(job.getCategory(), "书籍"));
+        book.setCategory(normalizeBookCategory(job.getCategory(), job.getTitle(), job.getSummary(), stages));
         book.setSummary(defaultString(job.getSummary(), ""));
-        book.setCoverUrl(defaultString(job.getCoverUrl(), ""));
+        book.setCoverUrl(normalizeCoverUrlForDisplay(job.getCoverUrl()));
         book.setTagList(book.getCategory());
         book.setWordCount(totalWords);
         book.setChapterCount(stages.size());
         book.setReadCount(0);
-        book.setRating(BigDecimal.valueOf(9.0));
         book.setStatus(1);
-        book.setSortOrder(0);
-        book.setPublishedAt(LocalDateTime.now());
-        adminBookMapper.saveBook(book);
+        return book;
+    }
 
-        adminBookMapper.deleteBookChaptersByBookKey(book.getBookKey());
+    /**
+     * 替换正式书籍的章节快照。
+     * 根据暂存章节顺序重新生成章节键和目录，保持阅读页内容与审核页一致。
+     */
+    private void replacePublishedBookChapters(String bookKey, List<BookImportChapterStage> stages) {
+        replacePublishedBookChapters(bookKey, stages, "");
+    }
+
+    private void replacePublishedBookChapters(String bookKey, List<BookImportChapterStage> stages, String coverUrlFallback) {
+        adminBookMapper.deleteBookChaptersByBookKey(bookKey);
         List<BookChapter> chapters = new ArrayList<>();
         int index = 1;
         for (BookImportChapterStage stage : stages) {
             BookChapter chapter = new BookChapter();
-            chapter.setChapterKey("chapter-" + book.getBookKey() + "-" + String.format("%03d", index));
-            chapter.setBookKey(book.getBookKey());
+            chapter.setChapterKey("chapter-" + bookKey + "-" + String.format("%03d", index));
+            chapter.setBookKey(bookKey);
             chapter.setChapterNo(index);
             chapter.setTitle(stage.getTitle());
             chapter.setSubtitle(defaultString(stage.getSubtitle(), ""));
-            chapter.setContentHtml(stage.getContentHtml());
+            chapter.setContentHtml(normalizeImportedChapterHtmlForDisplay(stage.getContentHtml(), coverUrlFallback));
             chapter.setWordCount(defaultInt(stage.getWordCount()));
             chapter.setIsFree(index <= 3 ? 1 : 0);
             chapter.setStatus(1);
@@ -320,18 +465,306 @@ public class AdminBookServiceImpl implements AdminBookService {
             index++;
         }
         adminBookMapper.batchInsertBookChapters(chapters);
+    }
 
-        job.setBookKey(book.getBookKey());
-        job.setStatus("published");
-        job.setProgress(100);
-        job.setMessage("书籍已发布到用户端");
-        adminBookMapper.updateImportJob(job);
-        return toBookResponse(book);
+    /**
+     * 批量通过待审核书籍导入任务。
+     * 逐个校验任务状态并写入通过标记，失败任务记录主键后继续处理剩余任务。
+     */
+    @Override
+    @Transactional
+    public AdminBookImportBatchResponse approveImportJobs(AdminBookImportBatchRequest request) {
+        return updateImportJobReviewStatus(
+            request,
+            STATUS_APPROVED,
+            "书籍已通过审核，等待发布",
+            List.of(STATUS_AWAIT_REVIEW)
+        );
+    }
+
+    /**
+     * 批量拒绝待审核或已通过书籍导入任务。
+     * 将任务状态改为拒绝并保留拒绝说明，后续发布动作会自动跳过这些任务。
+     */
+    @Override
+    @Transactional
+    public AdminBookImportBatchResponse rejectImportJobs(AdminBookImportBatchRequest request) {
+        String reason = getBatchReason(request);
+        return updateImportJobReviewStatus(
+            request,
+            STATUS_REJECTED,
+            "书籍已拒绝：" + reason,
+            List.of(STATUS_AWAIT_REVIEW, STATUS_APPROVED)
+        );
+    }
+
+    /**
+     * 批量发布审核通过的书籍导入任务。
+     * 复用单本发布流程逐本写入书籍和章节，汇总成功任务与失败主键。
+     */
+    @Override
+    public AdminBookImportBatchResponse publishImportJobs(AdminBookImportBatchRequest request) {
+        AdminBookImportBatchResponse response = new AdminBookImportBatchResponse();
+        for (String jobKey : normalizeJobKeys(request)) {
+            try {
+                publishImportJob(jobKey);
+                response.getJobs().add(toImportJobResponse(requireImportJob(jobKey)));
+                response.setSuccessCount(response.getSuccessCount() + 1);
+            } catch (BusinessException exception) {
+                response.getFailedKeys().add(jobKey);
+            }
+        }
+        response.setFailedCount(response.getFailedKeys().size());
+        return response;
+    }
+
+    /**
+     * 读取批量请求中的拒绝原因。
+     * 空原因使用默认文案，避免任务消息出现空白审核说明。
+     */
+    private String getBatchReason(AdminBookImportBatchRequest request) {
+        return defaultString(request.getReason(), "书籍导入审核未通过");
     }
 
     @Override
     public List<BookResponse> listBooks() {
         return adminBookMapper.findAllBooks().stream().map(this::toBookResponse).toList();
+    }
+
+    /**
+     * 更新已发布书籍的分类标签。
+     * 标准化分类后写入书籍表与导入任务表，返回最新书籍展示数据。
+     */
+    @Override
+    @Transactional
+    public BookResponse updateBookCategory(String bookKey, AdminBookCategoryUpdateRequest request) {
+        Book book = requireBook(bookKey);
+        String category = normalizeBookCategory(request.getCategory(), book.getTitle(), book.getSummary(), List.of());
+        adminBookMapper.updateBookCategory(book.getBookKey(), category);
+        adminBookMapper.updateImportJobCategoryByBookKey(book.getBookKey(), category);
+        book.setCategory(category);
+        book.setTagList(category);
+        return toBookResponse(book);
+    }
+
+    /**
+     * 删除已发布书籍和关联导入数据。
+     * 按章节、导入暂存、导入任务、书籍主表顺序清理，避免产生孤立数据。
+     */
+    @Override
+    @Transactional
+    public void deleteBook(String bookKey) {
+        Book book = requireBook(bookKey);
+        adminBookMapper.updateBookStatusByKey(book.getBookKey(), 0);
+        for (BookImportJob job : adminBookMapper.findImportJobsByBookKey(book.getBookKey())) {
+            if (!STATUS_DELETED.equals(job.getStatus())) {
+                adminBookMapper.updateImportJobDeletedByKey(job.getJobKey(), buildDeleteMessage(job.getStatus()));
+            }
+        }
+    }
+
+    /**
+     * 将指定导入任务移入已删除列表。
+     * 保留任务和章节数据，记录删除前状态并下线关联的正式书籍。
+     */
+    @Override
+    @Transactional
+    public void deleteImportJob(String jobKey) {
+        BookImportJob job = requireImportJob(jobKey);
+        if (STATUS_DELETED.equals(job.getStatus())) {
+            return;
+        }
+        if (!defaultString(job.getBookKey(), "").isBlank()) {
+            adminBookMapper.updateBookStatusByKey(job.getBookKey(), 0);
+        }
+        adminBookMapper.updateImportJobDeletedByKey(jobKey, buildDeleteMessage(job.getStatus()));
+    }
+
+    /**
+     * 恢复已删除导入任务到删除前状态。
+     * 读取删除标记还原任务状态，已发布书籍同步恢复为前台可见。
+     */
+    @Override
+    @Transactional
+    public AdminBookImportJobResponse restoreImportJob(String jobKey) {
+        BookImportJob job = requireImportJob(jobKey);
+        if (!STATUS_DELETED.equals(job.getStatus())) {
+            return toImportJobResponse(job);
+        }
+        String restoredStatus = resolveRestoredStatus(job.getMessage());
+        adminBookMapper.restoreImportJobStatusByKey(jobKey, "书籍已恢复到删除前状态");
+        if (STATUS_PUBLISHED.equals(restoredStatus) && !defaultString(job.getBookKey(), "").isBlank()) {
+            adminBookMapper.updateBookStatusByKey(job.getBookKey(), 1);
+        }
+        return toImportJobResponse(requireImportJob(jobKey));
+    }
+    /**
+     * 批量删除导入任务。
+     * 逐个删除导入记录及关联数据，单条异常不影响其他任务。
+     */
+    @Override
+    public AdminBookImportBatchResponse batchDeleteImportJobs(AdminBookImportBatchRequest request) {
+        AdminBookImportBatchResponse response = new AdminBookImportBatchResponse();
+        for (String jobKey : normalizeJobKeys(request)) {
+            try {
+                deleteImportJob(jobKey);
+                response.setSuccessCount(response.getSuccessCount() + 1);
+            } catch (BusinessException exception) {
+                response.getFailedKeys().add(jobKey);
+            }
+        }
+        response.setFailedCount(response.getFailedKeys().size());
+        return response;
+    }
+
+    /**
+     * 按分类删除导入任务。
+     * 清理指定分类下所有导入暂存章节和导入主记录，已发布的正式书籍不受影响。
+     */
+    @Override
+    @Transactional
+    public int deleteImportJobsByCategory(String category) {
+        int count = 0;
+        for (BookImportJob job : adminBookMapper.findImportJobsByCategory(category)) {
+            if (!STATUS_DELETED.equals(job.getStatus())) {
+                deleteImportJob(job.getJobKey());
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 重新从源文件中解析封面并更新导入任务。
+     * 已导入但封面未正确解析的任务可调用此接口，
+     * 无需重新上传文件即可从已有源 ZIP/EPUB 中恢复封面图片。
+     * 若源文件在 OSS 中已丢失，则回退到从章节 HTML 正文中提取首图作为封面。
+     */
+    @Override
+    @Transactional
+    public AdminBookImportJobResponse repairImportJobCover(String jobKey) throws Exception {
+        BookImportJob job = requireImportJob(jobKey);
+
+        // 策略1：从源文件下载并解析封面
+        String newCoverUrl = tryRepairCoverFromSourceFile(job);
+
+        // 策略2：源文件不可用时，从章节 HTML 正文中提取首图作为封面
+        if (newCoverUrl.isBlank()) {
+            newCoverUrl = tryRepairCoverFromChapterContent(jobKey);
+        }
+
+        if (newCoverUrl.isBlank()) {
+            job.setMessage("封面修复完成：源文件和章节内容中均未找到可识别封面图片");
+        } else {
+            job.setCoverUrl(normalizeCoverUrlForDisplay(newCoverUrl));
+            job.setMessage("封面已恢复");
+        }
+        adminBookMapper.updateImportJob(job);
+        syncPublishedBookIfNeeded(job);
+        return toImportJobResponse(job);
+    }
+
+    /**
+     * 尝试从源文件中解析封面。
+     * 源文件在 OSS 中不存在时返回空字符串（不抛异常），以便回退到其他策略。
+     */
+    private String tryRepairCoverFromSourceFile(BookImportJob job) {
+        String sourceFileKey = defaultString(job.getSourceFileKey(), "");
+        if (sourceFileKey.isBlank()) {
+            return "";
+        }
+        BookSourceFile sourceFile = adminBookMapper.findSourceFileByKey(sourceFileKey);
+        if (sourceFile == null) {
+            return "";
+        }
+        String storageUrl = defaultString(sourceFile.getStorageUrl(), "");
+        if (storageUrl.isBlank()) {
+            return "";
+        }
+        try {
+            String originalName = defaultString(sourceFile.getOriginalName(), "import-file");
+            String extension = resolveExtension(originalName);
+            byte[] fileBytes;
+            try (InputStream inputStream = contentStorageService.download(storageUrl)) {
+                fileBytes = inputStream.readAllBytes();
+            }
+            if (fileBytes.length == 0) {
+                return "";
+            }
+            return resolveCoverFromSourceFile(fileBytes, extension, originalName, job.getJobKey());
+        } catch (Exception e) {
+            log.warn("从源文件恢复封面失败(jobKey={}, url={}): {}", job.getJobKey(), storageUrl, e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * 从章节 HTML 正文中提取首张图片 URL 作为封面。
+     * 作为源文件不可用时的兜底策略，适用于章节内容已成功上传到 OSS 的场景。
+     */
+    private String tryRepairCoverFromChapterContent(String jobKey) {
+        List<BookImportChapterStage> stages = adminBookMapper.findImportStagesByJobKey(jobKey);
+        if (stages == null || stages.isEmpty()) {
+            return "";
+        }
+        // 按章节顺序查找第一张图片
+        for (BookImportChapterStage stage : stages) {
+            String html = defaultString(stage.getContentHtml(), "");
+            if (html.isBlank()) {
+                continue;
+            }
+            String imageUrl = extractFirstImageUrlFromHtml(html);
+            if (!imageUrl.isBlank()) {
+                return imageUrl;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 从 HTML 片段中提取第一个 img 标签的 src 属性值。
+     * 仅返回已上传到对象存储的图片 URL，忽略 data: 协议和空值。
+     */
+    private String extractFirstImageUrlFromHtml(String html) {
+        Document document = Jsoup.parse(defaultString(html, ""));
+        for (Element img : document.select("img[src]")) {
+            String src = defaultString(img.attr("src"), "").trim();
+            if (src.isBlank() || src.startsWith("data:")) {
+                continue;
+            }
+            // 接受 http(s) 外链和 /uploads/ 代理路径
+            String lowerSrc = src.toLowerCase(Locale.ROOT);
+            if (lowerSrc.startsWith("http://") || lowerSrc.startsWith("https://") || lowerSrc.startsWith("/uploads/")) {
+                return src;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 从源文件字节中解析封面图片。
+     * 基于文件格式分支处理：ZIP 解包扫描、EPUB 读取内置封面、其他单文件尝试提取首图。
+     */
+    private String resolveCoverFromSourceFile(byte[] fileBytes, String extension, String fileName, String jobKey) throws Exception {
+        return switch (extension) {
+            case "zip" -> {
+                Map<String, byte[]> entries = readZipEntries(fileBytes);
+                String coverUrl = resolveAutoCoverUrl(entries);
+                yield coverUrl;
+            }
+            case "epub" -> {
+                try (InputStream is = new ByteArrayInputStream(fileBytes)) {
+                    EpubReader epubReader = new EpubReader();
+                    nl.siegmann.epublib.domain.Book epubBook = epubReader.readEpub(is);
+                    yield resolveEpubCoverUrl(epubBook, fileName);
+                }
+            }
+            case "pdf" -> "";
+            case "docx" -> "";
+            case "html", "htm" -> extractFirstImageAsCover(new String(fileBytes, StandardCharsets.UTF_8), fileName, jobKey);
+            case "txt", "md", "markdown" -> "";
+            default -> "";
+        };
     }
 
     // ========== 单文件解析方法 ==========
@@ -347,51 +780,165 @@ public class AdminBookServiceImpl implements AdminBookService {
         };
     }
 
-    private List<BookImportChapterStage> parseEpub(byte[] fileBytes, String jobKey) throws Exception {
-        List<BookImportChapterStage> stages = new ArrayList<>();
+    /**
+     * 解析单文件并同时补齐书籍元信息。
+     * EPUB 优先读取内置元数据，其他格式从文件名和正文片段识别作者与译者。
+     * 对于 HTML 类格式尝试从正文中提取第一张图片作为封面；其他纯文本格式暂时留空。
+     */
+    private ParsedBookPackage parseSingleFilePackage(String format, String fileName, byte[] fileBytes, String jobKey) throws Exception {
+        if ("epub".equals(format)) {
+            return parseEpubPackage(fileName, fileBytes, jobKey);
+        }
+        List<BookImportChapterStage> stages = parseSingleFile(format, fileBytes, jobKey);
+        BookCreditInfo creditInfo = inferBookCreditInfo(fileName, stages, "", "");
+        String coverUrl = "";
+        if ("html".equals(format) || "htm".equals(format)) {
+            coverUrl = extractFirstImageAsCover(new String(fileBytes, StandardCharsets.UTF_8), fileName, jobKey);
+        }
+        return new ParsedBookPackage(buildSlugKey(creditInfo.title()), creditInfo.title(), creditInfo.author(), creditInfo.translator(), "", "书籍", "", coverUrl, stages);
+    }
+
+    /**
+     * 从 HTML 正文中提取第一张插图并将其导入封面存储。
+     * 仅在 HTML 单文件上传时触发，无法定位图片或外链失败时返回空字符串。
+     */
+    private String extractFirstImageAsCover(String html, String fileName, String jobKey) throws Exception {
+        Document document = Jsoup.parse(defaultString(html, ""));
+        Element firstImage = document.selectFirst("img[src]");
+        if (firstImage == null) {
+            return "";
+        }
+        String src = defaultString(firstImage.attr("src"), "").trim();
+        if (src.isBlank()) {
+            return "";
+        }
+        String lowerSrc = src.toLowerCase(Locale.ROOT);
+        if (lowerSrc.startsWith("http://") || lowerSrc.startsWith("https://")
+            || lowerSrc.startsWith("data:") || contentStorageService.isStorageUrl(src)) {
+            return src;
+        }
+        // 非外链图片无法从单文件中提取二进制内容，留空
+        return "";
+    }
+
+    /**
+     * 解析 EPUB 文件并读取标题、作者、译者等元信息。
+     * 先读取 EPUB metadata，再结合文件名和章节正文兜底修正缺失字段。
+     */
+    private ParsedBookPackage parseEpubPackage(String fileName, byte[] fileBytes, String jobKey) throws Exception {
         try (InputStream is = new ByteArrayInputStream(fileBytes)) {
             EpubReader epubReader = new EpubReader();
             nl.siegmann.epublib.domain.Book epubBook = epubReader.readEpub(is);
+            List<BookImportChapterStage> stages = parseEpubBook(epubBook, jobKey);
+            Metadata metadata = epubBook.getMetadata();
+            String title = defaultString(metadata == null ? "" : metadata.getFirstTitle(), extractTitleFromFileName(fileName));
+            String author = extractAuthors(metadata);
+            String translator = extractTranslators(metadata);
+            BookCreditInfo authorInfo = parseCreditInfoFromText(author);
+            author = authorInfo.author().isBlank() ? author : authorInfo.author();
+            translator = defaultString(translator, authorInfo.translator());
+            String publisher = firstString(metadata == null ? List.of() : metadata.getPublishers());
+            String summary = firstString(metadata == null ? List.of() : metadata.getDescriptions());
+            String coverUrl = resolveEpubCoverUrl(epubBook, fileName);
+            BookCreditInfo creditInfo = inferBookCreditInfo(title, stages, author, translator);
+            return new ParsedBookPackage(buildSlugKey(creditInfo.title()), creditInfo.title(), creditInfo.author(), creditInfo.translator(), publisher, "书籍", summary, coverUrl, stages);
+        }
+    }
 
-            Spine spine = epubBook.getSpine();
-            List<SpineReference> spineReferences = spine.getSpineReferences();
-            int sortOrder = 1;
-            int chapterNo = 1;
+    private List<BookImportChapterStage> parseEpub(byte[] fileBytes, String jobKey) throws Exception {
+        try (InputStream is = new ByteArrayInputStream(fileBytes)) {
+            EpubReader epubReader = new EpubReader();
+            nl.siegmann.epublib.domain.Book epubBook = epubReader.readEpub(is);
+            return parseEpubBook(epubBook, jobKey);
+        }
+    }
 
-            for (SpineReference ref : spineReferences) {
-                try {
-                    nl.siegmann.epublib.domain.Resource resource = ref.getResource();
-                    String htmlContent = new String(resource.getData(), StandardCharsets.UTF_8);
-                    String cleanedHtml = cleanImportedHtml(htmlContent);
-                    if (cleanedHtml.isBlank()) {
-                        continue;
-                    }
+    /**
+     * 从已读取的 EPUB 对象中提取章节列表。
+     * 遍历 spine 顺序生成暂存章节，跳过无法读取或空白的资源。
+     */
+    private List<BookImportChapterStage> parseEpubBook(nl.siegmann.epublib.domain.Book epubBook, String jobKey) throws Exception {
+        List<BookImportChapterStage> stages = new ArrayList<>();
+        Spine spine = epubBook.getSpine();
+        List<SpineReference> spineReferences = spine.getSpineReferences();
+        int sortOrder = 1;
+        int chapterNo = 1;
 
-                    BookImportChapterStage stage = new BookImportChapterStage();
-                    stage.setJobKey(jobKey);
-                    stage.setTempChapterKey("temp-chapter-" + shortId());
-                    stage.setSourcePath(resource.getHref() != null ? resource.getHref() : "chapter-" + chapterNo);
-                    stage.setChapterNo(chapterNo);
-                    stage.setTitle(extractTitleFromHtml(cleanedHtml, "第" + chapterNo + "章"));
-                    stage.setSubtitle("");
-                    stage.setContentHtml(cleanedHtml);
-                    stage.setPlainText(stripHtml(cleanedHtml));
-                    stage.setWordCount(countWords(stage.getPlainText()));
-                    stage.setWarningJson(OBJECT_MAPPER.writeValueAsString(List.of()));
-                    stage.setReviewStatus("parsed");
-                    stage.setSortOrder(sortOrder);
-                    stages.add(stage);
-                    sortOrder++;
-                    chapterNo++;
-                } catch (Exception ignored) {
-                    // skip unreadable resources
+        for (SpineReference ref : spineReferences) {
+            try {
+                nl.siegmann.epublib.domain.Resource resource = ref.getResource();
+                String htmlContent = new String(resource.getData(), StandardCharsets.UTF_8);
+                String normalizedHtml = normalizeEpubChapterHtml(epubBook, resource, htmlContent, jobKey);
+                String cleanedHtml = cleanImportedHtml(normalizedHtml);
+                if (cleanedHtml.isBlank()) {
+                    continue;
                 }
+                if (isEpubCoverPlaceholderChapter(epubBook, resource, cleanedHtml, chapterNo)) {
+                    continue;
+                }
+
+                BookImportChapterStage stage = new BookImportChapterStage();
+                stage.setJobKey(jobKey);
+                stage.setTempChapterKey("temp-chapter-" + shortId());
+                stage.setSourcePath(resource.getHref() != null ? resource.getHref() : "chapter-" + chapterNo);
+                stage.setChapterNo(chapterNo);
+                stage.setTitle(extractTitleFromHtml(cleanedHtml, "第" + chapterNo + "章"));
+                stage.setSubtitle("");
+                stage.setContentHtml(cleanedHtml);
+                stage.setPlainText(stripHtml(cleanedHtml));
+                stage.setWordCount(countWords(stage.getPlainText()));
+                stage.setWarningJson(OBJECT_MAPPER.writeValueAsString(List.of()));
+                stage.setReviewStatus("parsed");
+                stage.setSortOrder(sortOrder);
+                stages.add(stage);
+                sortOrder++;
+                chapterNo++;
+            } catch (Exception ignored) {
+                continue;
             }
         }
         if (stages.isEmpty()) {
             throw new BusinessException(400, "EPUB 解析失败：未找到有效章节内容");
         }
         return stages;
+    }
+
+    /**
+     * 判断 EPUB spine 中的资源是否只是封面占位页。
+     * 仅在前两页结合路径、标题、图片和文本长度判断，避免把正文插图章节误删。
+     */
+    private boolean isEpubCoverPlaceholderChapter(nl.siegmann.epublib.domain.Book epubBook, Resource resource, String html, int chapterNo) {
+        if (chapterNo > 2 || html == null || html.isBlank()) {
+            return false;
+        }
+        Document document = Jsoup.parseBodyFragment(html);
+        String text = document.text().trim();
+        var images = document.select("img[src], image[href], image[xlink\\:href]");
+        int imageCount = images.size();
+        String href = normalizeEpubHref(resource == null ? "" : resource.getHref()).toLowerCase(Locale.ROOT);
+        String title = extractTitleFromHtml(html, "").toLowerCase(Locale.ROOT);
+        boolean coverPath = href.matches(".*(cover|封面|title|front|fmatter).*");
+        boolean coverTitle = title.matches(".*(cover|封面|title|front).*");
+        boolean coverImage = imageCount == 1 && isEpubCoverImageReference(epubBook, resource, images.get(0));
+        return imageCount > 0 && text.length() <= 20 && (coverPath || coverTitle || coverImage);
+    }
+
+    /**
+     * 判断章节图片是否指向 EPUB 元数据中的封面资源。
+     * 将图片相对路径解析为资源清单项后与 coverImage 比对，兼容封面页文件名不含 cover 的打包方式。
+     */
+    private boolean isEpubCoverImageReference(nl.siegmann.epublib.domain.Book epubBook, Resource chapterResource, Element image) {
+        if (epubBook == null || epubBook.getCoverImage() == null || image == null) {
+            return false;
+        }
+        String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+        Resource embeddedResource = resolveEpubResource(epubBook, chapterResource, image.attr(attributeName));
+        if (embeddedResource == null) {
+            return false;
+        }
+        String embeddedHref = normalizeEpubHref(embeddedResource.getHref());
+        String coverHref = normalizeEpubHref(epubBook.getCoverImage().getHref());
+        return !embeddedHref.isBlank() && embeddedHref.equals(coverHref);
     }
 
     private List<BookImportChapterStage> parsePdf(byte[] fileBytes, String jobKey) throws Exception {
@@ -586,20 +1133,38 @@ public class AdminBookServiceImpl implements AdminBookService {
 
     // ========== ZIP 包解析方法（保留原逻辑） ==========
 
-    private ParsedBookPackage parseBookPackage(byte[] zipBytes, String jobKey) throws Exception {
+    /**
+     * 解析 ZIP 导入包并生成书籍元信息与章节暂存数据。
+     * 优先读取 manifest.json 精准导入，缺少清单时自动扫描章节文件生成默认书籍。
+     */
+    private ParsedBookPackage parseBookPackage(byte[] zipBytes, String jobKey, String zipFileName) throws Exception {
         Map<String, byte[]> entries = readZipEntries(zipBytes);
         if (entries.isEmpty()) {
             throw new BusinessException(400, "ZIP 压缩包内容为空");
         }
 
-        Map<String, Object> manifest = readManifest(entries);
+        String manifestPath = findManifestPath(entries);
+        if (manifestPath.isBlank()) {
+            Map.Entry<String, byte[]> standaloneBookEntry = findPreferredStandaloneBookEntry(entries);
+            if (standaloneBookEntry != null) {
+                return parseStandaloneBookArchive(standaloneBookEntry.getKey(), standaloneBookEntry.getValue(), jobKey);
+            }
+            return parseBookPackageWithoutManifest(entries, jobKey, zipFileName);
+        }
+
+        Map<String, Object> manifest = readManifest(entries, manifestPath);
+        String manifestBasePath = extractParentPath(manifestPath);
         String title = requireText(asText(manifest.get("title")), "manifest.json 缺少 title");
         String bookKey = defaultString(asText(manifest.get("bookKey")), buildSlugKey(title));
         String author = defaultString(asText(manifest.get("author")), "未知作者");
+        String translator = defaultString(asText(manifest.get("translator")), "");
         String publisher = defaultString(asText(manifest.get("publisher")), "");
-        String category = defaultString(asText(manifest.get("category")), "书籍");
         String summary = defaultString(asText(manifest.get("summary")), "");
-        String coverUrl = resolveCoverUrl(entries, defaultString(asText(manifest.get("coverFile")), ""));
+        String category = normalizeBookCategory(asText(manifest.get("category")), title, summary, List.of());
+        String coverUrl = resolveCoverUrl(entries, defaultString(asText(manifest.get("coverFile")), ""), manifestBasePath);
+        if (coverUrl.isBlank()) {
+            coverUrl = resolveAutoCoverUrl(entries);
+        }
 
         List<Map<String, Object>> chapterDefinitions = readChapterDefinitions(manifest);
         if (chapterDefinitions.isEmpty()) {
@@ -610,13 +1175,16 @@ public class AdminBookServiceImpl implements AdminBookService {
         int sortOrder = 1;
         for (Map<String, Object> chapterDefinition : chapterDefinitions) {
             String sourcePath = requireText(asText(chapterDefinition.get("file")), "章节文件路径不能为空");
-            byte[] chapterBytes = entries.get(sourcePath);
-            if (chapterBytes == null) {
+            Map.Entry<String, byte[]> chapterEntry = resolveZipEntry(entries, sourcePath, manifestBasePath);
+            if (chapterEntry == null || chapterEntry.getValue() == null) {
                 throw new BusinessException(400, "章节文件不存在: " + sourcePath);
             }
+            sourcePath = chapterEntry.getKey();
+            byte[] chapterBytes = chapterEntry.getValue();
 
             String sourceType = resolveSourceType(sourcePath);
             String html = toImportHtml(sourcePath, chapterBytes);
+            html = migrateZipEmbeddedImages(html, entries, sourcePath, jobKey);
 
             AdminContentImportPreviewRequest previewRequest = new AdminContentImportPreviewRequest();
             previewRequest.setContentHtml(html);
@@ -642,7 +1210,131 @@ public class AdminBookServiceImpl implements AdminBookService {
             sortOrder++;
         }
 
-        return new ParsedBookPackage(bookKey, title, author, publisher, category, summary, coverUrl, stages);
+        BookCreditInfo creditInfo = inferBookCreditInfo(title, stages, author, translator);
+        return new ParsedBookPackage(bookKey, creditInfo.title(), creditInfo.author(), creditInfo.translator(), publisher, category, summary, coverUrl, stages);
+    }
+
+    /**
+     * 自动扫描无清单 ZIP 中的章节文件，降低普通压缩包上传门槛。
+     * 按文件路径排序后逐个转换为富文本章节，并用压缩包文件名生成默认书籍信息。
+     */
+    private ParsedBookPackage parseBookPackageWithoutManifest(Map<String, byte[]> entries, String jobKey, String zipFileName) throws Exception {
+        List<String> chapterPaths = entries.keySet().stream()
+            .filter(this::isImportableChapterPath)
+            .sorted(this::compareChapterPath)
+            .toList();
+
+        if (chapterPaths.isEmpty()) {
+            throw new BusinessException(400, "ZIP 中未找到可导入章节文件，请放入 txt、md、html 或 docx 文件");
+        }
+
+        String title = extractTitleFromFileName(zipFileName);
+        List<BookImportChapterStage> stages = new ArrayList<>();
+        int sortOrder = 1;
+        for (String sourcePath : chapterPaths) {
+            String sourceType = resolveSourceType(sourcePath);
+            String html = toImportHtml(sourcePath, entries.get(sourcePath));
+            html = migrateZipEmbeddedImages(html, entries, sourcePath, jobKey);
+
+            AdminContentImportPreviewRequest previewRequest = new AdminContentImportPreviewRequest();
+            previewRequest.setContentHtml(html);
+            previewRequest.setSourceType(sourceType);
+            previewRequest.setSourceUrl("");
+            previewRequest.setMigrateAssets(Boolean.FALSE);
+            AdminContentImportPreviewResponse previewResponse = adminContentImportService.preview(CONTENT_TYPE_BOOK, previewRequest);
+
+            BookImportChapterStage stage = new BookImportChapterStage();
+            stage.setJobKey(jobKey);
+            stage.setTempChapterKey("temp-chapter-" + shortId());
+            stage.setSourcePath(sourcePath);
+            stage.setChapterNo(sortOrder);
+            stage.setTitle(extractTitle(previewResponse.getPlainText(), sourcePath));
+            stage.setSubtitle("");
+            stage.setContentHtml(previewResponse.getNormalizedHtml());
+            stage.setPlainText(defaultString(previewResponse.getPlainText(), ""));
+            stage.setWordCount(countWords(stage.getPlainText()));
+            stage.setWarningJson(OBJECT_MAPPER.writeValueAsString(defaultWarnings(previewResponse.getWarnings())));
+            stage.setReviewStatus("parsed");
+            stage.setSortOrder(sortOrder);
+            stages.add(stage);
+            sortOrder++;
+        }
+
+        BookCreditInfo creditInfo = inferBookCreditInfo(title, stages, "", "");
+        String coverUrl = resolveAutoCoverUrl(entries);
+        return new ParsedBookPackage(buildSlugKey(creditInfo.title()), creditInfo.title(), creditInfo.author(), creditInfo.translator(), "", "书籍", "", coverUrl, stages);
+    }
+
+    /**
+     * 解析 ZIP 中直接包含的整本电子书文件。
+     * 优先使用 epub、pdf、docx 这类可直接还原内容的格式，再交给单文件解析器处理。
+     */
+    private ParsedBookPackage parseStandaloneBookArchive(String entryName, byte[] fileBytes, String jobKey) throws Exception {
+        String extension = resolveExtension(entryName);
+        return parseSingleFilePackage(extension, entryName, fileBytes, jobKey);
+    }
+
+    /**
+     * 从 ZIP 条目中挑出最适合直接解析的整本电子书文件。
+     * 先选 epub、pdf、docx，避免把这些成品电子书误当成章节压缩包来扫。
+     */
+    private Map.Entry<String, byte[]> findPreferredStandaloneBookEntry(Map<String, byte[]> entries) {
+        List<String> preferredExtensions = List.of("epub", "pdf", "docx");
+        for (String extension : preferredExtensions) {
+            Map.Entry<String, byte[]> candidate = entries.entrySet().stream()
+                .filter(entry -> extension.equals(resolveExtension(entry.getKey())))
+                .sorted(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
+                .findFirst()
+                .orElse(null);
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 判断 ZIP 内文件是否可作为章节导入。
+     * 跳过隐藏文件、系统目录和封面资源，仅保留文本类章节格式。
+     */
+    private boolean isImportableChapterPath(String sourcePath) {
+        String normalizedPath = defaultString(sourcePath, "").replace("\\", "/");
+        String fileName = normalizedPath.contains("/") ? normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1) : normalizedPath;
+        if (fileName.isBlank() || fileName.startsWith(".") || normalizedPath.startsWith("__MACOSX/")) {
+            return false;
+        }
+        return List.of("txt", "md", "markdown", "html", "htm", "docx").contains(resolveExtension(fileName));
+    }
+
+    /**
+     * 比较章节路径的自然顺序，保证带数字的文件名按阅读顺序排列。
+     * 优先比较文件名中的首个数字，数字相同或缺失时回退到路径字典序。
+     */
+    private int compareChapterPath(String leftPath, String rightPath) {
+        int leftNumber = extractFirstNumber(leftPath);
+        int rightNumber = extractFirstNumber(rightPath);
+        if (leftNumber != rightNumber) {
+            if (leftNumber < 0) return 1;
+            if (rightNumber < 0) return -1;
+            return Integer.compare(leftNumber, rightNumber);
+        }
+        return leftPath.compareToIgnoreCase(rightPath);
+    }
+
+    /**
+     * 提取文件路径中的首个数字片段用于章节排序。
+     * 未找到数字时返回 -1，让调用方回退到普通字符串排序。
+     */
+    private int extractFirstNumber(String sourcePath) {
+        var matcher = java.util.regex.Pattern.compile("\\d+").matcher(defaultString(sourcePath, ""));
+        if (!matcher.find()) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(matcher.group());
+        } catch (Exception exception) {
+            return -1;
+        }
     }
 
     private Map<String, byte[]> readZipEntries(byte[] zipBytes) throws Exception {
@@ -653,7 +1345,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                     return entries;
                 }
             } catch (IllegalArgumentException exception) {
-                // 继续尝试下一个文件名编码
+                continue;
             }
         }
 
@@ -680,12 +1372,269 @@ public class AdminBookServiceImpl implements AdminBookService {
         return entries;
     }
 
-    private Map<String, Object> readManifest(Map<String, byte[]> entries) throws Exception {
-        byte[] manifestBytes = entries.get("manifest.json");
+    /**
+     * 定位压缩包内的 manifest.json 文件。
+     * 兼容文件位于顶层或书籍目录内的场景，优先返回顶层清单。
+     */
+    private String findManifestPath(Map<String, byte[]> entries) {
+        Map.Entry<String, byte[]> rootManifest = findZipEntryByNormalizedPath(entries, "manifest.json");
+        if (rootManifest != null) {
+            return rootManifest.getKey();
+        }
+        return entries.keySet().stream()
+            .filter(path -> "manifest.json".equalsIgnoreCase(extractFileNameFromPath(path)))
+            .sorted(String.CASE_INSENSITIVE_ORDER)
+            .findFirst()
+            .orElse("");
+    }
+
+    /**
+     * 读取指定路径下的导入清单。
+     * 通过标准化路径匹配真实条目，避免顶层目录或编码差异导致清单丢失。
+     */
+    private Map<String, Object> readManifest(Map<String, byte[]> entries, String manifestPath) throws Exception {
+        Map.Entry<String, byte[]> manifestEntry = findZipEntryByNormalizedPath(entries, manifestPath);
+        byte[] manifestBytes = manifestEntry == null ? null : manifestEntry.getValue();
         if (manifestBytes == null) {
             throw new BusinessException(400, "导入包缺少 manifest.json");
         }
         return OBJECT_MAPPER.readValue(manifestBytes, new TypeReference<Map<String, Object>>() {});
+    }
+
+    /**
+     * 迁移 ZIP 章节 HTML 中引用的包内图片资源。
+     * 按章节相对路径解析图片并上传到对象存储，再把正文引用替换为可访问地址。
+     */
+    private String migrateZipEmbeddedImages(String html, Map<String, byte[]> entries, String chapterPath, String jobKey) throws Exception {
+        if (html == null || html.isBlank() || entries == null || entries.isEmpty()) {
+            return html;
+        }
+        Document document = Jsoup.parseBodyFragment(html);
+        document.outputSettings().prettyPrint(false);
+        for (Element image : document.select("img, image")) {
+            String uploadedUrl = "";
+            for (String rawPath : extractImageSourceCandidates(image)) {
+                uploadedUrl = uploadZipEmbeddedImage(entries, chapterPath, rawPath, jobKey);
+                if (!uploadedUrl.isBlank()) {
+                    break;
+                }
+            }
+            if (!uploadedUrl.isBlank()) {
+                String attributeName = resolvePrimaryImageAttribute(image);
+                image.attr(attributeName, uploadedUrl);
+                if ("img".equalsIgnoreCase(image.tagName())) {
+                    image.attr("loading", "lazy");
+                    image.removeAttr("data-src");
+                    image.removeAttr("data-original");
+                    image.removeAttr("data-lazy-src");
+                    image.removeAttr("srcset");
+                }
+            }
+        }
+        return document.body().html();
+    }
+
+    /**
+     * 收集图片节点中可能承载真实地址的属性。
+     * 按常规 src 到懒加载字段的顺序尝试，兼容常见网页打包后的图片写法。
+     */
+    private List<String> extractImageSourceCandidates(Element image) {
+        List<String> candidates = new ArrayList<>();
+        for (String attributeName : List.of("src", "href", "xlink:href", "data-src", "data-original", "data-lazy-src")) {
+            String value = defaultString(image.attr(attributeName), "").trim();
+            if (!value.isBlank()) {
+                candidates.add(value);
+            }
+        }
+        String srcsetFirstUrl = extractFirstSrcsetUrl(image.attr("srcset"));
+        if (!srcsetFirstUrl.isBlank()) {
+            candidates.add(srcsetFirstUrl);
+        }
+        return candidates.stream().distinct().toList();
+    }
+
+    /**
+     * 确定图片节点回填真实地址时使用的主属性。
+     * 普通 img 统一写回 src，SVG image 则沿用 href 或 xlink:href。
+     */
+    private String resolvePrimaryImageAttribute(Element image) {
+        if ("img".equalsIgnoreCase(image.tagName())) {
+            return "src";
+        }
+        if (image.hasAttr("href")) {
+            return "href";
+        }
+        return "xlink:href";
+    }
+
+    /**
+     * 从 srcset 中取出首个图片地址。
+     * 只解析逗号分隔项的第一段 URL，交由后续路径解析流程继续处理。
+     */
+    private String extractFirstSrcsetUrl(String srcset) {
+        String normalizedSrcset = defaultString(srcset, "").trim();
+        if (normalizedSrcset.isBlank()) {
+            return "";
+        }
+        String firstItem = normalizedSrcset.split(",")[0].trim();
+        int spaceIndex = firstItem.indexOf(' ');
+        return spaceIndex >= 0 ? firstItem.substring(0, spaceIndex).trim() : firstItem;
+    }
+
+    /**
+     * 上传 ZIP 包内单个图片资源。
+     * 仅处理包内相对路径图片，外链和 data URL 继续沿用原始值。
+     */
+    private String uploadZipEmbeddedImage(Map<String, byte[]> entries, String chapterPath, String rawPath, String jobKey) throws Exception {
+        String sourcePath = defaultString(rawPath, "").trim();
+        if (sourcePath.isBlank()) {
+            return "";
+        }
+        String lowerPath = sourcePath.toLowerCase(Locale.ROOT);
+        if (lowerPath.startsWith("http://") || lowerPath.startsWith("https://") || lowerPath.startsWith("data:")
+            || contentStorageService.isStorageUrl(sourcePath)) {
+            return sourcePath;
+        }
+        Map.Entry<String, byte[]> imageEntry = resolveZipEntry(entries, sourcePath, chapterPath);
+        if (imageEntry == null) {
+            return "";
+        }
+        byte[] imageBytes = imageEntry.getValue();
+        if (imageBytes == null || imageBytes.length == 0) {
+            return "";
+        }
+        String fileName = extractFileNameFromPath(imageEntry.getKey());
+        // 仅处理图片格式的资源，忽略 CSS/JS 等非图像引用
+        if (!isImageFilePath(imageEntry.getKey())) {
+            // 尝试按 MIME 类型兜底：若字节头部符合图片特征也允许上传
+            if (!isImageFileByMagicBytes(imageBytes)) {
+                return "";
+            }
+        }
+        return contentStorageService.upload(
+            "book/content/" + defaultString(jobKey, "zip"),
+            fileName,
+            new ByteArrayInputStream(imageBytes),
+            imageBytes.length,
+            guessContentType(fileName)
+        );
+    }
+
+    /**
+     * 在 ZIP 条目中解析章节相对资源路径。
+     * 同时尝试原路径、章节同级路径、根路径和文件名兜底匹配。
+     */
+    private Map.Entry<String, byte[]> resolveZipEntry(Map<String, byte[]> entries, String rawPath, String chapterPath) {
+        String normalizedPath = normalizeArchivePath(rawPath);
+        if (normalizedPath.isBlank()) {
+            return null;
+        }
+        List<String> candidates = new ArrayList<>();
+        candidates.add(normalizedPath);
+        if (rawPath.startsWith("/")) {
+            candidates.add(normalizeArchivePath(rawPath.substring(1)));
+        }
+        String normalizedChapterPath = normalizeArchivePath(chapterPath);
+        int lastSlash = normalizedChapterPath.lastIndexOf('/');
+        if (lastSlash >= 0 && !rawPath.startsWith("/")) {
+            candidates.add(normalizeArchivePath(normalizedChapterPath.substring(0, lastSlash + 1) + normalizedPath));
+        }
+        for (String candidate : candidates) {
+            Map.Entry<String, byte[]> matchedEntry = findZipEntryByNormalizedPath(entries, candidate);
+            if (matchedEntry != null) {
+                return matchedEntry;
+            }
+        }
+        String fileName = extractFileNameFromPath(normalizedPath);
+        if (fileName.isBlank()) {
+            return null;
+        }
+        return entries.entrySet().stream()
+            .filter(entry -> extractFileNameFromPath(entry.getKey()).equalsIgnoreCase(fileName))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * 按标准化路径在 ZIP 条目中查找资源。
+     * 消除路径分隔符、编码和相对目录差异，提升不同打包工具的兼容性。
+     */
+    private Map.Entry<String, byte[]> findZipEntryByNormalizedPath(Map<String, byte[]> entries, String targetPath) {
+        String normalizedTarget = normalizeArchivePath(targetPath);
+        if (normalizedTarget.isBlank()) {
+            return null;
+        }
+        return entries.entrySet().stream()
+            .filter(entry -> normalizeArchivePath(entry.getKey()).equalsIgnoreCase(normalizedTarget))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * 标准化压缩包内部资源路径。
+     * 去除查询串、锚点、URL 编码和相对目录片段，统一用于资源查找。
+     */
+    private String normalizeArchivePath(String path) {
+        String normalized = defaultString(path, "").trim().replace("\\", "/");
+        if (normalized.isBlank()) {
+            return "";
+        }
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        int fragmentIndex = normalized.indexOf('#');
+        if (fragmentIndex >= 0) {
+            normalized = normalized.substring(0, fragmentIndex);
+        }
+        try {
+            normalized = URLDecoder.decode(normalized, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            normalized = normalized.replace("%20", " ");
+        }
+        while (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        while (normalized.contains("/./")) {
+            normalized = normalized.replace("/./", "/");
+        }
+        while (normalized.contains("//")) {
+            normalized = normalized.replace("//", "/");
+        }
+        List<String> segments = new ArrayList<>();
+        for (String segment : normalized.split("/")) {
+            if (segment.isBlank() || ".".equals(segment)) {
+                continue;
+            }
+            if ("..".equals(segment)) {
+                if (!segments.isEmpty()) {
+                    segments.remove(segments.size() - 1);
+                }
+                continue;
+            }
+            segments.add(segment);
+        }
+        return String.join("/", segments);
+    }
+
+    /**
+     * 从资源路径中提取文件名。
+     * 统一兼容正反斜杠和查询串，供上传命名与兜底匹配复用。
+     */
+    private String extractFileNameFromPath(String sourcePath) {
+        String normalizedPath = normalizeArchivePath(sourcePath);
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        return lastSlash >= 0 ? normalizedPath.substring(lastSlash + 1) : normalizedPath;
+    }
+
+    /**
+     * 从压缩包条目路径中提取父目录。
+     * 为 manifest 内相对章节和封面路径提供同级目录基准。
+     */
+    private String extractParentPath(String sourcePath) {
+        String normalizedPath = normalizeArchivePath(sourcePath);
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        return lastSlash >= 0 ? normalizedPath.substring(0, lastSlash + 1) : "";
     }
 
     private List<Map<String, Object>> readChapterDefinitions(Map<String, Object> manifest) {
@@ -704,19 +1653,266 @@ public class AdminBookServiceImpl implements AdminBookService {
         return result;
     }
 
-    private String resolveCoverUrl(Map<String, byte[]> entries, String coverFile) throws Exception {
+    private String resolveCoverUrl(Map<String, byte[]> entries, String coverFile, String basePath) throws Exception {
         if (coverFile == null || coverFile.isBlank()) {
             return "";
         }
-        byte[] coverBytes = entries.get(coverFile);
-        if (coverBytes == null) {
+        Map.Entry<String, byte[]> coverEntry = resolveZipEntry(entries, coverFile, basePath);
+        byte[] coverBytes = coverEntry == null ? null : coverEntry.getValue();
+        if (coverBytes == null || !isValidCoverImageResource(coverEntry.getKey(), guessContentType(coverEntry.getKey()), coverBytes)) {
             return "";
         }
+        String coverName = coverEntry == null ? coverFile : coverEntry.getKey();
         return contentStorageService.upload(
-            "book/cover", coverFile.substring(coverFile.lastIndexOf('/') + 1),
+            "book/cover", extractFileNameFromPath(coverName),
             new ByteArrayInputStream(coverBytes), coverBytes.length,
+            guessContentType(coverName)
+        );
+    }
+
+    /**
+     * 上传已确认有效的 EPUB 封面图片资源。
+     * 复用统一图片校验过滤封面页文本、OPF 清单等非图片内容后再写入对象存储。
+     */
+    private String uploadEpubCoverResource(Resource coverImage, String fileName) throws Exception {
+        if (coverImage == null) {
+            return "";
+        }
+        byte[] coverBytes = coverImage.getData();
+        String contentType = coverImage.getMediaType() == null ? "" : coverImage.getMediaType().getName();
+        if (!isValidCoverImageResource(coverImage.getHref(), contentType, coverBytes)) {
+            return "";
+        }
+        String coverName = defaultString(coverImage.getHref(), extractTitleFromFileName(fileName) + "-cover");
+        if (!coverName.contains(".") && coverImage.getMediaType() != null && coverImage.getMediaType().getDefaultExtension() != null) {
+            coverName = coverName + "." + coverImage.getMediaType().getDefaultExtension();
+        }
+        return contentStorageService.upload(
+            "book/cover",
+            coverName.substring(coverName.lastIndexOf('/') + 1),
+            new ByteArrayInputStream(coverBytes),
+            coverBytes.length,
+            defaultString(contentType, guessContentType(coverName))
+        );
+    }
+
+    /**
+     * 自动识别并上传 EPUB 内置封面图片。
+     * 先校验标准封面资源是否为图片，失效时再扫描资源列表选择最像封面的图片。
+     */
+    private String resolveEpubCoverUrl(nl.siegmann.epublib.domain.Book epubBook, String fileName) throws Exception {
+        String coverUrl = uploadEpubCoverResource(epubBook.getCoverImage(), fileName);
+        if (!coverUrl.isBlank() || epubBook.getResources() == null) {
+            return coverUrl;
+        }
+
+        Resource bestResource = null;
+        byte[] bestBytes = null;
+        for (Resource resource : epubBook.getResources().getAll()) {
+            if (resource == null) {
+                continue;
+            }
+            byte[] bytes = resource.getData();
+            String contentType = resource.getMediaType() == null ? "" : resource.getMediaType().getName();
+            if (!isValidCoverImageResource(resource.getHref(), contentType, bytes)) {
+                continue;
+            }
+            if (bestResource == null || scoreCoverPath(resource.getHref(), bytes) > scoreCoverPath(bestResource.getHref(), bestBytes)) {
+                bestResource = resource;
+                bestBytes = bytes;
+            }
+        }
+        return uploadEpubCoverResource(bestResource, fileName);
+    }
+
+    /**
+     * 自动识别并上传压缩包中的封面图片。
+     * 优先选择文件名包含封面特征的图片，缺失时按图片大小选择最可能的候选。
+     */
+    private String resolveAutoCoverUrl(Map<String, byte[]> entries) throws Exception {
+        Map.Entry<String, byte[]> candidate = entries.entrySet().stream()
+            .filter(entry -> isCoverImagePath(entry.getKey()))
+            .filter(entry -> isValidCoverImageResource(entry.getKey(), guessContentType(entry.getKey()), entry.getValue()))
+            .sorted((left, right) -> {
+                int scoreCompare = Integer.compare(
+                    scoreCoverPath(right.getKey(), right.getValue()),
+                    scoreCoverPath(left.getKey(), left.getValue())
+                );
+                if (scoreCompare != 0) {
+                    return scoreCompare;
+                }
+                int sizeCompare = Integer.compare(right.getValue().length, left.getValue().length);
+                return sizeCompare != 0 ? sizeCompare : String.CASE_INSENSITIVE_ORDER.compare(left.getKey(), right.getKey());
+            })
+            .findFirst()
+            .orElse(null);
+        if (candidate == null) {
+            return "";
+        }
+        String coverFile = candidate.getKey();
+        byte[] coverBytes = candidate.getValue();
+        return contentStorageService.upload(
+            "book/cover",
+            extractFileNameFromPath(coverFile),
+            new ByteArrayInputStream(coverBytes),
+            coverBytes.length,
             guessContentType(coverFile)
         );
+    }
+
+    /**
+     * 判断文件路径是否属于可作为封面或内嵌展示的图片资源。
+     * 覆盖主流图片格式，避免章节内容中的插图因扩展名识别失败而丢失。
+     */
+    private boolean isImageFilePath(String sourcePath) {
+        String normalizedPath = normalizeArchivePath(sourcePath);
+        String fileName = extractFileNameFromPath(normalizedPath);
+        if (fileName.isBlank() || fileName.startsWith(".") || normalizedPath.startsWith("__MACOSX/")) {
+            return false;
+        }
+        return List.of("jpg", "jpeg", "png", "webp", "gif", "bmp", "svg",
+            "tiff", "tif", "avif", "jfif", "jpe", "jp2", "ico").contains(resolveExtension(fileName));
+    }
+
+    /**
+     * 别名兼容：仅用于外部封面资源路径过滤（保持原名以便语义阅读）。
+     */
+    private boolean isCoverImagePath(String sourcePath) {
+        return isImageFilePath(sourcePath);
+    }
+
+    /**
+     * 判断候选封面资源是否是真实图片内容。
+     * 同时检查路径后缀、MIME 类型和文件魔数，避免 XHTML 或 OPF 文本被保存成封面地址。
+     */
+    private boolean isValidCoverImageResource(String sourcePath, String contentType, byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return false;
+        }
+        String lowerContentType = defaultString(contentType, "").toLowerCase(Locale.ROOT);
+        boolean hasImageSuffix = isImageFilePath(sourcePath);
+        boolean hasImageMime = lowerContentType.startsWith("image/");
+        boolean hasImageMagic = isImageFileByMagicBytes(bytes);
+        if (!hasImageMagic && !(hasImageSuffix && hasImageMime)) {
+            return false;
+        }
+        return !looksLikeTextMarkup(bytes);
+    }
+
+    /**
+     * 通过文件魔数前缀推断是否为图片格式。
+     * 兜底处理纯扩展名检测遗漏的场景（如无后缀文件或非标准扩展名但实际为图片）。
+     */
+    private boolean isImageFileByMagicBytes(byte[] bytes) {
+        if (bytes == null || bytes.length < 4) {
+            return false;
+        }
+        // JPEG: FF D8 FF
+        if (bytes[0] == (byte)0xFF && bytes[1] == (byte)0xD8 && bytes[2] == (byte)0xFF) {
+            return true;
+        }
+        // PNG: 89 50 4E 47
+        if (bytes[0] == (byte)0x89 && bytes[1] == (byte)0x50 && bytes[2] == (byte)0x4E && bytes[3] == (byte)0x47) {
+            return true;
+        }
+        // GIF: 47 49 46 38
+        if (bytes[0] == (byte)0x47 && bytes[1] == (byte)0x49 && bytes[2] == (byte)0x46 && bytes[3] == (byte)0x38) {
+            return true;
+        }
+        // WEBP: RIFF .... WEBP
+        if (bytes.length >= 12 && bytes[0] == (byte)0x52 && bytes[1] == (byte)0x49
+            && bytes[2] == (byte)0x46 && bytes[3] == (byte)0x46
+            && bytes[8] == (byte)0x57 && bytes[9] == (byte)0x45
+            && bytes[10] == (byte)0x42 && bytes[11] == (byte)0x50) {
+            return true;
+        }
+        // BMP: 42 4D
+        if (bytes[0] == (byte)0x42 && bytes[1] == (byte)0x4D) {
+            return true;
+        }
+        // TIFF: 49 49 2A 00 (little-endian) 或 4D 4D 00 2A (big-endian)
+        if ((bytes[0] == (byte)0x49 && bytes[1] == (byte)0x49 && bytes[2] == (byte)0x2A && bytes[3] == (byte)0x00)
+            || (bytes[0] == (byte)0x4D && bytes[1] == (byte)0x4D && bytes[2] == (byte)0x00 && bytes[3] == (byte)0x2A)) {
+            return true;
+        }
+        String header = new String(bytes, 0, Math.min(bytes.length, 128), StandardCharsets.UTF_8).trim().toLowerCase(Locale.ROOT);
+        if (header.startsWith("<svg") || header.contains("<svg")) {
+            return true;
+        }
+        // AVIF: 以 ftypavif / ftypavis 为特征的 ISOBMFF 容器
+        if (bytes.length >= 12 && bytes[4] == (byte)0x66 && bytes[5] == (byte)0x74
+            && bytes[6] == (byte)0x79 && bytes[7] == (byte)0x70) {
+            String boxType = new String(bytes, 4, 8, StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
+            if (boxType.contains("avif") || boxType.contains("avis")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断字节内容是否更像 XHTML、OPF 或普通文本。
+     * 在扩展名和 MIME 被误标时兜底拦截非图片封面，避免破图地址写入封面字段。
+     */
+    private boolean looksLikeTextMarkup(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return false;
+        }
+        String header = new String(bytes, 0, Math.min(bytes.length, 512), StandardCharsets.UTF_8)
+            .trim()
+            .toLowerCase(Locale.ROOT);
+        if (header.isEmpty()) {
+            return false;
+        }
+        return header.startsWith("<?xml")
+            || header.startsWith("<html")
+            || header.startsWith("<!doctype html")
+            || header.startsWith("<package")
+            || header.startsWith("<opf")
+            || header.startsWith("<ncx")
+            || header.startsWith("<body")
+            || header.startsWith("<metadata")
+            || header.startsWith("<manifest")
+            || header.startsWith("<spine")
+            || header.contains("<html")
+            || header.contains("<package")
+            || header.contains("<manifest")
+            || header.contains("<spine")
+            || header.contains("<metadata")
+            || header.contains("<dc:title")
+            || header.contains("<itemref");
+    }
+
+    /**
+     * 计算压缩包图片成为封面的优先级。
+     * 文件名命中封面词会显著加权，缩略图、图标等资源会降低排序。
+     */
+    private int scoreCoverPath(String sourcePath, byte[] bytes) {
+        String lowerPath = defaultString(sourcePath, "").replace("\\", "/").toLowerCase(Locale.ROOT);
+        String fileName = lowerPath.contains("/") ? lowerPath.substring(lowerPath.lastIndexOf('/') + 1) : lowerPath;
+        int score = bytes != null && bytes.length >= 50 * 1024 ? 10 : 0;
+        if (fileName.matches(".*(cover|封面|front|folder|title|poster).*")) {
+            score += 100;
+        }
+        if (lowerPath.matches(".*(/cover/|/covers/|/image/|/images/|/img/).*")) {
+            score += 15;
+        }
+        if (fileName.matches(".*(chapter|section|page|illustration|insert|inline|figure|fig|body|text).*")) {
+            score -= 35;
+        }
+        if (fileName.matches(".*(logo|icon|sprite|avatar|thumb|thumbnail).*")) {
+            score -= 50;
+        }
+        if (bytes != null) {
+            if (bytes.length < 5 * 1024) {
+                score -= 80;
+            } else if (bytes.length < 20 * 1024) {
+                score -= 25;
+            } else if (bytes.length >= 200 * 1024) {
+                score += 20;
+            }
+        }
+        return score;
     }
 
     private String toImportHtml(String sourcePath, byte[] chapterBytes) {
@@ -856,6 +2052,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setBookKey("");
         job.setTitle(title);
         job.setAuthor("");
+        job.setTranslator("");
         job.setPublisher("");
         job.setSummary("");
         job.setCoverUrl("");
@@ -869,7 +2066,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setTotalChapters(0);
         job.setSuccessChapters(0);
         job.setFailChapters(0);
-        job.setCategory("书籍");
+        job.setCategory("精品书籍");
         job.setMessage("等待解析");
         return job;
     }
@@ -878,16 +2075,227 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setBookKey(parsedBook.bookKey());
         job.setTitle(parsedBook.title());
         job.setAuthor(parsedBook.author());
+        job.setTranslator(parsedBook.translator());
         job.setPublisher(parsedBook.publisher());
         job.setSummary(parsedBook.summary());
-        job.setCategory(parsedBook.category());
+        job.setCategory(normalizeBookCategory(parsedBook.category(), parsedBook.title(), parsedBook.summary(), parsedBook.stages()));
         job.setCoverUrl(parsedBook.coverUrl());
         job.setTotalChapters(parsedBook.stages().size());
         job.setSuccessChapters(parsedBook.stages().size());
         job.setFailChapters(0);
         job.setProgress(80);
-        job.setStatus("await_review");
+        job.setStatus(STATUS_AWAIT_REVIEW);
         job.setMessage("章节解析完成，等待审核发布");
+    }
+
+    /**
+     * 综合文件名、元数据和章节正文推断书籍署名信息。
+     * 优先保留已有元数据，缺失时从标题括号和前置版权页文本识别作者与译者。
+     */
+    private BookCreditInfo inferBookCreditInfo(String rawTitle, List<BookImportChapterStage> stages, String knownAuthor, String knownTranslator) {
+        String title = extractTitleFromFileName(defaultString(rawTitle, "导入书籍"));
+        String author = defaultString(knownAuthor, "");
+        String translator = defaultString(knownTranslator, "");
+
+        BookCreditInfo titleInfo = parseCreditInfoFromText(title);
+        if (author.isBlank()) {
+            author = titleInfo.author();
+        }
+        if (translator.isBlank()) {
+            translator = titleInfo.translator();
+        }
+        title = cleanupCreditText(titleInfo.title());
+
+        if (author.isBlank() || translator.isBlank()) {
+            String sampleText = stages.stream()
+                .limit(3)
+                .map(BookImportChapterStage::getPlainText)
+                .filter(text -> text != null && !text.isBlank())
+                .reduce("", (left, right) -> left + "\n" + right);
+            BookCreditInfo textInfo = parseCreditInfoFromText(sampleText);
+            if (author.isBlank()) {
+                author = textInfo.author();
+            }
+            if (translator.isBlank()) {
+                translator = textInfo.translator();
+            }
+        }
+
+        return new BookCreditInfo(defaultString(title, "导入书籍"), defaultString(author, "未知作者"), defaultString(translator, ""));
+    }
+
+    /**
+     * 统一标准化书籍分类，只保留运营约定的六类标签。
+     * 优先采用人工选择，缺失时再结合标题、摘要与前几章文本自动识别最接近的分类。
+     */
+    private String normalizeBookCategory(String rawCategory, String title, String summary, List<BookImportChapterStage> stages) {
+        String text = defaultString(rawCategory, "").trim();
+        if (!text.isBlank()) {
+            String normalized = switch (text.toLowerCase(Locale.ROOT)) {
+                case "精品书籍", "精品", "best", "featured" -> "精品书籍";
+                case "历史", "history" -> "历史";
+                case "文学", "literature" -> "文学";
+                case "悬疑", "suspense", "mystery", "detective" -> "悬疑";
+                case "人物传记", "传记", "biography", "memoir" -> "人物传记";
+                case "名家代表", "名家", "classic", "masterpiece" -> "名家代表";
+                default -> "";
+            };
+            if (!normalized.isBlank()) {
+                return normalized;
+            }
+        }
+
+        String sampleText = defaultString(title, "") + "\n" + defaultString(summary, "") + "\n" +
+            stages.stream()
+                .limit(3)
+                .map(BookImportChapterStage::getPlainText)
+                .filter(item -> item != null && !item.isBlank())
+                .reduce("", (left, right) -> left + "\n" + right);
+        String lowerText = sampleText.toLowerCase(Locale.ROOT);
+
+        if (matchesBookCategory(lowerText, "拿破仑", "王朝", "帝国", "朝代", "战争", "史", "编年", "历史")) {
+            return "历史";
+        }
+        if (matchesBookCategory(lowerText, "侦探", "探案", "谋杀", "疑案", "凶手", "悬疑", "推理", "谜团")) {
+            return "悬疑";
+        }
+        if (matchesBookCategory(lowerText, "传记", "回忆录", "人物", "先生", "女士", "自述", "生平", " biography ")) {
+            return "人物传记";
+        }
+        if (matchesBookCategory(lowerText, "名家", "经典", "诺贝尔", "代表作", "文集", "选集", "大师")) {
+            return "名家代表";
+        }
+        if (matchesBookCategory(lowerText, "小说", "散文", "诗", "文学", "长篇", "短篇", "故事")) {
+            return "文学";
+        }
+        return "精品书籍";
+    }
+
+    /**
+     * 在候选文本中检测分类关键词，尽量用轻量规则给导入书籍落一个可用分类。
+     * 命中任意关键词就返回真，供分类识别按优先级逐层判断。
+     */
+    private boolean matchesBookCategory(String sourceText, String... keywords) {
+        String text = defaultString(sourceText, "");
+        for (String keyword : keywords) {
+            if (!defaultString(keyword, "").isBlank() && text.contains(keyword.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 从自然文本中识别标题、作者和译者。
+     * 兼容“作者著译者译”“作者 著 / 译者 译”和常见中英标点分隔写法。
+     */
+    private BookCreditInfo parseCreditInfoFromText(String rawText) {
+        String text = defaultString(rawText, "").replaceAll("\\s+", " ").trim();
+        String author = matchFirst(text, List.of(
+            "(?:作者|原著|著者)[:： ]+([^\\n,，;；/|]+)",
+            "(?:[\\[【(（][^\\]】)）]*[\\]】)）]\\s*)?([\\p{IsHan}A-Za-z·.\\- ]{2,50})\\s*(?:著|著作|作)"
+        ));
+        String translator = matchFirst(text, List.of(
+            "(?:译者|翻译)[:： ]+([^\\n,，;；/|]+)",
+            "(?:著|著作|作)\\s*([^\\n,，;；/|\\[\\]【】()（）]{2,40})\\s*(?:译|翻译)",
+            "(?:^|[,，;；/|])\\s*([\\p{IsHan}A-Za-z·.\\- ]{2,40})\\s*(?:译|翻译)"
+        ));
+        String title = cleanupCreditText(text);
+        return new BookCreditInfo(title, normalizeCreditName(author), normalizeCreditName(translator));
+    }
+
+    /**
+     * 清理标题中的作者译者尾缀。
+     * 去掉括号内国别和“著/译”等署名信息，保留真正书名供后台展示。
+     */
+    private String cleanupCreditText(String rawTitle) {
+        String title = defaultString(rawTitle, "").trim();
+        title = title.replaceAll("\\[[^\\]]*\\]", " ");
+        title = title.replaceAll("【[^】]*】", " ");
+        title = title.replaceAll("（[^）]*）", " ");
+        title = title.replaceAll("\\([^)]*\\)", " ");
+        title = title.replaceAll("[\\p{IsHan}A-Za-z·.\\- ]{2,50}\\s*(?:著|著作|作)", " ");
+        title = title.replaceAll("[\\p{IsHan}A-Za-z·.\\- ]{2,40}\\s*(?:译|翻译)", " ");
+        title = title.replaceAll("\\s+", " ").trim();
+        return title.isBlank() ? rawTitle : title;
+    }
+
+    /**
+     * 按多个正则模式提取第一个有效分组。
+     * 每个候选值都会经过署名清洗，避免把角色词和国别标记带入字段。
+     */
+    private String matchFirst(String text, List<String> patterns) {
+        for (String pattern : patterns) {
+            var matcher = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(defaultString(text, ""));
+            if (matcher.find()) {
+                return normalizeCreditName(matcher.group(1));
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 规范化作者或译者名称。
+     * 移除国别、角色词和多余标点，只保留可展示的人名文本。
+     */
+    private String normalizeCreditName(String rawName) {
+        String name = defaultString(rawName, "").trim();
+        name = name.replaceAll("\\[[^\\]]*\\]", "");
+        name = name.replaceAll("【[^】]*】", "");
+        name = name.replaceAll("（[^）]*）", "");
+        name = name.replaceAll("\\([^)]*\\)", "");
+        name = name.replaceAll("(作者|原著|著者|译者|翻译|著作|著|作|译)", "");
+        name = name.replaceAll("^[：:、,，;；/|\\s]+|[：:、,，;；/|\\s]+$", "");
+        return name.trim();
+    }
+
+    /**
+     * 从 EPUB 元数据读取作者列表。
+     * 优先使用 authors 字段，避免 contributor 中译者等其他角色污染作者。
+     */
+    private String extractAuthors(Metadata metadata) {
+        if (metadata == null || metadata.getAuthors() == null) {
+            return "";
+        }
+        return joinAuthors(metadata.getAuthors());
+    }
+
+    /**
+     * 从 EPUB 元数据读取译者列表。
+     * 优先识别 contributor 的 TRANSLATOR 角色，兼容少量把译者写入作者文本的文件。
+     */
+    private String extractTranslators(Metadata metadata) {
+        if (metadata == null || metadata.getContributors() == null) {
+            return "";
+        }
+        List<Author> translators = metadata.getContributors().stream()
+            .filter(author -> author.getRelator() == Relator.TRANSLATOR)
+            .toList();
+        return joinAuthors(translators);
+    }
+
+    /**
+     * 拼接 EPUB Author 对象列表。
+     * 统一调用 toString 并过滤空值，保证中英文姓名都能原样展示。
+     */
+    private String joinAuthors(List<Author> authors) {
+        return authors.stream()
+            .map(author -> normalizeCreditName(author == null ? "" : author.toString()))
+            .filter(name -> !name.isBlank())
+            .distinct()
+            .reduce((left, right) -> left + "、" + right)
+            .orElse("");
+    }
+
+    /**
+     * 读取字符串列表中的第一个非空值。
+     * 用于 EPUB 出版社和简介等可选元数据的兜底转换。
+     */
+    private String firstString(List<String> values) {
+        if (values == null) {
+            return "";
+        }
+        return values.stream().filter(value -> value != null && !value.isBlank()).findFirst().orElse("");
     }
 
     private String cleanImportedHtml(String html) {
@@ -897,6 +2305,250 @@ public class AdminBookServiceImpl implements AdminBookService {
             .replace("<style", "<!-- style")
             .replace("</style>", "</style -->")
             .trim();
+    }
+
+    /**
+     * 统一补齐 EPUB 章节里的图片资源地址，保证封面页和插图页能在审核端与读者端直接渲染。
+     * 解析章节 HTML 后上传相对路径图片，并清理封面页常见的空壳标签与脚本样式节点。
+     */
+    private String normalizeEpubChapterHtml(
+        nl.siegmann.epublib.domain.Book epubBook,
+        Resource chapterResource,
+        String htmlContent,
+        String jobKey
+    ) throws Exception {
+        Document document = Jsoup.parse(defaultString(htmlContent, ""));
+        document.outputSettings().prettyPrint(false);
+        document.select("script, style, link[rel=stylesheet], meta, noscript").remove();
+
+        for (Element image : document.select("img[src], image[href], image[xlink\\:href]")) {
+            String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+            String rawPath = defaultString(image.attr(attributeName), "").trim();
+            if (rawPath.isBlank()) {
+                continue;
+            }
+            String uploadedUrl = uploadEpubEmbeddedResource(epubBook, chapterResource, rawPath, jobKey);
+            if (!uploadedUrl.isBlank()) {
+                image.attr(attributeName, uploadedUrl);
+                if ("img".equalsIgnoreCase(image.tagName())) {
+                    image.attr("loading", "lazy");
+                }
+            }
+        }
+
+        document.select("body, section, div, article, main").forEach(element -> {
+            if (!element.select("img, svg, figure, p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, table, pre").isEmpty()) {
+                return;
+            }
+            if (defaultString(element.text(), "").isBlank()) {
+                element.remove();
+            }
+        });
+
+        String bodyHtml = document.body().html().trim();
+        if (!bodyHtml.isBlank()) {
+            return bodyHtml;
+        }
+        return document.html().trim();
+    }
+
+    /**
+     * 将 EPUB 章节内引用的相对资源路径解析为对象存储地址，避免读者端出现封面或插图破图。
+     * 优先跳过外链和 data URL，仅处理书内资源，并按章节路径推导相对图片的真实位置。
+     */
+    private String uploadEpubEmbeddedResource(
+        nl.siegmann.epublib.domain.Book epubBook,
+        Resource chapterResource,
+        String rawPath,
+        String jobKey
+    ) throws Exception {
+        String sourcePath = defaultString(rawPath, "").trim();
+        if (sourcePath.isBlank()) {
+            return "";
+        }
+        String lowerPath = sourcePath.toLowerCase(Locale.ROOT);
+        if (lowerPath.startsWith("http://") || lowerPath.startsWith("https://") || lowerPath.startsWith("data:")) {
+            return sourcePath;
+        }
+
+        Resource embeddedResource = resolveEpubResource(epubBook, chapterResource, sourcePath);
+        if (embeddedResource == null) {
+            return "";
+        }
+        byte[] bytes = embeddedResource.getData();
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+
+        String resourceName = defaultString(embeddedResource.getHref(), sourcePath);
+        String fileName = resourceName.contains("/") ? resourceName.substring(resourceName.lastIndexOf('/') + 1) : resourceName;
+        if (fileName.isBlank()) {
+            fileName = "epub-image-" + shortId();
+        }
+        String contentType = embeddedResource.getMediaType() == null
+            ? guessContentType(fileName)
+            : defaultString(embeddedResource.getMediaType().getName(), guessContentType(fileName));
+
+        return contentStorageService.upload(
+            "book/content/" + defaultString(jobKey, "epub"),
+            fileName,
+            new ByteArrayInputStream(bytes),
+            bytes.length,
+            contentType
+        );
+    }
+
+    /**
+     * 解析 EPUB 章节中的资源引用路径，兼容相对路径、根路径和常见 URL 编码写法。
+     * 先按章节所在目录回溯真实资源，再逐步回退到 href 原值和去查询串路径。
+     */
+    private Resource resolveEpubResource(
+        nl.siegmann.epublib.domain.Book epubBook,
+        Resource chapterResource,
+        String rawPath
+    ) {
+        if (epubBook == null || epubBook.getResources() == null) {
+            return null;
+        }
+        String normalizedPath = normalizeEpubHref(rawPath);
+        List<String> candidates = new ArrayList<>();
+        candidates.add(normalizedPath);
+
+        String chapterHref = chapterResource == null ? "" : normalizeEpubHref(chapterResource.getHref());
+        if (!chapterHref.isBlank() && !normalizedPath.startsWith("/")) {
+            int lastSlash = chapterHref.lastIndexOf('/');
+            String baseDir = lastSlash >= 0 ? chapterHref.substring(0, lastSlash + 1) : "";
+            candidates.add(normalizeEpubHref(baseDir + normalizedPath));
+        }
+        if (normalizedPath.startsWith("/")) {
+            candidates.add(normalizeEpubHref(normalizedPath.substring(1)));
+        }
+
+        for (String candidate : candidates) {
+            Resource resource = findEpubResourceByHref(epubBook, candidate);
+            if (resource != null) {
+                return resource;
+            }
+        }
+        Resource fallback = findEpubResourceByFileName(epubBook, normalizedPath);
+        if (fallback != null) {
+            return fallback;
+        }
+        return null;
+    }
+
+    /**
+     * 在 EPUB 资源清单中按 href 查找目标资源，兼容前导斜杠与 URL 编码差异。
+     * 遍历资源列表做宽松比对，避免不同打包器输出的 href 形式不一致导致图片漏传。
+     */
+    private Resource findEpubResourceByHref(nl.siegmann.epublib.domain.Book epubBook, String href) {
+        String normalizedHref = normalizeEpubHref(href);
+        if (normalizedHref.isBlank()) {
+            return null;
+        }
+        for (Resource resource : epubBook.getResources().getAll()) {
+            String resourceHref = normalizeEpubHref(resource.getHref());
+            if (normalizedHref.equals(resourceHref)) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 在 EPUB 资源清单中按文件名兜底匹配目标图片资源。
+     * 当章节只引用 cover.jpeg 这类无路径文件名时，按评分选出最像封面或插图的候选资源。
+     */
+    private Resource findEpubResourceByFileName(nl.siegmann.epublib.domain.Book epubBook, String rawPath) {
+        if (epubBook == null || epubBook.getResources() == null) {
+            return null;
+        }
+        String normalizedPath = normalizeEpubHref(rawPath);
+        if (normalizedPath.isBlank()) {
+            return null;
+        }
+        String fileName = normalizedPath.contains("/") ? normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1) : normalizedPath;
+        if (fileName.isBlank() || fileName.contains("..")) {
+            return null;
+        }
+        String targetName = fileName.toLowerCase(Locale.ROOT);
+
+        Resource best = null;
+        byte[] bestBytes = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Resource resource : epubBook.getResources().getAll()) {
+            if (resource == null) {
+                continue;
+            }
+            String href = normalizeEpubHref(resource.getHref());
+            if (href.isBlank()) {
+                continue;
+            }
+            String candidateName = href.contains("/") ? href.substring(href.lastIndexOf('/') + 1) : href;
+            if (!candidateName.toLowerCase(Locale.ROOT).equals(targetName)) {
+                continue;
+            }
+            byte[] bytes;
+            try {
+                bytes = resource.getData();
+            } catch (Exception ignored) {
+                continue;
+            }
+            if (bytes == null || bytes.length == 0) {
+                continue;
+            }
+            int score = scoreCoverPath(href, bytes);
+            if (best == null || score > bestScore) {
+                best = resource;
+                bestBytes = bytes;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 标准化 EPUB 资源路径，消除 ../、./、查询串和 URL 编码带来的路径差异。
+     * 统一转为正斜杠路径，方便章节图片与封面资源做稳定匹配。
+     */
+    private String normalizeEpubHref(String href) {
+        String normalized = defaultString(href, "").trim().replace("\\", "/");
+        if (normalized.isBlank()) {
+            return "";
+        }
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        int fragmentIndex = normalized.indexOf('#');
+        if (fragmentIndex >= 0) {
+            normalized = normalized.substring(0, fragmentIndex);
+        }
+        normalized = normalized.replace("%20", " ");
+        while (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        while (normalized.contains("/./")) {
+            normalized = normalized.replace("/./", "/");
+        }
+        while (normalized.contains("//")) {
+            normalized = normalized.replace("//", "/");
+        }
+        List<String> segments = new ArrayList<>();
+        for (String segment : normalized.split("/")) {
+            if (segment.isBlank() || ".".equals(segment)) {
+                continue;
+            }
+            if ("..".equals(segment)) {
+                if (!segments.isEmpty()) {
+                    segments.remove(segments.size() - 1);
+                }
+                continue;
+            }
+            segments.add(segment);
+        }
+        return String.join("/", segments);
     }
 
     private String extractTitleFromHtml(String html, String fallback) {
@@ -934,16 +2586,118 @@ public class AdminBookServiceImpl implements AdminBookService {
         return stage;
     }
 
+    /**
+     * 读取指定业务主键对应的正式书籍。
+     * 找不到记录时抛出统一业务异常，供总览页编辑和删除操作复用。
+     */
+    private Book requireBook(String bookKey) {
+        Book book = adminBookMapper.findBookByKey(bookKey);
+        if (book == null) {
+            throw new BusinessException(404, "书籍不存在");
+        }
+        return book;
+    }
+
+    /**
+     * 统一处理导入任务审核状态批量变更。
+     * 仅允许指定来源状态进入目标状态，异常任务记录为失败并继续处理。
+     */
+    private AdminBookImportBatchResponse updateImportJobReviewStatus(
+        AdminBookImportBatchRequest request,
+        String targetStatus,
+        String message,
+        List<String> allowedStatuses
+    ) {
+        AdminBookImportBatchResponse response = new AdminBookImportBatchResponse();
+        for (String jobKey : normalizeJobKeys(request)) {
+            try {
+                BookImportJob job = requireImportJob(jobKey);
+                if (!allowedStatuses.contains(job.getStatus())) {
+                    throw new BusinessException(400, "当前任务状态不可批量处理");
+                }
+                job.setStatus(targetStatus);
+                job.setMessage(message);
+                adminBookMapper.updateImportJob(job);
+                response.getJobs().add(toImportJobResponse(job));
+                response.setSuccessCount(response.getSuccessCount() + 1);
+            } catch (BusinessException exception) {
+                response.getFailedKeys().add(jobKey);
+            }
+        }
+        response.setFailedCount(response.getFailedKeys().size());
+        return response;
+    }
+
+    /**
+     * 清洗批量请求中的任务主键。
+     * 去除空值和重复值，避免同一导入任务在一次请求中被重复处理。
+     */
+    private List<String> normalizeJobKeys(AdminBookImportBatchRequest request) {
+        return request.getJobKeys().stream()
+            .map(key -> defaultString(key, ""))
+            .filter(key -> !key.isBlank())
+            .distinct()
+            .toList();
+    }
+
+    /**
+     * 校验导入任务是否允许发布。
+     * 只有待审核或已通过任务可进入发布流程，已拒绝和已发布任务直接阻断。
+     */
+    private void assertPublishableJob(BookImportJob job) {
+        if (!List.of(STATUS_AWAIT_REVIEW, STATUS_APPROVED).contains(job.getStatus())) {
+            throw new BusinessException(400, "当前任务状态不可发布");
+        }
+    }
+
+    /**
+     * 解析已删除任务应恢复到的原始状态。
+     * 删除标记缺失或异常时回退为待审核，避免恢复后仍停留在删除态。
+     */
+    private String resolveRestoredStatus(String deleteMessage) {
+        String prefix = "DELETE_PREVIOUS_STATUS=";
+        String normalizedStatus = STATUS_AWAIT_REVIEW;
+        String message = defaultString(deleteMessage, "");
+        if (message.startsWith(prefix) && message.contains(";")) {
+            normalizedStatus = message.substring(prefix.length(), message.indexOf(';')).trim();
+        }
+        return STATUS_DELETED.equals(normalizedStatus) ? STATUS_AWAIT_REVIEW : normalizedStatus;
+    }
+
+    /**
+     * 生成已删除任务的状态保留说明。
+     * 复用现有 message 字段暂存删除前状态，避免旧数据库缺少新增列时写入失败。
+     */
+    private String buildDeleteMessage(String previousStatus) {
+        return "DELETE_PREVIOUS_STATUS=" + defaultString(previousStatus, STATUS_AWAIT_REVIEW) + ";书籍已移入已删除列表，可从导入中心恢复原始状态";
+    }
+
+    /**
+     * 解析导入任务返回给前端的删除前状态字段。
+     * 已删除任务从 message 中提取原状态，其余任务直接返回当前状态以便页面统一展示。
+     */
+    private String resolvePreviousStatusForResponse(BookImportJob job) {
+        if (job == null) {
+            return STATUS_AWAIT_REVIEW;
+        }
+        if (STATUS_DELETED.equals(job.getStatus())) {
+            return resolveRestoredStatus(job.getMessage());
+        }
+        return defaultString(job.getStatus(), STATUS_AWAIT_REVIEW);
+    }
+
     private AdminBookImportJobResponse toImportJobResponse(BookImportJob job) {
         AdminBookImportJobResponse response = new AdminBookImportJobResponse();
         response.setJobKey(job.getJobKey());
+        response.setPreviousStatus(resolvePreviousStatusForResponse(job));
         response.setBookKey(job.getBookKey());
         response.setTitle(job.getTitle());
         response.setAuthor(job.getAuthor());
+        response.setTranslator(job.getTranslator());
         response.setPublisher(job.getPublisher());
         response.setSummary(job.getSummary());
         response.setCategory(job.getCategory());
-        response.setCoverUrl(job.getCoverUrl());
+        response.setCoverUrl(normalizeCoverUrlForDisplay(job.getCoverUrl()));
         response.setImportType(job.getImportType());
         response.setSourceUrl(job.getSourceUrl());
         response.setOriginalFormat(job.getOriginalFormat());
@@ -959,14 +2713,14 @@ public class AdminBookServiceImpl implements AdminBookService {
         return response;
     }
 
-    private AdminBookImportChapterResponse toImportChapterResponse(BookImportChapterStage stage) {
+    private AdminBookImportChapterResponse toImportChapterResponse(BookImportChapterStage stage, String coverUrlFallback) {
         AdminBookImportChapterResponse response = new AdminBookImportChapterResponse();
         response.setTempChapterKey(stage.getTempChapterKey());
         response.setChapterNo(defaultInt(stage.getChapterNo()));
         response.setTitle(stage.getTitle());
         response.setSubtitle(stage.getSubtitle());
         response.setSourcePath(stage.getSourcePath());
-        response.setContentHtml(stage.getContentHtml());
+        response.setContentHtml(normalizeImportedChapterHtmlForDisplay(stage.getContentHtml(), coverUrlFallback));
         response.setPlainText(stage.getPlainText());
         response.setWordCount(defaultInt(stage.getWordCount()));
         response.setReviewStatus(stage.getReviewStatus());
@@ -975,11 +2729,16 @@ public class AdminBookServiceImpl implements AdminBookService {
         return response;
     }
 
+    private AdminBookImportChapterResponse toImportChapterResponse(BookImportChapterStage stage) {
+        return toImportChapterResponse(stage, "");
+    }
+
     private BookResponse toBookResponse(Book book) {
         BookResponse response = new BookResponse();
         response.setId(book.getBookKey());
         response.setTitle(book.getTitle());
         response.setAuthor(book.getAuthor());
+        response.setTranslator(book.getTranslator());
         response.setPublisher(book.getPublisher());
         response.setCategory(book.getCategory());
         response.setSummary(book.getSummary());
@@ -1054,6 +2813,8 @@ public class AdminBookServiceImpl implements AdminBookService {
             case "jpg", "jpeg" -> "image/jpeg";
             case "webp" -> "image/webp";
             case "gif" -> "image/gif";
+            case "bmp" -> "image/bmp";
+            case "svg" -> "image/svg+xml";
             default -> "application/octet-stream";
         };
     }
@@ -1099,6 +2860,120 @@ public class AdminBookServiceImpl implements AdminBookService {
         return value.trim();
     }
 
+    /**
+     * 规范化返回前端和发布入库的封面地址。
+     * 仅保留可渲染的图片链接，过滤误写入封面字段的 HTML、OPF 或普通文本。
+     */
+    private String normalizeCoverUrlForDisplay(String coverUrl) {
+        String normalizedUrl = defaultString(coverUrl, "").trim();
+        if (normalizedUrl.isBlank() || Pattern.compile("[\\r\\n<>\"']").matcher(normalizedUrl).find()) {
+            return "";
+        }
+        if (normalizedUrl.startsWith("/uploads/")) {
+            return normalizedUrl;
+        }
+        String lowerUrl = normalizedUrl.toLowerCase(Locale.ROOT);
+        if (lowerUrl.startsWith("data:image/") || normalizedUrl.startsWith("/")) {
+            return normalizedUrl;
+        }
+        if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://")) {
+            if (contentStorageService.isStorageUrl(normalizedUrl)) {
+                int uploadsIndex = normalizedUrl.indexOf("/uploads/");
+                if (uploadsIndex >= 0) {
+                    return normalizedUrl.substring(uploadsIndex);
+                }
+                int schemeIndex = normalizedUrl.indexOf("://");
+                if (schemeIndex >= 0) {
+                    int pathStart = normalizedUrl.indexOf('/', schemeIndex + 3);
+                    if (pathStart >= 0 && pathStart < normalizedUrl.length() - 1) {
+                        return "/uploads/" + normalizedUrl.substring(pathStart + 1);
+                    }
+                }
+            }
+            return normalizedUrl;
+        }
+        return "";
+    }
+
+    /**
+     * 统一修正导入审核页章节 HTML 中的图片资源地址，保证历史直链与新代理路径都可直接回显。
+     * 解析正文片段后逐个改写图片节点属性，把本站对象存储链接折叠成 /uploads 代理路径。
+     */
+    private String normalizeImportedChapterHtmlForDisplay(String contentHtml, String coverUrlFallback) {
+        if (contentHtml == null || contentHtml.isBlank()) {
+            return contentHtml;
+        }
+        Document document = Jsoup.parseBodyFragment(contentHtml);
+        for (Element image : document.select("img[src], image[href], image[xlink\\:href]")) {
+            String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+            String rawUrl = defaultString(image.attr(attributeName), "").trim();
+            String normalizedUrl = normalizeStoredAssetUrlForDisplay(rawUrl);
+            if (normalizedUrl.equals(rawUrl)) {
+                String coverFallback = resolveCoverUrlFallbackForImportPreview(rawUrl, coverUrlFallback);
+                if (!coverFallback.isBlank()) {
+                    normalizedUrl = coverFallback;
+                }
+            }
+            if (!normalizedUrl.equals(image.attr(attributeName))) {
+                image.attr(attributeName, normalizedUrl);
+            }
+        }
+        return document.body().html();
+    }
+
+    /**
+     * 将导入章节预览里常见的裸文件名图片引用替换成任务封面地址。
+     * 仅处理无路径、无协议的图片名，避免误改正文中正常的相对资源引用。
+     */
+    private String resolveCoverUrlFallbackForImportPreview(String rawUrl, String coverUrlFallback) {
+        String normalized = defaultString(rawUrl, "").trim();
+        if (normalized.isBlank()) {
+            return "";
+        }
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http://")
+            || lower.startsWith("https://")
+            || lower.startsWith("data:")
+            || normalized.startsWith("/")
+            || normalized.contains("/")) {
+            return "";
+        }
+        if (!lower.matches(".*\\.(png|jpg|jpeg|webp|gif|bmp|svg)$")) {
+            return "";
+        }
+        String cover = defaultString(coverUrlFallback, "").trim();
+        return cover.isBlank() ? "" : cover;
+    }
+
+    /**
+     * 统一把本站对象存储直链折叠成代理地址，避免后台审核页直接访问私有桶导致图片破损。
+     * 保留 data URL、外部链接和已是 /uploads 的地址，仅改写由本站存储服务生成的资源链接。
+     */
+    private String normalizeStoredAssetUrlForDisplay(String assetUrl) {
+        String normalizedUrl = defaultString(assetUrl, "").trim();
+        if (normalizedUrl.isBlank() || normalizedUrl.startsWith("/uploads/")) {
+            return normalizedUrl;
+        }
+        String lowerUrl = normalizedUrl.toLowerCase(Locale.ROOT);
+        if (lowerUrl.startsWith("data:")) {
+            return normalizedUrl;
+        }
+        if (contentStorageService.isStorageUrl(normalizedUrl) && (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://"))) {
+            int uploadsIndex = normalizedUrl.indexOf("/uploads/");
+            if (uploadsIndex >= 0) {
+                return normalizedUrl.substring(uploadsIndex);
+            }
+            int schemeIndex = normalizedUrl.indexOf("://");
+            if (schemeIndex >= 0) {
+                int pathStart = normalizedUrl.indexOf('/', schemeIndex + 3);
+                if (pathStart >= 0 && pathStart < normalizedUrl.length() - 1) {
+                    return "/uploads/" + normalizedUrl.substring(pathStart + 1);
+                }
+            }
+        }
+        return normalizedUrl;
+    }
+
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
     }
@@ -1113,8 +2988,15 @@ public class AdminBookServiceImpl implements AdminBookService {
     }
 
     private record ParsedBookPackage(
-        String bookKey, String title, String author, String publisher,
+        String bookKey, String title, String author, String translator, String publisher,
         String category, String summary, String coverUrl,
         List<BookImportChapterStage> stages
     ) {}
+
+    /**
+     * 保存自动识别出的书名、作者和译者署名。
+     * 在导入流程中作为元数据兜底结果传递，避免各格式解析分支重复拆分文本。
+     */
+    private record BookCreditInfo(String title, String author, String translator) {}
 }
+

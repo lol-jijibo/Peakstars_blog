@@ -16,6 +16,7 @@ public class BookResponse {
     private String id;
     private String title;
     private String author;
+    private String translator;
     private String publisher;
     private String category;
     private String summary;

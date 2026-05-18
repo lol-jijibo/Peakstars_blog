@@ -70,8 +70,15 @@ app:
 
    # 文件存储配置
   storage:
+    oss:
+      enabled: ${OSS_ENABLED:false}
+      endpoint: ${OSS_ENDPOINT:}
+      access-key-id: ${OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
+      bucket: ${OSS_BUCKET:}
+      public-base-url: ${OSS_PUBLIC_BASE_URL:}
     minio:
-      enabled: ${MINIO_ENABLED:true}
+      enabled: ${MINIO_ENABLED:false}
       endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
       access-key: ${MINIO_ACCESS_KEY:minioadmin}
       secret-key: ${MINIO_SECRET_KEY:minioadmin}

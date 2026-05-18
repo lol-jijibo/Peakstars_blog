@@ -17,6 +17,7 @@ public class Book {
     private String bookKey;
     private String title;
     private String author;
+    private String translator;
     private String publisher;
     private String category;
     private String summary;

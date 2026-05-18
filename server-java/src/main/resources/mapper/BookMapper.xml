@@ -9,6 +9,7 @@
     <result column="book_key" property="bookKey"/>
     <result column="title" property="title"/>
     <result column="author" property="author"/>
+    <result column="translator" property="translator"/>
     <result column="publisher" property="publisher"/>
     <result column="category" property="category"/>
     <result column="summary" property="summary"/>

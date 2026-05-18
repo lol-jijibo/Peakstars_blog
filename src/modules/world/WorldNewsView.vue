@@ -48,12 +48,7 @@
             class="world-bookshelf-reading-card"
             @click="openBook(item.id)"
           >
-            <div class="world-bookshelf-mini-cover" :style="buildCoverStyle(item)">
-              <div class="world-bookshelf-mini-cover-text">
-                <span>{{ item.kicker }}</span>
-                <strong>{{ item.shortTitle }}</strong>
-              </div>
-            </div>
+            <div class="world-bookshelf-mini-cover" :style="buildCoverStyle(item)"></div>
             <div class="world-bookshelf-reading-copy">
               <h3>{{ item.title }}</h3>
               <p>{{ item.author }}</p>
@@ -84,15 +79,10 @@
             @click="openBook(item.id)"
           >
             <div class="world-bookshelf-cover-frame">
-              <div class="world-bookshelf-large-cover" :style="buildCoverStyle(item)">
-                <div class="world-bookshelf-large-cover-text">
-                  <span>{{ item.kicker }}</span>
-                  <strong>{{ item.shortTitle }}</strong>
-                  <small>{{ item.footer }}</small>
-                </div>
-              </div>
+              <div class="world-bookshelf-large-cover" :style="buildCoverStyle(item)"></div>
             </div>
             <h3>{{ item.title }}</h3>
+            <p class="world-bookshelf-recommend-author">{{ item.author }}</p>
           </article>
         </div>
         <div v-else-if="loading" class="world-bookshelf-empty">
@@ -188,7 +178,7 @@ function buildCoverStyle(item) {
     '--cover-glow': hexToRgba(item.accent, 0.18)
   }
   if (item.coverUrl) {
-    style.backgroundImage = `linear-gradient(rgba(12, 22, 35, 0.25), rgba(12, 22, 35, 0.48)), url(${item.coverUrl})`
+    style.backgroundImage = `url(${item.coverUrl})`
     style.backgroundSize = 'cover'
     style.backgroundPosition = 'center'
   }

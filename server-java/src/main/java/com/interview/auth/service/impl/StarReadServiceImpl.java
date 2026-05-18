@@ -10,6 +10,7 @@ import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.infrastructure.mapper.ContentMapper;
 import com.interview.auth.infrastructure.search.StarReadElasticsearchClient;
 import com.interview.auth.service.StarReadService;
+import com.interview.auth.infrastructure.storage.ContentStorageService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ public class StarReadServiceImpl implements StarReadService {
 
     private final ContentMapper contentMapper;
     private final StarReadElasticsearchClient elasticsearchClient;
+    private final ContentStorageService contentStorageService;
 
     /**
      * 组装 star_read 首页所需的阅读卡片、榜单和分类数据。
@@ -584,7 +586,27 @@ public class StarReadServiceImpl implements StarReadService {
      * 内容缺少封面时返回站点默认图，避免首页网格出现空白占位。
      */
     private String resolveCoverUrl(String coverUrl) {
-        return hasText(coverUrl) ? coverUrl.trim() : "/peakstars-blog-icon.jpg";
+        if (!hasText(coverUrl)) {
+            return "/peakstars-blog-icon.jpg";
+        }
+        String trimmed = coverUrl.trim();
+        if (trimmed.startsWith("/uploads/")) {
+            return trimmed;
+        }
+        if (contentStorageService.isStorageUrl(trimmed) && trimmed.startsWith("http")) {
+            int pathIndex = trimmed.indexOf("/uploads/");
+            if (pathIndex >= 0) {
+                return trimmed.substring(pathIndex);
+            }
+            int schemeIndex = trimmed.indexOf("://");
+            if (schemeIndex >= 0) {
+                int pathStart = trimmed.indexOf('/', schemeIndex + 3);
+                if (pathStart >= 0 && pathStart < trimmed.length() - 1) {
+                    return "/uploads/" + trimmed.substring(pathStart + 1);
+                }
+            }
+        }
+        return trimmed;
     }
 
     /**
