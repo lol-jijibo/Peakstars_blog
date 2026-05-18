@@ -1,5 +1,18 @@
 const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
+async function parseResponsePayload(response) {
+  const rawText = await response.text()
+  if (!rawText) {
+    return null
+  }
+
+  try {
+    return JSON.parse(rawText)
+  } catch {
+    throw new Error('书籍管理接口返回的数据格式不正确')
+  }
+}
+
 async function request(url, options = {}) {
   const response = await fetch(`${BASE_URL}${url}`, {
     headers: {
@@ -9,8 +22,16 @@ async function request(url, options = {}) {
     ...options
   })
 
-  const payload = await response.json()
-  if (!response.ok || payload.code !== 0) {
+  const payload = await parseResponsePayload(response)
+  if (!response.ok) {
+    throw new Error(payload?.message || '书籍管理接口请求失败')
+  }
+
+  if (!payload) {
+    return null
+  }
+
+  if (payload.code !== 0) {
     throw new Error(payload.message || '书籍管理接口请求失败')
   }
 
@@ -25,8 +46,11 @@ function uploadFile(url, file, fieldName = 'file') {
     method: 'POST',
     body: formData
   })
-    .then((response) => response.json())
+    .then(parseResponsePayload)
     .then((payload) => {
+      if (!payload) {
+        throw new Error('文件上传接口未返回有效数据')
+      }
       if (payload.code !== 0) {
         throw new Error(payload.message || '文件上传失败')
       }
@@ -120,14 +144,26 @@ export function updateAdminBookCategory(bookKey, category) {
   })
 }
 
-export function deleteAdminBook(bookKey) {
+export function softDeleteAdminBook(bookKey) {
   return request(`/api/admin/books/${encodeURIComponent(bookKey)}`, {
+    method: 'DELETE'
+  })
+}
+
+export function hardDeleteAdminBook(bookKey) {
+  return request(`/api/admin/books/${encodeURIComponent(bookKey)}/hard`, {
     method: 'DELETE'
   })
 }
 
 export function deleteImportJob(jobKey) {
   return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}`, {
+    method: 'DELETE'
+  })
+}
+
+export function hardDeleteImportJob(jobKey) {
+  return request(`/api/admin/books/import-jobs/${encodeURIComponent(jobKey)}/hard`, {
     method: 'DELETE'
   })
 }

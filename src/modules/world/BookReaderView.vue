@@ -72,6 +72,7 @@
                     ref="pageTrackRef"
                     class="reader-rich-html reader-paginated-track"
                     :style="paginatedTrackStyle"
+                    @click="handleContentClick"
                     v-html="chapterContentHtml"
                   ></div>
                 </div>
@@ -209,7 +210,11 @@ const currentSpreadIndex = ref(0)
 const totalSpreadCount = ref(1)
 const columnsPerSpread = ref(2)
 const pendingSpreadPlacement = ref('start')
+const pendingAnchorId = ref('')
 const readerPageHeight = ref(520)
+const pageViewportWidth = ref(0)
+const pageTrackWidth = ref(0)
+const pageColumnGap = ref(0)
 
 let paginationFrame = 0
 let trackMediaCleanup = []
@@ -243,8 +248,11 @@ const chapterContentHtml = computed(() => {
   }
   return decoratePartHeadings(html)
 })
+const currentSpreadOffset = computed(() =>
+  currentSpreadIndex.value * (pageTrackWidth.value + pageColumnGap.value)
+)
 const paginatedTrackStyle = computed(() => ({
-  transform: `translate3d(-${currentSpreadIndex.value * 100}%, 0, 0)`,
+  transform: `translate3d(-${currentSpreadOffset.value}px, 0, 0)`,
   '--reader-page-columns': String(columnsPerSpread.value),
   '--reader-page-height': `${readerPageHeight.value}px`
 }))
@@ -290,6 +298,7 @@ watch(bookKey, () => {
 
 watch([chapterContentHtml, columnsPerSpread], async () => {
   await syncPaginationLayout()
+  applyPendingAnchor()
 })
 
 async function reloadBookData() {
@@ -352,6 +361,7 @@ async function loadChapter(chapterId) {
 
 function selectChapter(chapterId) {
   pendingSpreadPlacement.value = 'start'
+  pendingAnchorId.value = ''
   loadChapter(chapterId)
 }
 
@@ -395,6 +405,48 @@ function toggleChapterDrawer() {
 
 function goBack() {
   router.push('/world')
+}
+
+function handleContentClick(event) {
+  const target = event.target
+  if (!(target instanceof Element)) {
+    return
+  }
+
+  const link = target.closest('a[href]')
+  if (!link) {
+    return
+  }
+
+  const rawHref = String(link.getAttribute('href') || '').trim()
+  if (!rawHref || rawHref === '#') {
+    event.preventDefault()
+    return
+  }
+
+  if (isExternalReaderHref(rawHref)) {
+    return
+  }
+
+  const resolvedTarget = resolveReaderLinkTarget(rawHref, link.textContent)
+  if (!resolvedTarget) {
+    event.preventDefault()
+    return
+  }
+
+  event.preventDefault()
+
+  if (resolvedTarget.chapterId && resolvedTarget.chapterId !== currentChapterId.value) {
+    pendingSpreadPlacement.value = 'start'
+    pendingAnchorId.value = resolvedTarget.anchorId || ''
+    loadChapter(resolvedTarget.chapterId)
+    return
+  }
+
+  if (resolvedTarget.anchorId) {
+    pendingAnchorId.value = resolvedTarget.anchorId
+    applyPendingAnchor()
+  }
 }
 
 function handleKeydown(event) {
@@ -442,6 +494,9 @@ function updatePaginationMetrics() {
   if (!viewport || !track) {
     totalSpreadCount.value = 1
     currentSpreadIndex.value = 0
+    pageViewportWidth.value = 0
+    pageTrackWidth.value = 0
+    pageColumnGap.value = 0
     return
   }
 
@@ -450,8 +505,17 @@ function updatePaginationMetrics() {
     return
   }
 
+  const computedStyle = window.getComputedStyle(track)
+  const parsedColumnGap = Number.parseFloat(computedStyle.columnGap || '0')
+  const columnGap = Number.isFinite(parsedColumnGap) ? parsedColumnGap : 0
+
   readerPageHeight.value = viewport.clientHeight || readerPageHeight.value
-  const nextSpreadCount = Math.max(1, Math.ceil(track.scrollWidth / viewportWidth))
+  pageViewportWidth.value = viewportWidth
+  pageTrackWidth.value = track.clientWidth || viewportWidth
+  pageColumnGap.value = columnGap
+  const spreadStride = pageTrackWidth.value + columnGap
+  const totalTrackWidth = Math.max(track.scrollWidth + columnGap, spreadStride)
+  const nextSpreadCount = Math.max(1, Math.ceil(totalTrackWidth / spreadStride))
   totalSpreadCount.value = nextSpreadCount
   currentSpreadIndex.value = Math.min(currentSpreadIndex.value, nextSpreadCount - 1)
 }
@@ -461,6 +525,36 @@ function applyPendingSpreadPlacement() {
     ? Math.max(totalSpreadCount.value - 1, 0)
     : 0
   pendingSpreadPlacement.value = 'start'
+}
+
+function applyPendingAnchor() {
+  const anchorId = pendingAnchorId.value
+  if (!anchorId) {
+    return
+  }
+
+  const track = pageTrackRef.value
+  const viewport = pageViewportRef.value
+  if (!track || !viewport) {
+    return
+  }
+
+  const anchorTarget = findAnchorTarget(track, anchorId)
+  if (!anchorTarget) {
+    pendingAnchorId.value = ''
+    return
+  }
+
+  updatePaginationMetrics()
+  const spreadStride = pageTrackWidth.value + pageColumnGap.value
+  if (!spreadStride) {
+    return
+  }
+  currentSpreadIndex.value = Math.max(
+    0,
+    Math.min(totalSpreadCount.value - 1, Math.floor(anchorTarget.offsetLeft / spreadStride))
+  )
+  pendingAnchorId.value = ''
 }
 
 function bindTrackMediaListeners() {
@@ -625,6 +719,134 @@ function normalizeImageIdentity(value) {
 function cleanupTrackMediaListeners() {
   trackMediaCleanup.forEach((cleanup) => cleanup())
   trackMediaCleanup = []
+}
+
+function isExternalReaderHref(href) {
+  return /^(https?:|mailto:|tel:|data:|\/\/)/i.test(String(href || '').trim())
+}
+
+function resolveReaderLinkTarget(href, linkText) {
+  const normalizedHref = String(href || '').trim()
+  if (!normalizedHref) {
+    return null
+  }
+
+  if (normalizedHref.startsWith('#')) {
+    return {
+      chapterId: currentChapterId.value,
+      anchorId: decodeFragment(normalizedHref.slice(1))
+    }
+  }
+
+  const [pathPart, hashPart = ''] = normalizedHref.split('#')
+  const matchedChapter = matchChapterByHref(pathPart, linkText)
+
+  if (matchedChapter) {
+    return {
+      chapterId: matchedChapter.id,
+      anchorId: decodeFragment(hashPart)
+    }
+  }
+
+  if (!pathPart) {
+    return {
+      chapterId: currentChapterId.value,
+      anchorId: decodeFragment(hashPart)
+    }
+  }
+
+  return null
+}
+
+function matchChapterByHref(pathValue, linkText) {
+  const normalizedPath = normalizeChapterLookupValue(pathValue)
+  const normalizedPathBase = normalizeChapterLookupValue(extractFileBaseName(pathValue))
+  const normalizedText = normalizeChapterLookupValue(linkText)
+
+  return chapters.value.find((chapter) => {
+    const candidates = [
+      chapter.id,
+      chapter.chapterKey,
+      chapter.href,
+      chapter.path,
+      chapter.sourceHref,
+      chapter.sourcePath,
+      chapter.title,
+      chapter.subtitle
+    ]
+      .filter(Boolean)
+      .map(normalizeChapterLookupValue)
+
+    if (normalizedPath && candidates.some((item) => item === normalizedPath || item.endsWith(normalizedPath))) {
+      return true
+    }
+
+    if (normalizedPathBase && candidates.some((item) => item === normalizedPathBase || item.endsWith(normalizedPathBase))) {
+      return true
+    }
+
+    if (normalizedText && candidates.some((item) => item === normalizedText || item.includes(normalizedText) || normalizedText.includes(item))) {
+      return true
+    }
+
+    return false
+  }) || null
+}
+
+function normalizeChapterLookupValue(value) {
+  const decoded = safeDecode(String(value || ''))
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/^(?:\.\.\/)+/, '')
+    .replace(/[?#].*$/, '')
+
+  if (!decoded) {
+    return ''
+  }
+
+  return decoded
+    .split('/')
+    .filter(Boolean)
+    .join('/')
+    .toLowerCase()
+    .replace(/\.(xhtml|html|htm|xml)$/g, '')
+    .replace(/[\s\-_'"`~!@#$%^&*()+=[\]{}|\\:;,.<>/?，。！？；：、“”‘’（）《》【】、]/g, '')
+}
+
+function extractFileBaseName(value) {
+  const normalized = safeDecode(String(value || '')).replace(/\\/g, '/').replace(/[?#].*$/, '')
+  if (!normalized) {
+    return ''
+  }
+  const segments = normalized.split('/').filter(Boolean)
+  return segments.length ? segments[segments.length - 1] : normalized
+}
+
+function decodeFragment(value) {
+  return safeDecode(String(value || '').trim())
+}
+
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch (error) {
+    return value
+  }
+}
+
+function findAnchorTarget(track, anchorId) {
+  const normalizedId = String(anchorId || '').trim()
+  if (!normalizedId) {
+    return null
+  }
+
+  const anchors = Array.from(track.querySelectorAll('[id], a[name]'))
+  return anchors.find((node) => {
+    const id = node.getAttribute('id')
+    const name = node.getAttribute('name')
+    return id === normalizedId || name === normalizedId
+  }) || null
 }
 
 function formatCount(value) {

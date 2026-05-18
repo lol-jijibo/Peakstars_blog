@@ -2,8 +2,10 @@
   "java.compile.nullAnalysis.mode": "automatic",
   "java.configuration.updateBuildConfiguration": "interactive",
   "cSpell.words": [
+    "aieditor",
     "Aliyun",
     "aliyuncs",
+    "antv",
     "Batchable",
     "connectiontimeout",
     "cooldown",

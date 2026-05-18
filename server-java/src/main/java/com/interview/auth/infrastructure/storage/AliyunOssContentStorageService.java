@@ -64,6 +64,19 @@ public class AliyunOssContentStorageService implements ContentStorageService {
     }
 
     /**
+     * 删除阿里云 OSS 中的单个资源对象。
+     * 从代理地址或公开地址中还原对象键后执行删除，供后台彻底删除书籍时回收云端文件。
+     */
+    @Override
+    public void delete(String resourceUrl) {
+        String objectName = extractObjectName(resourceUrl);
+        if (objectName == null || objectName.isBlank()) {
+            return;
+        }
+        ossClient.deleteObject(ossProperties.getBucket(), objectName);
+    }
+
+    /**
      * 从公开访问地址中解析 OSS 对象键。
      * 兼容三种 URL 格式：
      * 1. /uploads/... 代理格式 → 去掉 /uploads/ 前缀得对象键

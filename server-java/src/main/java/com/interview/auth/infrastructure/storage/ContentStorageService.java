@@ -46,4 +46,13 @@ public interface ContentStorageService {
      * @return 是否属于当前对象存储
      */
     boolean isStorageUrl(String resourceUrl);
+
+    /**
+     * 删除当前存储中的单个资源对象。
+     * 供书籍彻底删除等场景复用，确保数据库记录移除时同步回收对象存储文件。
+     *
+     * @param resourceUrl upload 方法返回的对外访问地址
+     * @throws Exception 删除异常
+     */
+    void delete(String resourceUrl) throws Exception;
 }

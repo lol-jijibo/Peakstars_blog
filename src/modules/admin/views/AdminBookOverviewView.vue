@@ -247,15 +247,49 @@
 
     <div v-if="deleteConfirmVisible" class="book-overview-modal-layer" @click.self="closeDeleteConfirm">
       <div class="book-overview-modal">
-        <div class="book-overview-modal-title">确认删除</div>
+        <div class="book-overview-modal-title">删除操作确认</div>
         <div class="book-overview-modal-subtitle">
-          将彻底删除「{{ deleteTargetBook?.title || '未命名书籍' }}」及其章节和导入记录，此操作不可恢复。
+          请选择「{{ deleteTargetBook?.title || '未命名书籍' }}」的删除方式。
+          软删除会保留恢复能力，彻底删除会同时清理数据库与对象存储资源。
         </div>
         <div class="book-overview-modal-actions">
           <button class="book-overview-modal-btn is-ghost" type="button" @click="closeDeleteConfirm">取消</button>
-          <button class="book-overview-modal-btn is-danger" type="button" :disabled="deletingBook" @click="confirmDeleteBook">
-            {{ deletingBook ? '删除中...' : '确认删除' }}
-          </button>
+          <div class="book-overview-delete-action-wrap">
+            <button
+              class="book-overview-modal-btn is-primary"
+              type="button"
+              :disabled="softDeletingBook || hardDeletingBook"
+              @mouseenter="deleteHoverAction = 'soft'"
+              @mouseleave="deleteHoverAction = ''"
+              @focus="deleteHoverAction = 'soft'"
+              @blur="deleteHoverAction = ''"
+              @click="confirmSoftDeleteBook"
+            >
+              {{ softDeletingBook ? '软删除中...' : '软删除' }}
+            </button>
+            <div v-if="deleteHoverAction === 'soft'" class="book-overview-delete-tip is-soft">
+              软删除后书籍内容会进入已删除列表，同时暂时下线前台书籍。
+              数据库记录与已上传资源仍会保留，方便后续恢复原始状态。
+            </div>
+          </div>
+          <div class="book-overview-delete-action-wrap">
+            <button
+              class="book-overview-modal-btn is-danger"
+              type="button"
+              :disabled="softDeletingBook || hardDeletingBook"
+              @mouseenter="deleteHoverAction = 'hard'"
+              @mouseleave="deleteHoverAction = ''"
+              @focus="deleteHoverAction = 'hard'"
+              @blur="deleteHoverAction = ''"
+              @click="confirmHardDeleteBook"
+            >
+              {{ hardDeletingBook ? '彻底删除中...' : '彻底删除' }}
+            </button>
+            <div v-if="deleteHoverAction === 'hard'" class="book-overview-delete-tip is-hard">
+              彻底删除会同步清理数据库、阿里云 OSS、MinIO 和本地存储中的书籍资源。
+              删除后不保留任何缓存与恢复入口，请仅在确认无需回滚时使用。
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -266,9 +300,10 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  deleteAdminBook,
   getAdminBooks,
+  hardDeleteAdminBook,
   listRecentImportJobs,
+  softDeleteAdminBook,
   updateAdminBookCategory
 } from '@/modules/admin/api/bookAdmin'
 
@@ -307,7 +342,9 @@ const categoryEditorForm = reactive({ category: '精品书籍' })
 const categorySaving = ref(false)
 const deleteConfirmVisible = ref(false)
 const deleteTargetBook = ref(null)
-const deletingBook = ref(false)
+const softDeletingBook = ref(false)
+const hardDeletingBook = ref(false)
+const deleteHoverAction = ref('')
 
 const bookCategoryOptions = Object.values(BOOK_CATEGORY_PRESETS).map((item) => item.label)
 
@@ -889,12 +926,13 @@ function openDeleteConfirm(book) {
 }
 
 function closeDeleteConfirm() {
-  if (deletingBook.value) return
+  if (softDeletingBook.value || hardDeletingBook.value) return
   deleteConfirmVisible.value = false
   deleteTargetBook.value = null
+  deleteHoverAction.value = ''
 }
 
-async function confirmDeleteBook() {
+async function confirmSoftDeleteBook() {
   const book = deleteTargetBook.value
   if (!book) return
   if (book.sourceType === 'importJob') {
@@ -902,16 +940,37 @@ async function confirmDeleteBook() {
     closeDeleteConfirm()
     return
   }
-  deletingBook.value = true
+  softDeletingBook.value = true
   errorMessage.value = ''
   try {
-    await deleteAdminBook(book.bookKey || book.id)
+    await softDeleteAdminBook(book.bookKey || book.id)
     await Promise.all([loadBooks(), loadImportJobs()])
     closeDeleteConfirm()
   } catch (error) {
-    errorMessage.value = error.message || '删除书籍失败'
+    errorMessage.value = error.message || '软删除书籍失败'
   } finally {
-    deletingBook.value = false
+    softDeletingBook.value = false
+  }
+}
+
+async function confirmHardDeleteBook() {
+  const book = deleteTargetBook.value
+  if (!book) return
+  if (book.sourceType === 'importJob') {
+    errorMessage.value = '待审核导入任务请在书籍导入中心处理'
+    closeDeleteConfirm()
+    return
+  }
+  hardDeletingBook.value = true
+  errorMessage.value = ''
+  try {
+    await hardDeleteAdminBook(book.bookKey || book.id)
+    await Promise.all([loadBooks(), loadImportJobs()])
+    closeDeleteConfirm()
+  } catch (error) {
+    errorMessage.value = error.message || '彻底删除书籍失败'
+  } finally {
+    hardDeletingBook.value = false
   }
 }
 </script>
@@ -1793,8 +1852,14 @@ async function confirmDeleteBook() {
 
 .book-overview-modal-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
+}
+
+.book-overview-delete-action-wrap {
+  position: relative;
+  display: inline-flex;
 }
 
 .book-overview-modal-btn {
@@ -1826,6 +1891,46 @@ async function confirmDeleteBook() {
 .book-overview-modal-btn.is-danger {
   background: linear-gradient(135deg, #ff8f9f, #ffb38a);
   color: #2a0710;
+}
+
+.book-overview-delete-tip {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  z-index: 5;
+  width: 280px;
+  padding: 12px 14px;
+  border: 1px solid rgba(134, 163, 196, 0.16);
+  border-radius: 14px;
+  background: rgba(12, 23, 39, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #d7e7f8;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: left;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.book-overview-delete-tip::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid rgba(134, 163, 196, 0.16);
+  border-right: 1px solid rgba(134, 163, 196, 0.16);
+  background: rgba(12, 23, 39, 0.98);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.book-overview-delete-tip.is-soft {
+  border-color: rgba(125, 232, 255, 0.22);
+}
+
+.book-overview-delete-tip.is-hard {
+  border-color: rgba(255, 143, 159, 0.22);
 }
 
 .book-overview-empty {

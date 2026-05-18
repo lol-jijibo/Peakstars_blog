@@ -41,9 +41,11 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -548,12 +550,12 @@ public class AdminBookServiceImpl implements AdminBookService {
     }
 
     /**
-     * 删除已发布书籍和关联导入数据。
-     * 按章节、导入暂存、导入任务、书籍主表顺序清理，避免产生孤立数据。
+     * 将正式书籍移入已删除列表。
+     * 下线前台书籍并把关联导入任务标记为已删除，保留章节与存储资源以便恢复。
      */
     @Override
     @Transactional
-    public void deleteBook(String bookKey) {
+    public void softDeleteBook(String bookKey) {
         Book book = requireBook(bookKey);
         adminBookMapper.updateBookStatusByKey(book.getBookKey(), 0);
         for (BookImportJob job : adminBookMapper.findImportJobsByBookKey(book.getBookKey())) {
@@ -561,6 +563,26 @@ public class AdminBookServiceImpl implements AdminBookService {
                 adminBookMapper.updateImportJobDeletedByKey(job.getJobKey(), buildDeleteMessage(job.getStatus()));
             }
         }
+    }
+
+    /**
+     * 彻底删除已发布书籍和关联导入数据。
+     * 按章节、导入暂存、导入任务、书籍主表顺序清理，并同步回收对象存储中的封面与正文资源。
+     */
+    @Override
+    @Transactional
+    public void hardDeleteBook(String bookKey) {
+        Book book = requireBook(bookKey);
+        List<BookImportJob> importJobs = adminBookMapper.findImportJobsByBookKey(book.getBookKey());
+        List<BookChapter> chapters = adminBookMapper.findBookChaptersByBookKey(book.getBookKey());
+        Set<String> storageUrls = collectBookStorageUrls(book, importJobs, chapters);
+
+        adminBookMapper.deleteBookChaptersByBookKey(book.getBookKey());
+        adminBookMapper.deleteImportStageByBookKey(book.getBookKey());
+        adminBookMapper.deleteImportJobByBookKey(book.getBookKey());
+        adminBookMapper.deleteBookByKey(book.getBookKey());
+
+        deleteStorageResources(storageUrls, book.getBookKey());
     }
 
     /**
@@ -578,6 +600,52 @@ public class AdminBookServiceImpl implements AdminBookService {
             adminBookMapper.updateBookStatusByKey(job.getBookKey(), 0);
         }
         adminBookMapper.updateImportJobDeletedByKey(jobKey, buildDeleteMessage(job.getStatus()));
+    }
+
+    /**
+     * 彻底删除指定导入任务及其关联的正式书籍、章节与存储资源。
+     * 先汇总封面、正文图片和源文件地址，再按正式书籍、暂存章节、导入任务顺序清理数据库记录。
+     */
+    @Override
+    @Transactional
+    public void hardDeleteImportJob(String jobKey) {
+        BookImportJob job = requireImportJob(jobKey);
+        Set<String> storageUrls = new LinkedHashSet<>();
+        addStorageUrl(storageUrls, job.getCoverUrl());
+
+        BookSourceFile sourceFile = adminBookMapper.findSourceFileByKey(job.getSourceFileKey());
+        if (sourceFile != null) {
+            addStorageUrl(storageUrls, sourceFile.getStorageUrl());
+        }
+
+        List<BookImportChapterStage> importStages = adminBookMapper.findImportStagesByJobKey(jobKey);
+        for (BookImportChapterStage stage : importStages) {
+            storageUrls.addAll(extractStorageUrlsFromHtml(stage.getContentHtml()));
+        }
+
+        String bookKey = defaultString(job.getBookKey(), "");
+        if (!bookKey.isBlank()) {
+            Book book = adminBookMapper.findBookByKey(bookKey);
+            if (book != null) {
+                storageUrls.addAll(collectBookStorageUrls(
+                    book,
+                    List.of(job),
+                    adminBookMapper.findBookChaptersByBookKey(bookKey)
+                ));
+                adminBookMapper.deleteBookChaptersByBookKey(bookKey);
+            }
+        }
+
+        adminBookMapper.deleteImportStageByJobKey(jobKey);
+        adminBookMapper.deleteImportJobByKey(jobKey);
+        if (!bookKey.isBlank()) {
+            adminBookMapper.deleteBookByKey(bookKey);
+        }
+        if (sourceFile != null && !defaultString(sourceFile.getFileKey(), "").isBlank()) {
+            adminBookMapper.deleteSourceFileByKey(sourceFile.getFileKey());
+        }
+
+        deleteStorageResources(storageUrls, bookKey.isBlank() ? jobKey : bookKey);
     }
 
     /**
@@ -2568,6 +2636,73 @@ public class AdminBookServiceImpl implements AdminBookService {
             baseName = baseName.substring(lastSlash + 1);
         }
         return baseName.isBlank() ? "导入书籍" : baseName;
+    }
+
+    /**
+     * 汇总书籍主记录、章节正文和导入源文件中的对象存储地址。
+     * 删除正式书籍前统一抽取可回收资源，避免 OSS、MinIO 与本地上传目录残留孤儿文件。
+     */
+    private Set<String> collectBookStorageUrls(Book book, List<BookImportJob> importJobs, List<BookChapter> chapters) {
+        Set<String> storageUrls = new LinkedHashSet<>();
+        addStorageUrl(storageUrls, book == null ? "" : book.getCoverUrl());
+
+        for (BookImportJob job : importJobs) {
+            addStorageUrl(storageUrls, job.getCoverUrl());
+            BookSourceFile sourceFile = adminBookMapper.findSourceFileByKey(job.getSourceFileKey());
+            if (sourceFile != null) {
+                addStorageUrl(storageUrls, sourceFile.getStorageUrl());
+            }
+        }
+
+        for (BookChapter chapter : chapters) {
+            storageUrls.addAll(extractStorageUrlsFromHtml(chapter.getContentHtml()));
+        }
+        return storageUrls;
+    }
+
+    /**
+     * 删除书籍关联的对象存储资源。
+     * 单个文件删除失败仅记录日志，避免已完成的数据库删除因某个对象异常而整体回滚。
+     */
+    private void deleteStorageResources(Set<String> storageUrls, String bookKey) {
+        for (String storageUrl : storageUrls) {
+            try {
+                contentStorageService.delete(storageUrl);
+            } catch (Exception exception) {
+                log.warn("删除书籍资源失败(bookKey={}, url={}): {}", bookKey, storageUrl, exception.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 从章节 HTML 中提取本站对象存储图片资源地址。
+     * 仅回收由本站存储服务托管的 img/image 链接，避免误删外部图片或 data URL。
+     */
+    private Set<String> extractStorageUrlsFromHtml(String contentHtml) {
+        Set<String> storageUrls = new LinkedHashSet<>();
+        if (contentHtml == null || contentHtml.isBlank()) {
+            return storageUrls;
+        }
+        Document document = Jsoup.parseBodyFragment(contentHtml);
+        for (Element image : document.select("img[src], image[href], image[xlink\\:href]")) {
+            String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+            addStorageUrl(storageUrls, image.attr(attributeName));
+        }
+        return storageUrls;
+    }
+
+    /**
+     * 向待删除集合中追加本站对象存储地址。
+     * 统一过滤空值、data URL 与外部资源，只保留当前存储实现可识别的对象链接。
+     */
+    private void addStorageUrl(Set<String> storageUrls, String candidateUrl) {
+        String normalizedUrl = defaultString(candidateUrl, "").trim();
+        if (normalizedUrl.isBlank() || normalizedUrl.toLowerCase(Locale.ROOT).startsWith("data:")) {
+            return;
+        }
+        if (contentStorageService.isStorageUrl(normalizedUrl)) {
+            storageUrls.add(normalizedUrl);
+        }
     }
 
     private BookImportJob requireImportJob(String jobKey) {

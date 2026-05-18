@@ -211,12 +211,22 @@ public class AdminBookController {
     }
 
     /**
-     * 删除书籍及关联导入记录。
-     * 确认后清理正式书籍、章节快照和导入暂存数据。
+     * 将书籍移入已删除列表。
+     * 下线前台正式书籍并保留导入任务与资源文件，便于后续恢复原始状态。
      */
     @DeleteMapping("/{bookKey}")
-    public ApiResponse<Void> deleteBook(@PathVariable String bookKey) {
-        adminBookService.deleteBook(bookKey);
+    public ApiResponse<Void> softDeleteBook(@PathVariable String bookKey) {
+        adminBookService.softDeleteBook(bookKey);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 彻底删除书籍及其关联导入记录。
+     * 同步清理数据库记录与对象存储资源，确保后台不再保留任何可恢复缓存。
+     */
+    @DeleteMapping("/{bookKey}/hard")
+    public ApiResponse<Void> hardDeleteBook(@PathVariable String bookKey) {
+        adminBookService.hardDeleteBook(bookKey);
         return ApiResponse.success(null);
     }
 
@@ -227,6 +237,16 @@ public class AdminBookController {
     @DeleteMapping("/import-jobs/{jobKey}")
     public ApiResponse<Void> deleteImportJob(@PathVariable String jobKey) {
         adminBookService.deleteImportJob(jobKey);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 彻底删除指定导入任务及其关联资源。
+     * 同步清理数据库记录与对象存储资源，删除后不再保留恢复入口与缓存文件。
+     */
+    @DeleteMapping("/import-jobs/{jobKey}/hard")
+    public ApiResponse<Void> hardDeleteImportJob(@PathVariable String jobKey) {
+        adminBookService.hardDeleteImportJob(jobKey);
         return ApiResponse.success(null);
     }
 

@@ -77,8 +77,44 @@
             </div>
             <div class="bk-imp-modal-actions">
               <button class="bk-imp-btn bk-imp-btn-ghost" type="button" @click="cancelDeleteModal">取消</button>
-              <button class="bk-imp-btn bk-imp-btn-danger" type="button" :disabled="deleteModal.loading" @click="confirmDeleteModal">
-                {{ deleteModal.loading ? '删除中...' : '确认删除' }}
+              <template v-if="deleteModal.mode === 'dual'">
+                <div class="bk-imp-delete-action-wrap">
+                  <button
+                    class="bk-imp-btn bk-imp-btn-primary"
+                    type="button"
+                    :disabled="deleteModal.softLoading || deleteModal.hardLoading"
+                    @mouseenter="deleteModal.hoverAction = 'soft'"
+                    @mouseleave="deleteModal.hoverAction = ''"
+                    @focus="deleteModal.hoverAction = 'soft'"
+                    @blur="deleteModal.hoverAction = ''"
+                    @click="confirmSoftDeleteModal"
+                  >
+                    {{ deleteModal.softLoading ? '软删除中...' : deleteModal.softDeleteText }}
+                  </button>
+                  <div v-if="deleteModal.hoverAction === 'soft'" class="bk-imp-delete-tip is-soft">
+                    {{ deleteModal.softDeleteTip }}
+                  </div>
+                </div>
+                <div class="bk-imp-delete-action-wrap">
+                  <button
+                    class="bk-imp-btn bk-imp-btn-danger"
+                    type="button"
+                    :disabled="deleteModal.softLoading || deleteModal.hardLoading"
+                    @mouseenter="deleteModal.hoverAction = 'hard'"
+                    @mouseleave="deleteModal.hoverAction = ''"
+                    @focus="deleteModal.hoverAction = 'hard'"
+                    @blur="deleteModal.hoverAction = ''"
+                    @click="confirmHardDeleteModal"
+                  >
+                    {{ deleteModal.hardLoading ? '彻底删除中...' : deleteModal.hardDeleteText }}
+                  </button>
+                  <div v-if="deleteModal.hoverAction === 'hard'" class="bk-imp-delete-tip is-hard">
+                    {{ deleteModal.hardDeleteTip }}
+                  </div>
+                </div>
+              </template>
+              <button v-else class="bk-imp-btn bk-imp-btn-danger" type="button" :disabled="deleteModal.loading" @click="confirmDeleteModal">
+                {{ deleteModal.loading ? '删除中...' : deleteModal.confirmText }}
               </button>
             </div>
           </div>
@@ -193,6 +229,11 @@
             <button class="bk-imp-btn bk-imp-btn-ghost" type="button" @click="reloadHistory">{{ historyLoading ? '加载中...' : '刷新' }}</button>
           </div>
         </header>
+
+        <div v-if="historyStatusFilter === 'deleted'" class="bk-imp-history-tip">
+          已删除列表中的书籍与导入资源当前仍为保留状态。
+          如果该记录之前上传过封面、正文图片或源文件，它们仍存放在当前启用的存储中，用于后续恢复原始状态。
+        </div>
 
         <div v-if="batchableImportJobs.length" class="bk-imp-batch-bar">
           <label class="bk-imp-select-all">
@@ -522,6 +563,7 @@ import {
   updateBookImportJobChapters,
   getAdminBooks,
   deleteImportJob,
+  hardDeleteImportJob,
   restoreImportJob,
   batchDeleteImportJobs,
   deleteImportJobsByCategory,
@@ -540,6 +582,8 @@ const route = useRoute()
 const fileInputRef = ref(null)
 const coverFileInputRef = ref(null)
 const mainRef = ref(null)
+const REVIEW_READY_POLL_INTERVAL = 500
+const REVIEW_READY_MAX_ATTEMPTS = 12
 const activePanel = ref('import')
 const uploading = ref(false)
 const coverUploading = ref(false)
@@ -559,8 +603,19 @@ const deleteModal = reactive({
   title: '',
   body: '',
   items: [],
+  mode: 'single',
+  confirmText: '确认删除',
+  softDeleteText: '软删除',
+  hardDeleteText: '彻底删除',
+  softDeleteTip: '',
+  hardDeleteTip: '',
+  hoverAction: '',
   loading: false,
-  onConfirm: null
+  softLoading: false,
+  hardLoading: false,
+  onConfirm: null,
+  onSoftDelete: null,
+  onHardDelete: null
 })
 const reviewPanelRef = ref(null)
 const reviewReady = ref(false)
@@ -828,13 +883,13 @@ async function openJobFromRouteQuery() {
   const jobKey = typeof route.query.jobKey === 'string' ? route.query.jobKey : ''
   const panel = typeof route.query.panel === 'string' ? route.query.panel : ''
   if (!jobKey && panel !== 'review') return
-  if (jobKey && activeJob.value?.jobKey !== jobKey) {
+  if (jobKey) {
     try {
-      activeJob.value = await getBookImportJob(jobKey)
-      await loadJobChapters(jobKey)
+      await openJobReview(jobKey, { waitForReady: true })
     } catch (error) {
       errorMessage.value = error.message || '加载导入任务失败'
     }
+    return
   }
   activePanel.value = 'review'
   reviewReady.value = Boolean(activeJob.value?.jobKey)
@@ -871,11 +926,10 @@ async function uploadFile(file) {
       : await createBookImportJobFromFile(file)
 
     activeJob.value = job
-    await loadJobChapters(job.jobKey)
     await reloadHistory()
     await reloadBooks()
     successMessage.value = `${file.name} 解析完成，共 ${job.totalChapters || 0} 章`
-    activePanel.value = 'review'
+    await openJobReview(job.jobKey, { initialJob: job, waitForReady: true })
   } catch (error) {
     errorMessage.value = error.message || '书籍导入失败'
   } finally {
@@ -896,12 +950,11 @@ async function importFromExternal() {
       importType: 'api'
     })
     activeJob.value = job
-    await loadJobChapters(job.jobKey)
     await reloadHistory()
     successMessage.value = '外部资源导入完成'
     externalUrl.value = ''
     externalTitle.value = ''
-    activePanel.value = 'review'
+    await openJobReview(job.jobKey, { initialJob: job, waitForReady: true })
   } catch (error) {
     errorMessage.value = error.message || '外部资源导入失败'
   } finally {
@@ -912,8 +965,10 @@ async function importFromExternal() {
 async function reloadActiveJob() {
   if (!activeJob.value?.jobKey) return
   try {
-    activeJob.value = await getBookImportJob(activeJob.value.jobKey)
-    await loadJobChapters(activeJob.value.jobKey)
+    await openJobReview(activeJob.value.jobKey, {
+      initialJob: activeJob.value,
+      waitForReady: false
+    })
   } catch (error) {
     errorMessage.value = error.message || '刷新任务失败'
   }
@@ -1059,6 +1114,11 @@ async function savePageDrafts(options = {}) {
 
 async function loadJobChapters(jobKey) {
   const list = await getBookImportJobChapters(jobKey)
+  applyLoadedChapters(list)
+  return chapters.value
+}
+
+function applyLoadedChapters(list) {
   chapters.value = Array.isArray(list) ? list : []
   clearPendingChapterSaves()
   if (chapters.value.length) {
@@ -1275,19 +1335,48 @@ async function batchPublishSelected() {
   )
 }
 
-function openDeleteModal({ title, body, items, onConfirm }) {
+function openDeleteModal({
+  title,
+  body,
+  items,
+  mode = 'single',
+  confirmText = '确认删除',
+  softDeleteText = '软删除',
+  hardDeleteText = '彻底删除',
+  softDeleteTip = '',
+  hardDeleteTip = '',
+  onConfirm,
+  onSoftDelete,
+  onHardDelete
+}) {
   deleteModal.visible = true
   deleteModal.title = title || '确认删除'
   deleteModal.body = body || ''
   deleteModal.items = items || []
+  deleteModal.mode = mode
+  deleteModal.confirmText = confirmText
+  deleteModal.softDeleteText = softDeleteText
+  deleteModal.hardDeleteText = hardDeleteText
+  deleteModal.softDeleteTip = softDeleteTip
+  deleteModal.hardDeleteTip = hardDeleteTip
+  deleteModal.hoverAction = ''
   deleteModal.loading = false
+  deleteModal.softLoading = false
+  deleteModal.hardLoading = false
   deleteModal.onConfirm = onConfirm
+  deleteModal.onSoftDelete = onSoftDelete
+  deleteModal.onHardDelete = onHardDelete
 }
 
 function cancelDeleteModal() {
   deleteModal.visible = false
   deleteModal.loading = false
+  deleteModal.softLoading = false
+  deleteModal.hardLoading = false
+  deleteModal.hoverAction = ''
   deleteModal.onConfirm = null
+  deleteModal.onSoftDelete = null
+  deleteModal.onHardDelete = null
 }
 
 async function confirmDeleteModal() {
@@ -1299,6 +1388,34 @@ async function confirmDeleteModal() {
     deleteModal.visible = false
     deleteModal.loading = false
     deleteModal.onConfirm = null
+  }
+}
+
+async function confirmSoftDeleteModal() {
+  if (!deleteModal.onSoftDelete) return
+  deleteModal.softLoading = true
+  try {
+    await deleteModal.onSoftDelete()
+  } finally {
+    deleteModal.visible = false
+    deleteModal.softLoading = false
+    deleteModal.onSoftDelete = null
+    deleteModal.onHardDelete = null
+    deleteModal.hoverAction = ''
+  }
+}
+
+async function confirmHardDeleteModal() {
+  if (!deleteModal.onHardDelete) return
+  deleteModal.hardLoading = true
+  try {
+    await deleteModal.onHardDelete()
+  } finally {
+    deleteModal.visible = false
+    deleteModal.hardLoading = false
+    deleteModal.onSoftDelete = null
+    deleteModal.onHardDelete = null
+    deleteModal.hoverAction = ''
   }
 }
 
@@ -1381,13 +1498,22 @@ async function confirmDeleteJob(job) {
   const title = job.title || '未命名'
   const hasBook = job.bookKey && job.status === 'published'
   const body = hasBook
-    ? '该记录已发布，删除后会进入已删除列表并暂时下线前台书籍，可在已删除中恢复原始状态。'
-    : '删除后会进入已删除列表，可在已删除中恢复原始状态。'
+    ? '该记录已发布，可选择软删除保留恢复能力，或执行彻底删除同步清理正式书籍与存储资源。'
+    : '该记录当前未彻底移除，可选择软删除保留恢复能力，或执行彻底删除清理导入数据与资源文件。'
   openDeleteModal({
     title: `删除「${title}」`,
     body,
     items: [],
-    onConfirm: async () => {
+    mode: 'dual',
+    softDeleteText: '软删除',
+    hardDeleteText: '彻底删除',
+    softDeleteTip: hasBook
+      ? '软删除后该书会进入已删除列表，同时暂时下线前台正式书籍。导入记录、章节和已上传资源会保留，方便后续恢复原始状态。'
+      : '软删除后该导入记录会进入已删除列表，任务数据与已上传资源会继续保留，便于后续恢复原始状态。',
+    hardDeleteTip: hasBook
+      ? '彻底删除会同步移除导入记录、正式书籍、章节内容以及 OSS、MinIO、本地存储中的相关资源，删除后不可恢复。'
+      : '彻底删除会同步移除导入记录、暂存章节和源文件资源，并清理 OSS、MinIO、本地存储中的关联文件，删除后不可恢复。',
+    onSoftDelete: async () => {
       deletingJob.value = true
       errorMessage.value = ''
       try {
@@ -1400,6 +1526,23 @@ async function confirmDeleteJob(job) {
         successMessage.value = `已将「${title}」移入已删除`
       } catch (error) {
         errorMessage.value = error.message || '删除失败'
+      } finally {
+        deletingJob.value = false
+      }
+    },
+    onHardDelete: async () => {
+      deletingJob.value = true
+      errorMessage.value = ''
+      try {
+        await hardDeleteImportJob(job.jobKey)
+        if (activeJob.value?.jobKey === job.jobKey) {
+          activeJob.value = null
+        }
+        await reloadBooks()
+        await reloadHistory()
+        successMessage.value = `已彻底删除「${title}」及其关联资源`
+      } catch (error) {
+        errorMessage.value = error.message || '彻底删除失败'
       } finally {
         deletingJob.value = false
       }
@@ -1514,17 +1657,60 @@ async function reloadBooks() {
 }
 
 async function selectJobAndReview(job) {
-  activePanel.value = 'review'
-  activeJob.value = job
-  reviewReady.value = Boolean(job?.jobKey)
-  scrollMainToTop()
-  void loadJobChapters(job.jobKey)
+  if (!job?.jobKey) return
+  void openJobReview(job.jobKey, {
+    initialJob: job,
+    waitForReady: false
+  })
 }
 
 function openReviewPanel() {
+  if (!activeJob.value?.jobKey) return
+  void openJobReview(activeJob.value.jobKey, {
+    initialJob: activeJob.value,
+    waitForReady: true
+  })
+}
+
+async function openJobReview(jobKey, options = {}) {
+  const { initialJob = null, waitForReady = false } = options
+  if (!jobKey) return
+
   activePanel.value = 'review'
-  reviewReady.value = Boolean(activeJob.value?.jobKey)
+  reviewReady.value = false
+  if (initialJob) {
+    activeJob.value = initialJob
+  }
   scrollMainToTop()
+
+  const maxAttempts = waitForReady ? REVIEW_READY_MAX_ATTEMPTS : 1
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const job = await getBookImportJob(jobKey)
+    const list = await loadJobChapters(jobKey)
+    activeJob.value = job
+
+    if (isReviewContentReady(job, list) || attempt === maxAttempts) {
+      reviewReady.value = Boolean(activeJob.value?.jobKey)
+      return
+    }
+
+    await sleep(REVIEW_READY_POLL_INTERVAL)
+  }
+}
+
+function isReviewContentReady(job, list) {
+  if (Array.isArray(list) && list.length > 0) {
+    return true
+  }
+
+  const status = String(job?.status || '')
+  return status === 'await_review' || status === 'approved' || status === 'published'
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
 }
 
 function scrollMainToTop() {
@@ -1963,6 +2149,7 @@ function formatFileSize(bytes) {
   backdrop-filter: blur(18px);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(247, 79, 79, 0.06);
   text-align: center;
+  overflow: visible;
 }
 
 .bk-imp-modal-icon {
@@ -2018,13 +2205,61 @@ function formatFileSize(bytes) {
 
 .bk-imp-modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
+  overflow: visible;
+}
+
+.bk-imp-delete-action-wrap {
+  position: relative;
+  display: inline-flex;
+  overflow: visible;
 }
 
 .bk-imp-modal-actions .bk-imp-btn {
   min-width: 100px;
   justify-content: center;
+}
+
+.bk-imp-delete-tip {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  z-index: 5;
+  width: 280px;
+  padding: 12px 14px;
+  border: 1px solid rgba(134, 163, 196, 0.16);
+  border-radius: 14px;
+  background: rgba(12, 23, 39, 0.98);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #d7e7f8;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: left;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.bk-imp-delete-tip::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid rgba(134, 163, 196, 0.16);
+  border-right: 1px solid rgba(134, 163, 196, 0.16);
+  background: rgba(12, 23, 39, 0.98);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.bk-imp-delete-tip.is-soft {
+  border-color: rgba(125, 232, 255, 0.22);
+}
+
+.bk-imp-delete-tip.is-hard {
+  border-color: rgba(255, 143, 159, 0.22);
 }
 
 .bk-imp-modal-fade-enter-active,
@@ -2549,6 +2784,17 @@ function formatFileSize(bytes) {
 .status-deleted { color: #b7c3d5; background: rgba(183, 195, 213, 0.08); }
 
 /* ===== History ===== */
+.bk-imp-history-tip {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(183, 195, 213, 0.16);
+  border-radius: 14px;
+  background: rgba(183, 195, 213, 0.08);
+  color: #d9e2ef;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .bk-imp-history-list {
   display: flex;
   flex-direction: column;

@@ -22,7 +22,10 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @Slf4j
-@ConditionalOnExpression("!'${app.storage.minio.enabled:false}'.equals('true') && !'${app.storage.oss.enabled:false}'.equals('true')")
+@ConditionalOnExpression(
+    "!'${app.storage.minio.enabled:false}'.equals('true') "
+        + "&& !'${app.storage.oss.enabled:false}'.equals('true')"
+)
 public class LocalContentStorageService implements ContentStorageService {
 
     @Value("${app.storage.local.upload-dir:${java.io.tmpdir}/peakstars-uploads}")
@@ -73,6 +76,29 @@ public class LocalContentStorageService implements ContentStorageService {
             throw new java.io.FileNotFoundException("本地文件不存在: " + filePath);
         }
         return Files.newInputStream(filePath);
+    }
+
+    /**
+     * 删除本地存储目录中的单个资源文件。
+     * 将对外访问地址还原为相对路径后删除文件，避免本地开发环境遗留无效上传文件。
+     */
+    @Override
+    public void delete(String resourceUrl) throws Exception {
+        String relativePath = resourceUrl == null ? "" : resourceUrl.trim();
+        if (relativePath.isBlank()) {
+            return;
+        }
+        if (relativePath.startsWith(baseUrl)) {
+            relativePath = relativePath.substring(baseUrl.length());
+        }
+        while (relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        if (relativePath.isBlank()) {
+            return;
+        }
+        Path filePath = Paths.get(uploadDir).resolve(relativePath).normalize();
+        Files.deleteIfExists(filePath);
     }
 
     @Override

@@ -4,6 +4,14 @@ import { fileURLToPath, URL } from 'node:url'
 import fs from 'node:fs'
 import path from 'node:path'
 
+function resolveEnvBackendOrigin() {
+  if (!process.env.VITE_JAVA_API_BASE_URL) {
+    return ''
+  }
+
+  return new URL(process.env.VITE_JAVA_API_BASE_URL, 'http://localhost').origin
+}
+
 function resolveBackendTarget() {
   const portFile = path.resolve(process.cwd(), 'server-java/target/runtime-port.txt')
   try {
@@ -16,6 +24,21 @@ function resolveBackendTarget() {
   }
 
   return 'http://localhost:8080'
+}
+
+function resolveProxyTarget() {
+  return resolveEnvBackendOrigin() || resolveBackendTarget()
+}
+
+function createBackendProxy(rewrite) {
+  return {
+    target: resolveProxyTarget(),
+    changeOrigin: true,
+    bypass(req, res, options) {
+      options.target = resolveProxyTarget()
+    },
+    ...(rewrite ? { rewrite } : {})
+  }
 }
 
 export default defineConfig({
@@ -53,15 +76,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/auth-api': {
-        target: process.env.VITE_JAVA_API_BASE_URL ? new URL(process.env.VITE_JAVA_API_BASE_URL, 'http://localhost').origin : resolveBackendTarget(),
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/auth-api/, '')
-      },
-      '/uploads': {
-        target: process.env.VITE_JAVA_API_BASE_URL ? new URL(process.env.VITE_JAVA_API_BASE_URL, 'http://localhost').origin : resolveBackendTarget(),
-        changeOrigin: true
-      }
+      '/auth-api': createBackendProxy((requestPath) => requestPath.replace(/^\/auth-api/, '')),
+      '/uploads': createBackendProxy()
     }
   },
   resolve: {

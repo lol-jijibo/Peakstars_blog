@@ -6,6 +6,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.time.LocalDate;
@@ -99,6 +100,27 @@ public class MinioContentStorageService implements ContentStorageService {
         String objectName = extractObjectName(resourceUrl);
         return minioClient.getObject(
             GetObjectArgs.builder()
+                .bucket(minioProperties.getBucket())
+                .object(objectName)
+                .build()
+        );
+    }
+
+    /**
+     * 删除 MinIO 中的单个对象资源。
+     * 统一从代理地址或公开地址反解对象键，供后台彻底删除内容时同步回收对象存储文件。
+     */
+    @Override
+    public void delete(String resourceUrl) throws Exception {
+        if (!bucketReady) {
+            tryInitializeBucket();
+        }
+        String objectName = extractObjectName(resourceUrl);
+        if (objectName == null || objectName.isBlank()) {
+            return;
+        }
+        minioClient.removeObject(
+            RemoveObjectArgs.builder()
                 .bucket(minioProperties.getBucket())
                 .object(objectName)
                 .build()

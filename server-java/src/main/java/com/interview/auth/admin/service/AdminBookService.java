@@ -104,16 +104,28 @@ public interface AdminBookService {
     BookResponse updateBookCategory(String bookKey, AdminBookCategoryUpdateRequest request);
 
     /**
-     * 删除已发布书籍及其关联导入记录。
-     * 先删除章节快照再删除主书籍和导入暂存，避免总览页继续出现残留记录。
+     * 将已发布书籍移入已删除列表。
+     * 同步下线正式书籍并保留导入任务与资源文件，便于后续恢复原始状态。
      */
-    void deleteBook(String bookKey);
+    void softDeleteBook(String bookKey);
+
+    /**
+     * 彻底删除已发布书籍及其关联导入记录。
+     * 清理数据库记录与对象存储资源，确保书籍内容不再保留任何可恢复缓存。
+     */
+    void hardDeleteBook(String bookKey);
 
     /**
      * 删除指定导入任务及其关联数据。
      * 清理暂存章节和导入主记录；若任务已发布，同步删除正式书籍和章节。
      */
     void deleteImportJob(String jobKey);
+
+    /**
+     * 彻底删除指定导入任务及其关联资源。
+     * 清理数据库中的导入记录、正式书籍与章节，并同步回收对象存储中的封面、正文图片和源文件。
+     */
+    void hardDeleteImportJob(String jobKey);
 
     /**
      * 恢复已删除的书籍导入任务。

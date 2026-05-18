@@ -70,6 +70,22 @@
     <result column="updated_at" property="updatedAt"/>
   </resultMap>
 
+  <resultMap id="BookChapterResultMap" type="com.interview.auth.domain.entity.BookChapter">
+    <id column="id" property="id"/>
+    <result column="chapter_key" property="chapterKey"/>
+    <result column="book_key" property="bookKey"/>
+    <result column="chapter_no" property="chapterNo"/>
+    <result column="title" property="title"/>
+    <result column="subtitle" property="subtitle"/>
+    <result column="content_html" property="contentHtml"/>
+    <result column="word_count" property="wordCount"/>
+    <result column="is_free" property="isFree"/>
+    <result column="status" property="status"/>
+    <result column="sort_order" property="sortOrder"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+  </resultMap>
+
   <insert id="saveSourceFile">
     INSERT INTO book_source_file (
       file_key,
@@ -92,6 +108,11 @@
     WHERE file_key = #{fileKey}
     LIMIT 1
   </select>
+
+  <delete id="deleteSourceFileByKey">
+    DELETE FROM book_source_file
+    WHERE file_key = #{fileKey}
+  </delete>
 
   <insert id="saveImportJob">
     INSERT INTO book_import_job (
@@ -301,6 +322,13 @@
     WHERE book_key = #{bookKey}
   </delete>
 
+  <select id="findBookChaptersByBookKey" resultMap="BookChapterResultMap">
+    SELECT *
+    FROM book_chapter
+    WHERE book_key = #{bookKey}
+    ORDER BY sort_order ASC, chapter_no ASC, id ASC
+  </select>
+
   <update id="updatePublishedBookFromImportJob">
     UPDATE book
     SET
@@ -396,6 +424,11 @@
   <delete id="deleteImportJobByBookKey">
     DELETE FROM book_import_job
     WHERE book_key = #{bookKey}
+  </delete>
+
+  <delete id="deleteImportJobByKey">
+    DELETE FROM book_import_job
+    WHERE job_key = #{jobKey}
   </delete>
 
   <delete id="deleteBookByKey">

@@ -24,6 +24,12 @@ public interface AdminBookMapper {
      */
     BookSourceFile findSourceFileByKey(@Param("fileKey") String fileKey);
 
+    /**
+     * 删除指定源文件归档记录。
+     * 在彻底清理导入任务后移除原始导入包索引，避免后台残留无效源文件元数据。
+     */
+    int deleteSourceFileByKey(@Param("fileKey") String fileKey);
+
     int saveImportJob(BookImportJob importJob);
 
     BookImportJob findImportJobByKey(@Param("jobKey") String jobKey);
@@ -92,6 +98,12 @@ public interface AdminBookMapper {
 
     int deleteBookChaptersByBookKey(@Param("bookKey") String bookKey);
 
+    /**
+     * 查询指定书籍下的正式章节记录。
+     * 供彻底删除书籍前扫描正文资源链接，保证对象存储文件可被同步回收。
+     */
+    List<BookChapter> findBookChaptersByBookKey(@Param("bookKey") String bookKey);
+
     int batchInsertBookChapters(@Param("chapters") List<BookChapter> chapters);
 
     List<Book> findAllBooks();
@@ -103,6 +115,12 @@ public interface AdminBookMapper {
      * 用于从总览删除书籍时同步把导入记录移入已删除列表。
      */
     List<BookImportJob> findImportJobsByBookKey(@Param("bookKey") String bookKey);
+
+    /**
+     * 删除单条导入任务主记录。
+     * 供彻底删除指定任务时使用，避免按 bookKey 误删同书籍下其他导入历史。
+     */
+    int deleteImportJobByKey(@Param("jobKey") String jobKey);
 
     /**
      * 删除指定业务主键对应的导入任务。
