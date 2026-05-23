@@ -6,11 +6,13 @@ import com.interview.auth.domain.dto.response.StarReadHomeResponse;
 import com.interview.auth.domain.dto.response.StarReadRankingResponse;
 import com.interview.auth.domain.dto.response.StarReadSearchResponse;
 import com.interview.auth.domain.dto.response.StarReadSearchSuggestionResponse;
+import com.interview.auth.common.BusinessException;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.infrastructure.mapper.ContentMapper;
 import com.interview.auth.infrastructure.search.StarReadElasticsearchClient;
 import com.interview.auth.service.StarReadService;
 import com.interview.auth.infrastructure.storage.ContentStorageService;
+import com.interview.auth.infrastructure.storage.StorageRoutingService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -38,6 +40,7 @@ public class StarReadServiceImpl implements StarReadService {
     private final ContentMapper contentMapper;
     private final StarReadElasticsearchClient elasticsearchClient;
     private final ContentStorageService contentStorageService;
+    private final StorageRoutingService storageRoutingService;
 
     /**
      * 组装 star_read 首页所需的阅读卡片、榜单和分类数据。
@@ -445,6 +448,7 @@ public class StarReadServiceImpl implements StarReadService {
         return switch (defaultText(category, "").trim().toLowerCase(Locale.ROOT)) {
             case "frontend" -> "前端书架";
             case "backend" -> "后端书架";
+            case "project" -> "项目业务解析";
             case "vip" -> "专题长读";
             default -> "精选阅读";
         };
@@ -458,6 +462,7 @@ public class StarReadServiceImpl implements StarReadService {
         return switch (defaultText(category, "").trim().toLowerCase(Locale.ROOT)) {
             case "frontend" -> "值得一读";
             case "backend" -> "深读推荐";
+            case "project" -> "项目拆解";
             case "vip" -> "高分加藏";
             default -> "star_read";
         };
@@ -593,20 +598,46 @@ public class StarReadServiceImpl implements StarReadService {
         if (trimmed.startsWith("/uploads/")) {
             return trimmed;
         }
-        if (contentStorageService.isStorageUrl(trimmed) && trimmed.startsWith("http")) {
+        if (isManagedStorageUrl(trimmed) && trimmed.startsWith("http")) {
             int pathIndex = trimmed.indexOf("/uploads/");
             if (pathIndex >= 0) {
                 return trimmed.substring(pathIndex);
             }
-            int schemeIndex = trimmed.indexOf("://");
-            if (schemeIndex >= 0) {
-                int pathStart = trimmed.indexOf('/', schemeIndex + 3);
-                if (pathStart >= 0 && pathStart < trimmed.length() - 1) {
-                    return "/uploads/" + trimmed.substring(pathStart + 1);
-                }
-            }
         }
         return trimmed;
+    }
+
+    /**
+     * 统一识别 star_read 书架里属于本站托管的封面资源。
+     * 兼容书籍资源落在 OSS、历史内容仍走代理的展示场景，保证封面稳定可访问。
+     */
+    private boolean isManagedStorageUrl(String assetUrl) {
+        if (assetUrl == null || assetUrl.isBlank()) {
+            return false;
+        }
+        return isStorageUrlSafely("book", assetUrl)
+            || isStorageUrlSafely("interview", assetUrl)
+            || isStorageUrlSafely(contentStorageService, assetUrl);
+    }
+
+    /**
+     * 安全判断指定模块的存储实现是否识别当前资源地址。
+     * 存储未启用时直接返回 false，避免 star_read 首页因配置缺失中断。
+     */
+    private boolean isStorageUrlSafely(String moduleType, String assetUrl) {
+        try {
+            return isStorageUrlSafely(storageRoutingService.resolveForModule(moduleType), assetUrl);
+        } catch (BusinessException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 统一收口底层存储实现的空值判断。
+     * 仅在存储服务存在时执行地址识别，保证封面地址规整逻辑可继续运行。
+     */
+    private boolean isStorageUrlSafely(ContentStorageService storageService, String assetUrl) {
+        return storageService != null && storageService.isStorageUrl(assetUrl);
     }
 
     /**

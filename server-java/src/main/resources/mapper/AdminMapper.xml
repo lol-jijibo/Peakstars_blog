@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+﻿<?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
@@ -8,6 +8,7 @@
     <id column="id" property="id"/>
     <result column="article_key" property="articleKey"/>
     <result column="category" property="category"/>
+    <result column="category_label" property="categoryLabel"/>
     <result column="title" property="title"/>
     <result column="summary" property="summary"/>
     <result column="essence" property="essence"/>
@@ -51,30 +52,6 @@
     <result column="cover_footer" property="coverFooter"/>
     <result column="content_html" property="contentHtml"/>
     <result column="published_at" property="publishedAt"/>
-    <result column="status" property="status"/>
-    <result column="sort_order" property="sortOrder"/>
-    <result column="created_at" property="createdAt"/>
-    <result column="updated_at" property="updatedAt"/>
-  </resultMap>
-
-  <resultMap id="AiHotspotAdminResultMap" type="com.interview.auth.domain.entity.AiHotspot">
-    <id column="id" property="id"/>
-    <result column="hotspot_key" property="hotspotKey"/>
-    <result column="track" property="track"/>
-    <result column="hotspot_type" property="hotspotType"/>
-    <result column="title" property="title"/>
-    <result column="summary" property="summary"/>
-    <result column="author_name" property="authorName"/>
-    <result column="published_at" property="publishedAt"/>
-    <result column="cover_url" property="coverUrl"/>
-    <result column="content_html" property="contentHtml"/>
-    <result column="tag_list" property="tagList"/>
-    <result column="view_count" property="viewCount"/>
-    <result column="comment_count" property="commentCount"/>
-    <result column="like_count" property="likeCount"/>
-    <result column="heat" property="heat"/>
-    <result column="is_recommended" property="isRecommended"/>
-    <result column="is_today" property="isToday"/>
     <result column="status" property="status"/>
     <result column="sort_order" property="sortOrder"/>
     <result column="created_at" property="createdAt"/>
@@ -127,10 +104,6 @@
     SELECT COUNT(*) FROM world_news_issue WHERE status = 1
   </select>
 
-  <select id="countPublishedAiHotspots" resultType="java.lang.Integer">
-    SELECT COUNT(*) FROM ai_hotspot WHERE status = 1
-  </select>
-
   <select id="sumTechArticleViews" resultType="java.lang.Integer">
     SELECT COALESCE(SUM(read_count), 0) FROM tech_article WHERE status = 1
   </select>
@@ -139,16 +112,8 @@
     SELECT COALESCE(SUM(today_reads), 0) FROM world_news_issue WHERE status = 1
   </select>
 
-  <select id="sumAiHotspotViews" resultType="java.lang.Integer">
-    SELECT COALESCE(SUM(view_count), 0) FROM ai_hotspot WHERE status = 1
-  </select>
-
   <select id="sumTechArticleComments" resultType="java.lang.Integer">
     SELECT COALESCE(SUM(comment_count), 0) FROM tech_article WHERE status = 1
-  </select>
-
-  <select id="sumAiHotspotComments" resultType="java.lang.Integer">
-    SELECT COALESCE(SUM(comment_count), 0) FROM ai_hotspot WHERE status = 1
   </select>
 
   <select id="countTodayEdits" resultType="java.lang.Integer">
@@ -176,17 +141,11 @@
     ORDER BY published_at DESC, sort_order ASC
   </select>
 
-  <select id="findAllAiHotspots" resultMap="AiHotspotAdminResultMap">
-    SELECT *
-    FROM ai_hotspot
-    WHERE status = 1
-    ORDER BY published_at DESC, sort_order ASC
-  </select>
-
   <insert id="saveTechArticle">
     INSERT INTO tech_article (
       article_key,
       category,
+      category_label,
       title,
       summary,
       essence,
@@ -213,6 +172,7 @@
     ) VALUES (
       #{articleKey},
       #{category},
+      #{categoryLabel},
       #{title},
       #{summary},
       #{essence},
@@ -239,6 +199,7 @@
     )
     ON DUPLICATE KEY UPDATE
       category = VALUES(category),
+      category_label = VALUES(category_label),
       title = VALUES(title),
       summary = VALUES(summary),
       essence = VALUES(essence),
@@ -320,67 +281,6 @@
       updated_at = CURRENT_TIMESTAMP
   </insert>
 
-  <insert id="saveAiHotspot">
-    INSERT INTO ai_hotspot (
-      hotspot_key,
-      track,
-      hotspot_type,
-      title,
-      summary,
-      author_name,
-      published_at,
-      cover_url,
-      content_html,
-      tag_list,
-      view_count,
-      comment_count,
-      like_count,
-      heat,
-      is_recommended,
-      is_today,
-      status,
-      sort_order
-    ) VALUES (
-      #{hotspotKey},
-      #{track},
-      #{hotspotType},
-      #{title},
-      #{summary},
-      #{authorName},
-      #{publishedAt},
-      #{coverUrl},
-      #{contentHtml},
-      #{tagList},
-      #{viewCount},
-      #{commentCount},
-      #{likeCount},
-      #{heat},
-      #{isRecommended},
-      #{isToday},
-      #{status},
-      #{sortOrder}
-    )
-    ON DUPLICATE KEY UPDATE
-      track = VALUES(track),
-      hotspot_type = VALUES(hotspot_type),
-      title = VALUES(title),
-      summary = VALUES(summary),
-      author_name = VALUES(author_name),
-      published_at = VALUES(published_at),
-      cover_url = VALUES(cover_url),
-      content_html = VALUES(content_html),
-      tag_list = VALUES(tag_list),
-      view_count = VALUES(view_count),
-      comment_count = VALUES(comment_count),
-      like_count = VALUES(like_count),
-      heat = VALUES(heat),
-      is_recommended = VALUES(is_recommended),
-      is_today = VALUES(is_today),
-      status = VALUES(status),
-      sort_order = VALUES(sort_order),
-      updated_at = CURRENT_TIMESTAMP
-  </insert>
-
   <update id="disableTechArticle">
     UPDATE tech_article
     SET status = 0, updated_at = CURRENT_TIMESTAMP
@@ -391,12 +291,6 @@
     UPDATE world_news_issue
     SET status = 0, updated_at = CURRENT_TIMESTAMP
     WHERE issue_key = #{issueKey} AND status = 1
-  </update>
-
-  <update id="disableAiHotspot">
-    UPDATE ai_hotspot
-    SET status = 0, updated_at = CURRENT_TIMESTAMP
-    WHERE hotspot_key = #{hotspotKey} AND status = 1
   </update>
 
   <select id="findAllInterviews" resultMap="InterviewAdminResultMap">

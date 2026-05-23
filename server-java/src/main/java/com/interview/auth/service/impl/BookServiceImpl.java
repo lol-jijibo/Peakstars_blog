@@ -1,11 +1,13 @@
 package com.interview.auth.service.impl;
 
+import com.interview.auth.common.BusinessException;
 import com.interview.auth.domain.dto.response.BookChapterResponse;
 import com.interview.auth.domain.dto.response.BookResponse;
 import com.interview.auth.domain.entity.Book;
 import com.interview.auth.domain.entity.BookChapter;
 import com.interview.auth.infrastructure.mapper.BookMapper;
 import com.interview.auth.infrastructure.storage.ContentStorageService;
+import com.interview.auth.infrastructure.storage.StorageRoutingService;
 import com.interview.auth.service.BookService;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ public class BookServiceImpl implements BookService {
 
     private final BookMapper bookMapper;
     private final ContentStorageService contentStorageService;
+    private final StorageRoutingService storageRoutingService;
 
     /**
      * 查询全部已发布书籍。
@@ -141,7 +144,7 @@ public class BookServiceImpl implements BookService {
 
     /**
      * 统一整理书籍封面地址，确保用户端拿到可直接访问的路径。
-     * 优先保留站内代理地址，再把对象存储外链折叠成 /uploads 代理路径。
+     * 保留 OSS 直链和历史代理地址，避免新上传封面继续绕回后端代理。
      */
     private String resolveCoverUrl(String coverUrl) {
         if (coverUrl == null || coverUrl.isBlank()) {
@@ -154,17 +157,10 @@ public class BookServiceImpl implements BookService {
         if (trimmed.startsWith("uploads/")) {
             return "/" + trimmed;
         }
-        if (contentStorageService.isStorageUrl(trimmed) && trimmed.startsWith("http")) {
+        if (isManagedStorageUrl(trimmed) && trimmed.startsWith("http")) {
             int pathIndex = trimmed.indexOf("/uploads/");
             if (pathIndex >= 0) {
                 return trimmed.substring(pathIndex);
-            }
-            int schemeIndex = trimmed.indexOf("://");
-            if (schemeIndex >= 0) {
-                int pathStart = trimmed.indexOf('/', schemeIndex + 3);
-                if (pathStart >= 0 && pathStart < trimmed.length() - 1) {
-                    return "/uploads/" + trimmed.substring(pathStart + 1);
-                }
             }
         }
         return trimmed;
@@ -187,7 +183,7 @@ public class BookServiceImpl implements BookService {
             String originalUrl = String.valueOf(image.attr(attributeName) == null ? "" : image.attr(attributeName)).trim();
             String resolvedUrl = resolveStoredAssetUrl(originalUrl);
             if (resolvedUrl.equals(originalUrl)) {
-                String coverFallbackUrl = resolveCoverPlaceholderImageUrl(originalUrl, bookCoverUrl);
+                String coverFallbackUrl = resolveCoverPlaceholderImageUrl(image, originalUrl, bookCoverUrl);
                 if (!coverFallbackUrl.isBlank()) {
                     resolvedUrl = coverFallbackUrl;
                 }
@@ -203,16 +199,23 @@ public class BookServiceImpl implements BookService {
      * 将封面章里常见的裸文件名图片引用替换成书籍封面地址。
      * 仅处理无路径、无协议的图片引用，避免误改正文中正常的相对资源路径。
      */
-    private String resolveCoverPlaceholderImageUrl(String rawUrl, String bookCoverUrl) {
+    private String resolveCoverPlaceholderImageUrl(Element image, String rawUrl, String bookCoverUrl) {
         String normalized = String.valueOf(rawUrl == null ? "" : rawUrl).trim();
         if (normalized.isBlank()) {
             return "";
         }
         String lower = normalized.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:") || normalized.startsWith("/") || normalized.contains("/")) {
+        if (lower.startsWith("http://")
+            || lower.startsWith("https://")
+            || lower.startsWith("data:")
+            || normalized.startsWith("/")
+            || normalized.startsWith("uploads/")) {
             return "";
         }
         if (!lower.matches(".*\\.(png|jpg|jpeg|webp|gif|bmp|svg)$")) {
+            return "";
+        }
+        if (!isCoverPlaceholderImage(image, normalized)) {
             return "";
         }
         String cover = String.valueOf(bookCoverUrl == null ? "" : bookCoverUrl).trim();
@@ -241,7 +244,7 @@ public class BookServiceImpl implements BookService {
 
     /**
      * 统一把存储资源地址收敛成前端可访问的稳定路径。
-     * 保留 data URL 和外部地址，同时补齐 uploads 相对路径前缀，避免阅读页把图片当成路由相对地址。
+     * 保留 data URL、外部地址和 OSS 直链，同时补齐 uploads 相对路径前缀。
      */
     private String resolveStoredAssetUrl(String assetUrl) {
         if (assetUrl == null || assetUrl.isBlank()) {
@@ -254,19 +257,70 @@ public class BookServiceImpl implements BookService {
         if (trimmed.startsWith("uploads/")) {
             return "/" + trimmed;
         }
-        if (contentStorageService.isStorageUrl(trimmed) && trimmed.startsWith("http")) {
+        if (isManagedStorageUrl(trimmed) && trimmed.startsWith("http")) {
             int uploadsIndex = trimmed.indexOf("/uploads/");
             if (uploadsIndex >= 0) {
                 return trimmed.substring(uploadsIndex);
             }
-            int schemeIndex = trimmed.indexOf("://");
-            if (schemeIndex >= 0) {
-                int pathStart = trimmed.indexOf('/', schemeIndex + 3);
-                if (pathStart >= 0 && pathStart < trimmed.length() - 1) {
-                    return "/uploads/" + trimmed.substring(pathStart + 1);
-                }
-            }
         }
         return trimmed;
+    }
+
+    /**
+     * 统一识别书籍模块受管的对象存储地址。
+     * 兼容书籍主链路走 OSS、历史内容或兜底资源仍来自代理的混合展示场景。
+     */
+    private boolean isManagedStorageUrl(String assetUrl) {
+        if (assetUrl == null || assetUrl.isBlank()) {
+            return false;
+        }
+        return isStorageUrlSafely("book", assetUrl)
+            || isStorageUrlSafely("interview", assetUrl)
+            || isStorageUrlSafely(contentStorageService, assetUrl);
+    }
+
+    /**
+     * 安全判断指定模块的存储实现是否识别当前资源地址。
+     * 存储未启用时直接返回 false，避免本地阅读页因缺少对象存储配置而中断。
+     */
+    private boolean isStorageUrlSafely(String moduleType, String assetUrl) {
+        try {
+            return isStorageUrlSafely(storageRoutingService.resolveForModule(moduleType), assetUrl);
+        } catch (BusinessException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 统一收口底层存储实现的空值判断。
+     * 仅在存储服务存在时执行地址识别，保证章节图片规整逻辑始终可继续向下走。
+     */
+    private boolean isStorageUrlSafely(ContentStorageService storageService, String assetUrl) {
+        return storageService != null && storageService.isStorageUrl(assetUrl);
+    }
+
+    /**
+     * 识别章节中是否仍残留 EPUB 封面占位图。
+     * 结合文件名提示词与 svg 包装结构判断，只对明显封面图执行封面回填。
+     */
+    private boolean isCoverPlaceholderImage(Element image, String rawUrl) {
+        String normalized = String.valueOf(rawUrl == null ? "" : rawUrl).trim().replace("\\", "/");
+        if (normalized.isBlank()) {
+            return false;
+        }
+        String fileName = normalized.contains("/") ? normalized.substring(normalized.lastIndexOf('/') + 1) : normalized;
+        String hint = (
+            normalized + " "
+                + fileName + " "
+                + String.valueOf(image == null ? "" : image.attr("alt")) + " "
+                + String.valueOf(image == null ? "" : image.attr("title"))
+        ).toLowerCase(Locale.ROOT);
+        if (hint.matches(".*(cover|front|title[-_ ]?page|calibre[_-]?cover|fm|titlepage).*")) {
+            return true;
+        }
+        return image != null
+            && "image".equalsIgnoreCase(image.tagName())
+            && image.parents().stream().anyMatch(parent -> "svg".equalsIgnoreCase(parent.tagName()))
+            && hint.matches(".*(cover|front|title|calibre).*");
     }
 }

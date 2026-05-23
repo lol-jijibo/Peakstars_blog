@@ -7,7 +7,7 @@ import lombok.Setter;
 
 /**
  * 承接后台内容管理表格和编辑抽屉的统一记录结构。
- * 用一份超集字段覆盖技术文章、看天下和 AI 热点三类内容，前端按当前模块裁剪展示字段。
+ * 用一份超集字段覆盖技术文章、看天下和面经内容，前端按当前模块裁剪展示字段。
  */
 @Getter
 @Setter
@@ -17,6 +17,7 @@ public class AdminContentRecordResponse {
     private String id;
     private String title;
     private String category;
+    private String categoryLabel;
     private String summary;
     private String essence;
     private List<String> highlights;
@@ -45,7 +46,6 @@ public class AdminContentRecordResponse {
     private String coverSummary;
     private String coverFooter;
     private String track;
-    private String hotspotType;
     private Integer heat;
     private Boolean recommended;
     private Boolean today;

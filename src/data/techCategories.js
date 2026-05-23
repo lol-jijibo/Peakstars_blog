@@ -8,6 +8,7 @@ export const techArticleCategories = [
   { key: 'all', label: '全部文章', description: '全部分类内容混排展示，优先展示精选与最近发布的文章。' },
   { key: 'frontend', label: '前端工程', description: '围绕 Vue 3、React、TypeScript 等前端技术栈的深度实践。' },
   { key: 'backend', label: '后端架构', description: 'Node.js、Java、数据库、系统设计等后端领域的技术沉淀。' },
+  { key: 'project', label: '项目业务解析', description: '从真实项目业务出发，拆解需求边界、流程设计与落地取舍。' },
   { key: 'vip', label: 'VIP 专题', description: '深度长文与体系化专题内容，需要 VIP 权限查看。' },
   { key: 'history', label: '浏览记录', description: '你最近看过的文章会出现在这里，方便继续阅读。' },
   { key: 'collect', label: '收藏', description: '你收藏过的文章，方便快速回顾。' },

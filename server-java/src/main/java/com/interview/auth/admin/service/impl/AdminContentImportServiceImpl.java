@@ -7,6 +7,7 @@ import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.common.BusinessException;
 import com.interview.auth.config.ContentImportProperties;
 import com.interview.auth.infrastructure.storage.ContentStorageService;
+import com.interview.auth.infrastructure.storage.StorageRoutingService;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -34,12 +35,11 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.safety.Cleaner;
 import org.jsoup.safety.Safelist;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
  * 统一承接后台外部内容导入标准化实现。
- * 使用 jsoup 做 HTML 白名单清洗，并在保存前将图片和附件迁移到 MinIO，确保面经内容格式稳定可控。
+ * 使用 jsoup 做 HTML 白名单清洗，并在保存前将图片和附件迁移到 OSS。
  */
 @Service
 @RequiredArgsConstructor
@@ -50,7 +50,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
     private static final Set<String> ALLOWED_LINK_PROTOCOLS = Set.of("http", "https", "mailto");
 
     private final ContentImportProperties contentImportProperties;
-    private final ObjectProvider<ContentStorageService> storageServiceProvider;
+    private final StorageRoutingService storageRoutingService;
 
     /**
      * 预处理外部内容导入请求。
@@ -122,7 +122,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
 
     /**
      * 迁移正文中的图片资源。
-     * 统一扫描 img 节点并回填 MinIO 链接，确保前台详情页不再依赖外部图床。
+     * 统一扫描 img 节点并回填 OSS 链接，确保前台详情页不再依赖外部图床。
      */
     private void migrateDocumentImages(
         String contentType,
@@ -188,7 +188,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
         boolean migrateAssets
     ) throws Exception {
         String resolvedUrl = resolveResourceUrl(originalUrl, sourceUrl);
-        ContentStorageService storageService = storageServiceProvider.getIfAvailable();
+        ContentStorageService storageService = resolveStorageService(contentType);
 
         if (!shouldMigrateAsset(migrateAssets, storageService, resolvedUrl)) {
             return new AssetMigrationResult(originalUrl, resolvedUrl, "skipped", "资源迁移已跳过");
@@ -228,7 +228,7 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
 
     /**
      * 从本地静态资源目录读取文件并上传到对象存储。
-     * 将项目 public 目录下的相对路径资源迁移到 MinIO，实现封面图和正文图片的统一对象存储管理。
+     * 将项目 public 目录下的相对路径资源迁移到 OSS，实现封面图和正文图片的统一管理。
      */
     private AssetMigrationResult migrateLocalAsset(
         String contentType, // 内容类型
@@ -281,6 +281,18 @@ public class AdminContentImportServiceImpl implements AdminContentImportService 
             && resolvedUrl != null
             && !resolvedUrl.isBlank()
             && !storageService.isStorageUrl(resolvedUrl);
+    }
+
+    /**
+     * 按内容模块选择导入预处理阶段应使用的对象存储。
+     * 让面经、技术文章与书籍导入图片统一写入 OSS，避免新资源继续落入 MinIO。
+     */
+    private ContentStorageService resolveStorageService(String contentType) {
+        String normalized = defaultString(contentType, "").trim().toLowerCase(Locale.ROOT);
+        if ("book".equals(normalized)) {
+            return storageRoutingService.resolveForModule("book");
+        }
+        return storageRoutingService.resolveForModule("interview");
     }
 
     /**

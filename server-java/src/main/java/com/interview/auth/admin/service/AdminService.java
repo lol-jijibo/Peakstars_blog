@@ -118,7 +118,7 @@ public interface AdminService {
      * @return 上传后的可访问 URL
      * @throws Exception 上传或存储异常
      */
-    String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
+    String uploadCoverImage(String moduleType, String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
 
     /**
      * 业务目的：给后台富文本正文图片提供独立上传能力，保证文章插图统一沉淀到对象存储。
@@ -131,5 +131,5 @@ public interface AdminService {
      * @return 上传后的正文图片 URL
      * @throws Exception 上传或存储异常
      */
-    String uploadRichTextImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
+    String uploadRichTextImage(String moduleType, String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception;
 }

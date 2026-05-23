@@ -33,17 +33,12 @@ const routes = [
   {
     path: '/world',
     component: () => import('@/modules/world/WorldNewsView.vue'),
-    meta: { title: '看天下', requiresAuth: true, animation: 'page-scale-in' }
+    meta: { title: '看天下', requiresAuth: true, animation: 'page-blur-in' }
   },
   {
     path: '/book/:id',
     component: () => import('@/modules/world/BookReaderView.vue'),
     meta: { title: '书籍阅读', requiresAuth: true }
-  },
-  {
-    path: '/ai-hotspot',
-    component: () => import('@/modules/ai/AiHotspotView.vue'),
-    meta: { title: 'AI 热点', requiresAuth: true, animation: 'page-rotate-in' }
   },
   {
     path: '/auth',
@@ -86,14 +81,14 @@ const routes = [
   },
   {
     path: '/admin',
-    redirect: '/admin/tech'
+    redirect: '/admin/books-import'
   },
   {
     path: '/admin/books',
     redirect: '/admin/books-import'
   },
   {
-    path: '/admin/:section(tech|world|ai|interview|books-import|books-list|stats|comment)',
+    path: '/admin/:section(tech|interview|books-import|books-list|stats|comment)',
     component: () => import('@/modules/admin/views/AdminDashboardView.vue'),
     meta: { title: '管理后台', requiresAuth: false }
   }

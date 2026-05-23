@@ -10,7 +10,6 @@ import {
   updateAdminContent
 } from '@/modules/admin/api/admin'
 import {
-  invalidateAiHotspotsCache,
   invalidateTechArticlesCache,
   invalidateWorldNewsCache
 } from '@/api/content'
@@ -22,14 +21,12 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
   const contentMap = ref({
     tech: [],
     world: [],
-    ai: [],
     interview: []
   })
   const loadingMap = ref({
     dashboard: false,
     tech: false,
     world: false,
-    ai: false,
     interview: false
   })
   const saving = ref(false)
@@ -139,9 +136,6 @@ export const useAdminConsoleStore = defineStore('adminConsole', () => {
     if (type === 'world') {
       invalidateWorldNewsCache()
       return
-    }
-    if (type === 'ai') {
-      invalidateAiHotspotsCache()
     }
   }
 

@@ -1024,7 +1024,7 @@ async function handleCoverFileSelect(event) {
   coverUploading.value = true
   errorMessage.value = ''
   try {
-    const result = await uploadCoverImage(file)
+    const result = await uploadCoverImage(file, 'book-cover')
     metadataForm.coverUrl = result.url || ''
     successMessage.value = '封面图片已上传'
   } catch (error) {
@@ -1171,12 +1171,34 @@ function normalizePreviewChapterHtml(contentHtml) {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .trim()
 
-  return applyCoverFallbackToPreviewHtml(rawHtml, metadataForm.coverUrl)
+  return applyCoverFallbackToPreviewHtml(normalizeSvgImagePreviewHtml(rawHtml), metadataForm.coverUrl)
+}
+
+function normalizeSvgImagePreviewHtml(contentHtml) {
+  if (typeof document === 'undefined') return String(contentHtml || '')
+  const template = document.createElement('template')
+  template.innerHTML = String(contentHtml || '')
+  template.content.querySelectorAll('svg image').forEach((image) => {
+    const src = image.getAttribute('href') || image.getAttribute('xlink:href')
+    if (!src) return
+    const img = document.createElement('img')
+    img.setAttribute('src', src)
+    img.alt = image.getAttribute('alt') || 'book image'
+    img.loading = 'lazy'
+    const svg = image.closest('svg')
+    if (svg) {
+      svg.replaceWith(img)
+    } else {
+      image.replaceWith(img)
+    }
+  })
+  return template.innerHTML
 }
 
 function applyCoverFallbackToPreviewHtml(contentHtml, coverUrlFallback) {
   const coverUrl = normalizeCoverUrl(coverUrlFallback)
   if (!coverUrl) return String(contentHtml || '')
+  const imageCount = countPreviewImageReferences(contentHtml)
 
   return String(contentHtml || '').replace(
     /(\s(?:src|href|xlink:href)\s*=\s*)(["'])([^"']+)\2/gi,
@@ -1186,25 +1208,40 @@ function applyCoverFallbackToPreviewHtml(contentHtml, coverUrlFallback) {
       const lowerUrl = url.toLowerCase()
       if (lowerUrl.startsWith('data:image/')) return fullMatch
 
-      // 只对“裸文件名”做兜底，避免误伤已经解析好的图片路径
-      if (/[\\/]/.test(url) || lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://') || url.startsWith('/')) {
+      if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
         return fullMatch
       }
 
-      if (!looksLikeCoverFileName(url)) return fullMatch
+      if (!looksLikePreviewImageFileName(url)) return fullMatch
+      if (imageCount > 1 && !looksLikeCoverFileName(url)) return fullMatch
+      if (url.startsWith('/uploads/')) return fullMatch
       return `${prefix}${quote}${coverUrl}${quote}`
     }
   )
+}
+
+function countPreviewImageReferences(contentHtml) {
+  const matches = String(contentHtml || '').match(/<(?:img|image)\b[^>]*(?:src|href|xlink:href)\s*=/gi)
+  return matches ? matches.length : 0
+}
+
+function looksLikePreviewImageFileName(rawUrl) {
+  const url = String(rawUrl || '').trim()
+  if (!url) return false
+  if (/[\r\n<>"']/.test(url)) return false
+  const cleanUrl = url.split('?')[0].split('#')[0]
+  const fileName = cleanUrl.split(/[\\/]/).filter(Boolean).pop() || cleanUrl
+  return /^[^\\/]+?\.(png|jpe?g|gif|webp|svg|bmp|jfif|avif)$/i.test(fileName)
 }
 
 function looksLikeCoverFileName(rawUrl) {
   const url = String(rawUrl || '').trim()
   if (!url) return false
   if (/[\r\n<>"']/.test(url)) return false
-  if (!/^[^\\/]+?\.(png|jpe?g|gif|webp|svg)$/i.test(url)) return false
+  if (!looksLikePreviewImageFileName(url)) return false
 
-  const lower = url.toLowerCase().split('?')[0].split('#')[0]
-  const name = lower.replace(/\.(png|jpe?g|gif|webp|svg)$/i, '')
+  const lower = url.toLowerCase().split('?')[0].split('#')[0].split(/[\\/]/).filter(Boolean).pop() || ''
+  const name = lower.replace(/\.(png|jpe?g|gif|webp|svg|bmp|jfif|avif)$/i, '')
   // 仅对封面相关文件名做兜底，避免把其它章节图片错误替换成封面
   return name === 'cover' || name.startsWith('cover')
 }
@@ -1467,7 +1504,7 @@ async function handleRepairCover(job) {
       fillMetadataForm(updated)
     }
     await reloadHistory()
-    successMessage.value = '封面已从源文件恢复'
+    successMessage.value = updated?.message || '封面修复完成'
   } catch (error) {
     errorMessage.value = error.message || '封面恢复失败'
   } finally {
@@ -2591,7 +2628,11 @@ function formatFileSize(bytes) {
 
 .bk-imp-content-preview-body :deep(img) {
   display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 360px);
+  width: auto;
   height: auto;
+  object-fit: contain;
   margin: 1.2em auto;
 }
 

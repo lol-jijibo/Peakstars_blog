@@ -32,6 +32,7 @@ body {
   background: var(--app-bg);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   transition: background-color 0.35s ease, color 0.35s ease;
 }
 

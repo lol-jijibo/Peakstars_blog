@@ -144,6 +144,14 @@ public class AliyunOssContentStorageService implements ContentStorageService {
      * 优先使用自定义域名或 CDN 域名，未配置时回退到 Bucket endpoint 访问地址。
      */
     private String buildPublicUrl(String objectName) {
+        String publicBaseUrl = normalizeBaseUrl(ossProperties.getPublicBaseUrl());
+        if (!publicBaseUrl.isBlank()) {
+            return publicBaseUrl + "/" + objectName;
+        }
+        String endpoint = normalizeEndpointForUrl(ossProperties.getEndpoint());
+        if (!endpoint.isBlank() && ossProperties.getBucket() != null && !ossProperties.getBucket().isBlank()) {
+            return "https://" + ossProperties.getBucket() + "." + endpoint + "/" + objectName;
+        }
         return PROXY_BASE_URL + "/" + objectName;
     }
 

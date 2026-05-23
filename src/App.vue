@@ -58,10 +58,8 @@ watch(
     const fromIsDetail = /^\/articles\/\d+$/.test(previousPath)
     const toIsList = toPath === '/articles'
 
-    if (fromIsList && toIsDetail) {
+    if (toIsDetail || fromIsDetail) {
       transitionName.value = 'page-fade'
-    } else if (fromIsDetail && toIsList) {
-      transitionName.value = 'page-slide-back'
     } else {
       transitionName.value = route.meta.animation || 'page-fade'
     }

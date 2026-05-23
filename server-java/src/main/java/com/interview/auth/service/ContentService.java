@@ -1,6 +1,5 @@
 package com.interview.auth.service;
 
-import com.interview.auth.domain.dto.response.AiHotspotResponse;
 import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
@@ -9,64 +8,64 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 对外聚合技术文章、看天下和 AI 热点三类内容服务。
- * Service 层统一完成字段转换、分页装配和榜单整理，Controller 只负责暴露接口。
+ * 定义内容模块的对外契约，统一技术文章与资讯内容的查询入口。
+ * 实现类按此接口编码，并按当前登录用户补齐最近阅读时间等个性化字段。
  */
 public interface ContentService {
 
     /**
-     * 获取技术文章模块列表数据。
-     * 返回结构兼容现有前端字段命名，页面可以直接替换静态数据源。
+     * 返回技术文章列表，并补齐当前用户的最近阅读状态与阅读时间。
+     * 未登录时只返回公共展示字段，已登录时额外合并用户维度的浏览记录。
      */
-    List<TechArticleResponse> listTechArticles();
+    List<TechArticleResponse> listTechArticles(Long currentUserId);
 
     /**
      * 获取看天下期刊首页列表数据。
-     * 频道首页继续沿用同一套字段结构，前端无需再做字段重命名。
+     * 频道首页继续沿用统一字段结构，前端无需额外转换即可直接渲染。
      */
     List<WorldNewsIssueResponse> listWorldNewsIssues();
 
     /**
      * 按关键词分页检索看天下期刊。
-     * 统一返回列表、总数和页码信息，方便频道页搜索模式直接接入。
+     * 统一返回列表、总数和分页信息，便于频道搜索结果直接展示。
      */
     PageResult<WorldNewsIssueResponse> searchWorldNewsIssues(String keyword, int page, int size);
 
     /**
      * 获取看天下搜索联想词。
-     * 后端合并标题与封面文案候选，减少前端自行拼接文案规则。
+     * 后端聚合标题与封面文案候选，减少前端自行拼装候选结果的复杂度。
      */
     List<WorldNewsSuggestionResponse> suggestWorldNewsIssues(String keyword, int size);
 
     /**
      * 获取看天下榜单数据。
-     * 按榜单类型切换不同排序规则，支撑频道页四块榜单卡片展示。
+     * 按榜单类型切换不同排序规则，支撑频道页多个榜单模块复用。
      */
     List<WorldNewsIssueResponse> listWorldNewsRanking(String type, int page, int size);
 
     /**
      * 获取看天下热门推荐数据。
-     * 热门区复用统一期刊结构，前端只需裁剪成更轻量的卡片样式。
+     * 热门区域复用统一期刊结构，前端只需裁剪成轻量卡片样式。
      */
     List<WorldNewsIssueResponse> listPopularWorldNews(int size);
 
     /**
      * 获取单条看天下期刊详情。
-     * 返回完整正文和封面信息，供频道页详情浮层直接展示。
+     * 返回完整正文和封面信息，供频道详情层按需展示。
      */
     WorldNewsIssueResponse getWorldNewsIssueDetail(String issueKey);
 
     /**
-     * 获取 AI 热点列表数据。
-     * 推荐标记、发布时间和标签数组都在后端统一整理后返回给前端。
+     * 为指定技术文章增加阅读量，并刷新当前用户的最近阅读时间。
+     * 先原子更新文章阅读数，再按用户维度写入最后阅读时间供历史列表展示。
      */
-    List<AiHotspotResponse> listAiHotspots();
+    Map<String, Object> incrementArticleReadCount(String articleKey, Long currentUserId);
 
     /**
-     * 为指定技术文章增加阅读量。
-     * 使用原子更新后再回查最新值，保证详情页数字刷新稳定。
+     * 切换当前用户对技术文章的点赞状态。
+     * 已点赞时取消并扣减计数，未点赞时写入记录并递增计数。
      */
-    Map<String, Object> incrementArticleReadCount(String articleKey);
+    Map<String, Object> toggleArticleLike(String articleKey, Long currentUserId);
 
     /**
      * 新增一条技术文章评论并回写统计数。

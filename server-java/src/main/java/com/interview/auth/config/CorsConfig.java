@@ -1,5 +1,6 @@
 package com.interview.auth.config;
 
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +11,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * CORS 配置。
- * 作用：允许前端开发环境直接访问 Java 认证服务。
+ * 允许的来源通过环境变量 CORS_ALLOWED_ORIGINS 以逗号分隔配置，
+ * 开发环境默认开放 localhost 常见端口，生产环境必须显式指定前端域名。
  */
 @Configuration
 public class CorsConfig {
@@ -18,13 +20,16 @@ public class CorsConfig {
     @Value("${app.storage.local.upload-dir:${java.io.tmpdir}/peakstars-uploads}")
     private String uploadDir;
 
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    private List<String> allowedOrigins;
+
     @Bean
-    public WebMvcConfigurer webMvcConfigurer() {
+    public WebMvcConfigurer corsWebMvcConfigurer() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                    .allowedOriginPatterns("*")
+                    .allowedOriginPatterns(allowedOrigins.toArray(new String[0]))
                     .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                     .allowedHeaders("*");
             }

@@ -67,7 +67,7 @@ public final class RedisKeyConstants {
     }
 
     /**
-     * 登录相关 Key 前缀（预留扩展）
+     * 登录相关 Key 前缀
      */
     public static final class Login {
 
@@ -75,8 +75,21 @@ public final class RedisKeyConstants {
             throw new UnsupportedOperationException("This is a utility class and cannot be instantiated");
         }
 
-        // 可以在这里添加登录相关的 Redis key 前缀
-        // 例如：登录失败次数、Token 黑名单等
+        /**
+         * 登录失败次数计数器
+         * 格式：auth:login:fail-count:{account}:{clientIp}
+         * 值：失败次数（数字）
+         * 过期时间：15分钟
+         */
+        public static final String FAIL_COUNT_PREFIX = "auth:login:fail-count:";
+
+        /**
+         * 登录锁定标记
+         * 格式：auth:login:locked:{account}:{clientIp}
+         * 值：1（标记位）
+         * 过期时间：15分钟
+         */
+        public static final String LOCKED_PREFIX = "auth:login:locked:";
     }
 
     /**

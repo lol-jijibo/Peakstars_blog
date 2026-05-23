@@ -4,13 +4,20 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 
 const contentCache = {
   techArticles: { data: null, promise: null, timestamp: 0 },
-  worldNews: { data: null, promise: null, timestamp: 0 },
-  aiHotspots: { data: null, promise: null, timestamp: 0 }
+  worldNews: { data: null, promise: null, timestamp: 0 }
+}
+
+function getAccessToken() {
+  return localStorage.getItem('interview_demo_access_token') || ''
 }
 
 async function request(url, options = {}) {
+  const accessToken = getAccessToken()
   const response = await fetch(`${BASE_URL}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+    },
     ...options
   })
   const payload = await response.json()
@@ -20,14 +27,21 @@ async function request(url, options = {}) {
   return payload.data
 }
 
-function loadWithCache(cacheKey, url) {
+function loadWithCache(cacheKey, url, options = {}) {
   const target = contentCache[cacheKey]
-  if (target.data && (Date.now() - target.timestamp < CACHE_TTL_MS)) {
+  const forceRefresh = Boolean(options.forceRefresh)
+  if (!forceRefresh && target.data && (Date.now() - target.timestamp < CACHE_TTL_MS)) {
     return Promise.resolve(target.data)
   }
 
-  if (target.promise) {
+  if (!forceRefresh && target.promise) {
     return target.promise
+  }
+
+  if (forceRefresh) {
+    target.data = null
+    target.promise = null
+    target.timestamp = 0
   }
 
   target.promise = request(url)
@@ -43,8 +57,8 @@ function loadWithCache(cacheKey, url) {
   return target.promise
 }
 
-export function getTechArticles() {
-  return loadWithCache('techArticles', '/api/content/tech-articles')
+export function getTechArticles(options = {}) {
+  return loadWithCache('techArticles', '/api/content/tech-articles', options)
 }
 
 export function invalidateTechArticlesCache() {
@@ -83,18 +97,12 @@ export function getWorldNewsDetail(issueKey) {
   return request(`/api/content/world-news/${encodeURIComponent(issueKey)}`)
 }
 
-export function getAiHotspots() {
-  return loadWithCache('aiHotspots', '/api/content/ai-hotspots')
-}
-
-export function invalidateAiHotspotsCache() {
-  contentCache.aiHotspots.data = null
-  contentCache.aiHotspots.promise = null
-  contentCache.aiHotspots.timestamp = 0
-}
-
 export function incrementArticleReadCount(articleKey) {
   return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/read`, { method: 'POST' })
+}
+
+export function toggleArticleLike(articleKey) {
+  return request(`/api/content/tech-articles/${encodeURIComponent(articleKey)}/like`, { method: 'POST' })
 }
 
 export function getArticleComments(articleKey) {

@@ -1,12 +1,12 @@
 package com.interview.auth.service.impl;
 
-import com.interview.auth.domain.dto.response.AiHotspotResponse;
+import com.interview.auth.common.BusinessException;
+import com.interview.auth.common.TechArticleReadTimeCalculator;
 import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.domain.dto.response.TechArticleAuthorResponse;
 import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
 import com.interview.auth.domain.dto.response.WorldNewsSuggestionResponse;
-import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
 import com.interview.auth.infrastructure.mapper.ContentMapper;
@@ -30,7 +30,7 @@ public class ContentServiceImpl implements ContentService {
 
     private static final DateTimeFormatter ARTICLE_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter WORLD_NEWS_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final DateTimeFormatter HOTSPOT_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter ARTICLE_HISTORY_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ContentMapper contentMapper;
 
@@ -39,8 +39,11 @@ public class ContentServiceImpl implements ContentService {
      * 后端补齐作者对象、精选标记和亮点数组，让文章页与导航预览复用同一数据源。
      */
     @Override
-    public List<TechArticleResponse> listTechArticles() {
-        return contentMapper.findPublishedTechArticles()
+    public List<TechArticleResponse> listTechArticles(Long currentUserId) {
+        List<TechArticle> articles = currentUserId == null
+            ? contentMapper.findPublishedTechArticles()
+            : contentMapper.findPublishedTechArticlesByUser(currentUserId);
+        return articles
             .stream()
             .map(this::toTechArticleResponse)
             .toList();
@@ -129,18 +132,6 @@ public class ContentServiceImpl implements ContentService {
     }
 
     /**
-     * 查询 AI 热点列表并转换成前端热点流结构。
-     * 标签拆分和时间格式化都在后端完成，前端只负责做推荐和最新切换。
-     */
-    @Override
-    public List<AiHotspotResponse> listAiHotspots() {
-        return contentMapper.findPublishedAiHotspots()
-            .stream()
-            .map(this::toAiHotspotResponse)
-            .toList();
-    }
-
-    /**
      * 把技术文章实体转换成前端文章对象。
      * 使用 articleKey 作为稳定 id，保证现有路由和列表 key 行为不变。
      */
@@ -148,6 +139,7 @@ public class ContentServiceImpl implements ContentService {
         TechArticleResponse response = new TechArticleResponse();
         response.setId(article.getArticleKey());
         response.setCategory(article.getCategory());
+        response.setCategoryLabel(resolveTechCategoryLabel(article));
         response.setTitle(article.getTitle());
         response.setSummary(article.getSummary());
         response.setEssence(article.getEssence());
@@ -160,7 +152,8 @@ public class ContentServiceImpl implements ContentService {
         response.setLikeCount(article.getLikeCount());
         response.setCollectCount(article.getCollectCount());
         response.setCommentCount(article.getCommentCount());
-        response.setReadTime(article.getReadTime());
+        response.setReadTime(TechArticleReadTimeCalculator.estimateReadTime(article.getContentHtml(), article.getReadTime()));
+        response.setLastReadAt(article.getLastReadAt() == null ? null : article.getLastReadAt().format(ARTICLE_HISTORY_TIME_FORMATTER));
         response.setIsVip(toBoolean(article.getIsVip()));
         response.setIsCollected(toBoolean(article.getIsCollected()));
         response.setIsLiked(toBoolean(article.getIsLiked()));
@@ -180,6 +173,22 @@ public class ContentServiceImpl implements ContentService {
         author.setInitials(article.getAuthorInitials());
         author.setAccent(article.getAuthorAccent());
         return author;
+    }
+
+    /**
+     * 解析技术文章分类中文标签。
+     * 优先使用数据库保存的展示字段，缺失时按历史分类编码兜底生成页面文案。
+     */
+    private String resolveTechCategoryLabel(TechArticle article) {
+        if (article.getCategoryLabel() != null && !article.getCategoryLabel().isBlank()) {
+            return article.getCategoryLabel();
+        }
+        return switch (String.valueOf(article.getCategory()).trim().toLowerCase()) {
+            case "frontend" -> "前端工程";
+            case "backend" -> "后端架构";
+            case "project" -> "项目业务解析";
+            default -> "技术文章";
+        };
     }
 
     /**
@@ -217,40 +226,51 @@ public class ContentServiceImpl implements ContentService {
     }
 
     /**
-     * 把 AI 热点实体转换成前端热点流结构。
-     * 标签数组和推荐标记都在后端统一整理，保证推荐流和最新流共用一套数据。
-     */
-    private AiHotspotResponse toAiHotspotResponse(AiHotspot hotspot) {
-        AiHotspotResponse response = new AiHotspotResponse();
-        response.setId(hotspot.getHotspotKey());
-        response.setTrack(hotspot.getTrack());
-        response.setHotspotType(hotspot.getHotspotType());
-        response.setTitle(hotspot.getTitle());
-        response.setSummary(hotspot.getSummary());
-        response.setAuthorName(hotspot.getAuthorName());
-        response.setPublishedAt(hotspot.getPublishedAt() == null ? null : hotspot.getPublishedAt().format(HOTSPOT_DATE_TIME_FORMATTER));
-        response.setCoverUrl(hotspot.getCoverUrl());
-        response.setTags(splitPipeValues(hotspot.getTagList()));
-        response.setViewCount(hotspot.getViewCount());
-        response.setCommentCount(hotspot.getCommentCount());
-        response.setLikeCount(hotspot.getLikeCount());
-        response.setHeat(hotspot.getHeat());
-        response.setIsRecommended(toBoolean(hotspot.getIsRecommended()));
-        response.setIsToday(toBoolean(hotspot.getIsToday()));
-        return response;
-    }
-
-    /**
      * 为指定技术文章增加阅读量。
      * 更新阅读数后顺带标记浏览历史，再把最新阅读数返回给前端刷新显示。
      */
     @Override
-    public Map<String, Object> incrementArticleReadCount(String articleKey) {
+    public Map<String, Object> incrementArticleReadCount(String articleKey, Long currentUserId) {
         contentMapper.incrementReadCount(articleKey);
         contentMapper.markArticleInHistory(articleKey);
+        if (currentUserId != null) {
+            contentMapper.upsertArticleReadHistory(currentUserId, articleKey);
+        }
         Integer readCount = contentMapper.findReadCount(articleKey);
         Map<String, Object> result = new HashMap<>();
         result.put("readCount", readCount != null ? readCount : 0);
+        return result;
+    }
+
+    /**
+     * 切换当前用户对技术文章的点赞状态。
+     * 先检查用户维度点赞记录，再按新增或删除结果同步更新文章点赞计数。
+     */
+    @Override
+    public Map<String, Object> toggleArticleLike(String articleKey, Long currentUserId) {
+        if (currentUserId == null) {
+            throw new BusinessException(401, "请先登录后再点赞");
+        }
+
+        boolean liked;
+        if (contentMapper.countArticleLikeByUser(articleKey, currentUserId) > 0) {
+            int deleted = contentMapper.deleteArticleLike(articleKey, currentUserId);
+            if (deleted > 0) {
+                contentMapper.decrementLikeCount(articleKey);
+            }
+            liked = false;
+        } else {
+            int inserted = contentMapper.insertArticleLike(articleKey, currentUserId);
+            if (inserted > 0) {
+                contentMapper.incrementLikeCount(articleKey);
+            }
+            liked = true;
+        }
+
+        Integer likeCount = contentMapper.findLikeCount(articleKey);
+        Map<String, Object> result = new HashMap<>();
+        result.put("liked", liked);
+        result.put("likeCount", likeCount != null ? likeCount : 0);
         return result;
     }
 

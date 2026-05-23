@@ -4,67 +4,62 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.HexFormat;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
  * 密码服务。
- * 作用：负责密码加密和密码校验，避免控制器或业务层直接操作明文密码。
+ * 使用 BCrypt 进行密码哈希，同时兼容旧版 SHA-256 哈希的自动迁移。
  */
 @Component
 public class PasswordService {
 
-    /**
-     * 安全随机数生成器。
-     * 作用：为每个密码生成独立盐值，降低相同密码得到相同哈希的风险。
-     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final BCryptPasswordEncoder BCRYPT = new BCryptPasswordEncoder();
 
     /**
-     * 对明文密码进行加盐哈希。
-     *
-     * @param rawPassword 用户输入的明文密码
-     * @return 形如 {@code salt:hash} 的持久化结果
+     * 对明文密码进行 BCrypt 哈希。
      */
     public String encode(String rawPassword) {
-        String salt = generateSalt();
-        String hash = sha256(salt + rawPassword);
-        return salt + ":" + hash;
+        return BCRYPT.encode(rawPassword);
     }
 
     /**
      * 校验明文密码与已存储密码是否匹配。
-     *
-     * @param rawPassword 登录时输入的明文密码
-     * @param encodedPassword 数据库存储的加盐哈希结果
-     * @return 匹配返回 true，否则返回 false
+     * 兼容旧版 SHA-256 哈希格式（salt:hash），并使用常量时间比较防止时序攻击。
      */
     public boolean matches(String rawPassword, String encodedPassword) {
-        if (encodedPassword == null || !encodedPassword.contains(":")) {
+        if (encodedPassword == null) {
             return false;
         }
+
+        if (isLegacyHash(encodedPassword)) {
+            return matchesLegacy(rawPassword, encodedPassword);
+        }
+
+        return BCRYPT.matches(rawPassword, encodedPassword);
+    }
+
+    /**
+     * 判断存储的密码是否为旧版 SHA-256 格式（salt:hash）。
+     * 旧版密码在登录成功后应调用 {@link #encode(String)} 升级为 BCrypt。
+     */
+    public boolean isLegacyHash(String encodedPassword) {
+        return encodedPassword != null && encodedPassword.contains(":") && !encodedPassword.startsWith("$");
+    }
+
+    private boolean matchesLegacy(String rawPassword, String encodedPassword) {
         String[] parts = encodedPassword.split(":", 2);
-        String salt = parts[0];
-        String expectedHash = parts[1];
-        return expectedHash.equals(sha256(salt + rawPassword));
+        if (parts.length != 2) {
+            return false;
+        }
+        String expectedHash = sha256(parts[0] + rawPassword);
+        return MessageDigest.isEqual(
+            expectedHash.getBytes(StandardCharsets.UTF_8),
+            parts[1].getBytes(StandardCharsets.UTF_8)
+        );
     }
 
-    /**
-     * 生成盐值。
-     *
-     * @return 16 字节随机数对应的十六进制字符串
-     */
-    private String generateSalt() {
-        byte[] bytes = new byte[16];
-        SECURE_RANDOM.nextBytes(bytes);
-        return HexFormat.of().formatHex(bytes);
-    }
-
-    /**
-     * 计算 SHA-256 哈希。
-     *
-     * @param content 待哈希内容
-     * @return 十六进制哈希字符串
-     */
     private String sha256(String content) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -73,5 +68,14 @@ public class PasswordService {
         } catch (Exception exception) {
             throw new IllegalStateException("密码加密失败", exception);
         }
+    }
+
+    /**
+     * 生成旧版 SHA-256 格式的盐值（仅用于兼容校验，新密码不再使用）。
+     */
+    public String generateSalt() {
+        byte[] bytes = new byte[16];
+        SECURE_RANDOM.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
     }
 }

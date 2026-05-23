@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <div class="home-page">
     <blog-mega-header current-page="home" />
 
     <main class="home-main">
-      <!-- ═══ HERO ═══ -->
+      <!-- HERO -->
       <section class="hero" aria-label="首页主视觉">
         <div class="hero-bg">
           <div class="hero-grid-lines"></div>
@@ -19,8 +19,8 @@
             <span class="hero-title-accent">PeakStars</span> Blog
           </h1>
           <p class="hero-desc animate-fade-up delay-200">
-            技术博客与面经论坛 —— 写值得你花时间阅读的内容。<br>
-            深耕前端工程、后端架构与 AI 前沿，提供系统化学习路线与真实面试经验。
+            技术博客与面经论坛，写值得花时间阅读的内容。<br>
+            深耕前端工程、后端架构与系统设计，提供系统化学习路线与真实面试经验。
           </p>
           <div class="hero-actions animate-fade-up delay-300">
             <button class="btn-primary" type="button" @click="goArticles">
@@ -56,7 +56,7 @@
         </div>
       </section>
 
-      <!-- ═══ FEATURE ZONES ═══ -->
+      <!-- FEATURE ZONES -->
       <section class="zones" aria-label="核心内容">
         <div class="container">
           <div class="section-label animate-fade-up">
@@ -104,31 +104,6 @@
               <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
             </article>
 
-            <article class="zone-card zc-ai animate-fade-up delay-300" @click="goAiHotspot">
-              <div class="zone-icon">
-                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="12" y="8" width="24" height="18" rx="3" stroke="currentColor" stroke-width="3"/>
-                  <path d="M18 26V32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                  <path d="M30 26V32" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                  <path d="M14 32H34" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                  <circle cx="20" cy="17" r="2" fill="currentColor"/>
-                  <circle cx="28" cy="17" r="2" fill="currentColor"/>
-                  <path d="M19 22C19 22 21 24 24 24C27 24 29 22 29 22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  <path d="M8 16L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
-                  <path d="M36 12L40 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
-                  <circle cx="7" cy="17" r="1.5" fill="currentColor" opacity="0.3"/>
-                  <circle cx="41" cy="17" r="1.5" fill="currentColor" opacity="0.3"/>
-                </svg>
-              </div>
-              <h3 class="zone-title">AI 前沿</h3>
-              <p class="zone-desc">追踪 AI 行业热点，解读大模型趋势与落地方案，与技术浪潮同行。</p>
-              <div class="zone-tags">
-                <span class="zone-tag">大模型</span>
-                <span class="zone-tag">AIGC</span>
-                <span class="zone-tag">LLM</span>
-              </div>
-              <span class="zone-arrow"><i class="fas fa-arrow-right"></i></span>
-            </article>
 
             <article class="zone-card zc-route animate-fade-up delay-300" @click="goArticles">
               <div class="zone-icon">
@@ -142,7 +117,7 @@
                 </svg>
               </div>
               <h3 class="zone-title">学习路线</h3>
-              <p class="zone-desc">从入门到进阶的系统化学习路径，让你不再迷茫于海量资料之中。</p>
+              <p class="zone-desc">从入门到进阶的系统化学习路径，让你不再迷失于海量资料之中。</p>
               <div class="zone-tags">
                 <span class="zone-tag">Java 后端</span>
                 <span class="zone-tag">全栈进阶</span>
@@ -154,7 +129,7 @@
         </div>
       </section>
 
-      <!-- ═══ FEATURED HIGHLIGHTS ═══ -->
+      <!-- FEATURED HIGHLIGHTS -->
       <section class="highlights" aria-label="精选内容">
         <div class="container">
           <div class="section-label animate-fade-up">
@@ -195,8 +170,8 @@
         </div>
       </section>
 
-      <!-- ═══ TECH SPHERE ═══ -->
-      <section class="tech-sphere" aria-label="技术覆盖">
+      <!-- TECH SPHERE -->
+      <section class="tech-sphere" aria-label="技术图谱">
         <div class="container">
           <div class="section-label animate-fade-up">
             <span class="section-label-line"></span>
@@ -217,28 +192,22 @@
         </div>
       </section>
 
-      <!-- ═══ ABOUT / PERSONAL ═══ -->
+      <!-- ABOUT / PERSONAL -->
       <section class="about-section" aria-label="关于作者">
         <div class="container">
           <div class="about-card animate-fade-up">
             <div class="about-avatar-area">
               <div class="about-avatar-ring">
-                <span class="about-avatar-text">PS</span>
+                <img class="about-avatar-image" src="/qq.jpg" alt="码客星云头像" />
               </div>
             </div>
             <div class="about-content">
               <h3 class="about-name">码客星云</h3>
-              <p class="about-role">全栈架构师 · 终身学习者 · 技术写作人</p>
+              <p class="about-role">全栈架构师 / 终身学习者 / 小白本白</p>
               <p class="about-bio">
-                相信技术的力量，更相信持续学习的价值。在这里记录架构设计的思考、面试准备的沉淀、AI 浪潮的观察。
-                每一篇文章都追求深度与实用性并重——不只是告诉你"怎么做"，更帮你理解"为什么"。
+                相信技术的力量，也相信持续学习的价值。在这里记录架构设计的思考、面试准备的沉淀与工程实践的观察。
+                每一篇文章都追求深度与实用性并重，不只是告诉你怎么做，更帮你理解为什么。
               </p>
-              <div class="about-social">
-                <a href="javascript:void(0)" class="about-social-link" title="GitHub"><i class="fab fa-github"></i></a>
-                <a href="javascript:void(0)" class="about-social-link" title="Twitter"><i class="fab fa-twitter"></i></a>
-                <a href="javascript:void(0)" class="about-social-link" title="WeChat"><i class="fab fa-weixin"></i></a>
-                <a href="javascript:void(0)" class="about-social-link" title="RSS"><i class="fas fa-rss"></i></a>
-              </div>
             </div>
             <div class="about-theme-panel">
               <h4 class="theme-panel-title"><i class="fas fa-palette"></i> 明暗模式</h4>
@@ -247,19 +216,19 @@
                 <i :class="isDarkTheme ? 'fas fa-sun' : 'fas fa-moon'"></i>
                 <span>切换到{{ isDarkTheme ? '亮色' : '暗色' }}</span>
               </button>
-              <p class="theme-panel-note">背景色支持前后端互调配置</p>
+              <p class="theme-panel-note">背景色支持前后端联动配置</p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ═══ FOOTER ═══ -->
+      <!-- FOOTER -->
       <footer class="home-footer" aria-label="站点底部">
         <div class="container">
           <div class="footer-inner">
             <div class="footer-brand-col">
               <div class="footer-logo">
-                <div class="footer-logo-icon"><i class="fas fa-terminal"></i></div>
+                <img class="footer-logo-icon" src="/qq.jpg" alt="PeakStars_blog 头像" />
                 <span class="footer-logo-text">PeakStars_blog</span>
               </div>
               <p class="footer-tagline">面向持续精进的开发者。技术博客与面经论坛，写值得你花时间阅读的内容。</p>
@@ -269,7 +238,6 @@
               <ul class="footer-links">
                 <li><a href="javascript:void(0)" @click="goArticles">技术文章</a></li>
                 <li><a href="javascript:void(0)" @click="goInterview">面经宝典</a></li>
-                <li><a href="javascript:void(0)" @click="goAiHotspot">AI 热点</a></li>
               </ul>
             </div>
             <div class="footer-links-col">
@@ -365,7 +333,6 @@ async function loadHomeData() {
 
 function goArticles() { router.push('/articles') }
 function goInterview() { router.push('/interview') }
-function goAiHotspot() { router.push('/ai-hotspot') }
 function openArticle(articleId) { router.push(`/articles/${articleId}`) }
 
 function resolveArticleLabel(category) {
@@ -398,17 +365,13 @@ function tagColorClass(tag) {
 }
 
 function resolveCoverUrl(coverUrl) {
-  /**
-   * 统一补齐首页精选卡片封面地址，保证后台新增封面和默认兜底图都能直接渲染。
-   * 取消背景图裁切方案后改为真实图片标签输出，避免固定高度容器制造上下留白。
-   */
   return coverUrl || '/peakstars-blog-icon.jpg'
 }
 
 function formatReadTime(value) {
   const text = String(value || '').trim()
   const minuteMatch = text.match(/(\d+)/)
-  return minuteMatch ? `${minuteMatch[1]}分钟` : '8分钟'
+  return minuteMatch ? `${minuteMatch[1]}分钟` : '1分钟'
 }
 
 function formatShortDateCN(value) {
@@ -422,3 +385,4 @@ onMounted(() => { loadHomeData() })
 </script>
 
 <style scoped src="../styles/views/HomeView.css"></style>
+

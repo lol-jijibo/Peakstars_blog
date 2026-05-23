@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "面经小项目 - Vue3 + Vite",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-with-backend.js",
     "build": "vite build",
     "preview": "vite preview"
   },

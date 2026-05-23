@@ -35,14 +35,12 @@
     </header>
 
     <main class="article-hub-main">
-      <!-- 页面标题区 -->
       <section class="article-page-header">
         <div class="article-page-header-copy">
           <span class="article-page-kicker">{{ activeCategoryInfo.caption }} · {{ activeModeInfo.label }}</span>
           <h1>技术文章</h1>
         </div>
 
-        <!-- 浏览模式切换 -->
         <div class="article-mode-pills">
           <button
             v-for="mode in articleModes"
@@ -57,7 +55,6 @@
           </button>
         </div>
 
-        <!-- 分类筛选 -->
         <div class="article-category-pills">
           <button
             v-for="category in sidebarCategories"
@@ -73,7 +70,6 @@
         </div>
       </section>
 
-      <!-- 文章流列表 -->
       <section v-if="filteredArticles.length" class="article-stream">
         <article
           v-for="article in filteredArticles"
@@ -85,7 +81,6 @@
           @keydown.enter="openArticleDetail(article.id)"
         >
           <div class="article-row-body">
-            <!-- 元信息行：分类 + 状态徽标 + 日期 + 阅读时长 -->
             <div class="article-row-meta">
               <span class="article-category-badge" :class="[`badge-${article.category}`]">{{ article.categoryLabel }}</span>
               <span v-if="article.featured" class="article-status-badge badge-featured">精选</span>
@@ -95,26 +90,20 @@
               <span class="article-meta-sep">·</span>
               <span class="article-meta-text">{{ formatLongDate(article.publishedAt) }}</span>
               <span class="article-meta-sep">·</span>
-              <span class="article-meta-text">{{ formatReadTime(article.readTime) }}</span>
+              <span class="article-meta-text" :class="{ 'article-meta-text--read-history': article.lastReadAt }">{{ formatArticleReadMeta(article) }}</span>
             </div>
 
-            <!-- 标题 -->
             <h2 class="article-row-title">{{ article.title }}</h2>
-
-            <!-- 摘要 -->
             <p class="article-row-summary">{{ article.summary }}</p>
 
-            <!-- 亮点 -->
             <div v-if="article.highlights.length" class="article-row-highlights">
               <span v-for="item in article.highlights" :key="item" class="article-highlight-tag">{{ item }}</span>
             </div>
 
-            <!-- 标签 -->
             <div v-if="article.tags.length" class="article-row-tags">
               <span v-for="tag in article.tags" :key="tag" class="article-tag">{{ tag }}</span>
             </div>
 
-            <!-- 底部：作者 + 数据 -->
             <div class="article-row-footer">
               <div class="article-author-row">
                 <span
@@ -139,14 +128,12 @@
             </div>
           </div>
 
-          <!-- 封面图 -->
           <div v-if="article.coverUrl" class="article-row-cover" :class="`category-${article.category}`">
             <img :src="article.coverUrl" :alt="article.title" loading="lazy" />
           </div>
         </article>
       </section>
 
-      <!-- 空状态 -->
       <section v-else class="article-empty-state">
         <strong>当前筛选下暂无文章</strong>
         <p>请切换浏览方式或分类后继续查看。</p>
@@ -168,7 +155,6 @@ import { recommendedAuthors, techArticleCategories } from '@/data/techCategories
 import { useThemeStore } from '@/stores/theme'
 import { scrollRestorationMap } from '@/stores/scrollRestoration'
 
-// keep-alive 通过组件 name 匹配缓存目标
 defineOptions({ name: 'TechArticleList' })
 
 const route = useRoute()
@@ -177,11 +163,10 @@ const { isDark, toggleTheme } = useThemeStore()
 const techArticles = ref([])
 const scrollProgress = ref(0)
 const articleListRestoreAnimating = ref(false)
+const LOCAL_TECH_ARTICLE_READ_HISTORY_KEY = 'peakstars_tech_article_read_history'
+const localReadHistory = ref(readLocalArticleReadHistory())
 let articleListRestoreTimer = null
 
-/**
- * 浏览模式：推荐 / 收藏夹 / VIP
- */
 const articleModes = [
   { key: 'recommend', label: '推荐', description: '优先展示精选与最近发布的文章。' },
   { key: 'collect', label: '收藏夹', description: '聚焦用户已经收藏过的内容。' },
@@ -190,7 +175,7 @@ const articleModes = [
 
 const sidebarCategories = techArticleCategories.filter((item) => item.key !== 'vip')
 const topbarCategoryItems = sidebarCategories.filter((item) =>
-  ['all', 'frontend', 'backend'].includes(item.key)
+  ['all', 'frontend', 'backend', 'project'].includes(item.key)
 )
 
 const activeModeKey = ref(resolveModeKey(route.query.mode))
@@ -209,6 +194,10 @@ const filteredArticles = computed(() => {
   )
 
   return [...categoryList].sort((left, right) => {
+    if (right.lastReadAtTime !== left.lastReadAtTime) {
+      return right.lastReadAtTime - left.lastReadAtTime
+    }
+
     if (Number(right.featured) !== Number(left.featured)) {
       return Number(right.featured) - Number(left.featured)
     }
@@ -234,15 +223,14 @@ async function loadArticles() {
   }
 }
 
-/** 静默刷新文章列表，不阻塞 UI，数据回来后无缝替换 */
 async function refreshArticlesSilently() {
   try {
-    const list = await getTechArticles()
+    const list = await getTechArticles({ forceRefresh: true })
     if (Array.isArray(list) && list.length > 0) {
       techArticles.value = list
     }
   } catch {
-    // 静默刷新失败不影响当前展示
+    // noop
   }
 }
 
@@ -253,17 +241,11 @@ onMounted(async () => {
   updateScrollState()
 })
 
-/**
- * 从 keep-alive 缓存恢复时：
- * - 如果已有数据，不再重新请求（避免白屏闪烁）
- * - 恢复滚动位置
- * - 后台静默刷新数据，确保阅读数/评论数等状态最新
- */
 onActivated(() => {
   document.body.classList.add('article-hub-page')
   window.addEventListener('scroll', handleWindowScroll, { passive: true })
+  localReadHistory.value = readLocalArticleReadHistory()
 
-  // 恢复滚动位置（优先从 scrollRestorationMap，回退到 router savedPosition）
   const currentPath = route.fullPath
   const saved = scrollRestorationMap.get(currentPath)
   if (saved) {
@@ -272,10 +254,6 @@ onActivated(() => {
     }
     articleListRestoreAnimating.value = false
     requestAnimationFrame(() => {
-      /**
-       * 业务目的: 技术文章列表从详情页返回时补一层和详情页一致的柔和入场反馈。
-       * 业务逻辑: 在恢复列表滚动位置前重新触发淡入上浮动画，避免 keep-alive 直接复用造成一闪一现。
-       */
       articleListRestoreAnimating.value = true
       window.scrollTo(saved.x, saved.y)
       articleListRestoreTimer = window.setTimeout(() => {
@@ -285,19 +263,13 @@ onActivated(() => {
     })
   }
 
-  // 数据为空时同步加载；已有数据时后台静默刷新，不阻塞渲染
   if (techArticles.value.length === 0) {
     loadArticles()
   } else {
-    // 静默刷新：不阻塞 UI，数据回来后无缝替换
     refreshArticlesSilently()
   }
 })
 
-/**
- * 业务目的: 在离开技术文章列表时精准记住用户点击文章前的浏览位置。
- * 业务逻辑: 使用列表页自身的 fullPath 作为键保存滚动坐标，避免切到详情页后被新路由覆盖。
- */
 onBeforeRouteLeave((to, from) => {
   scrollRestorationMap.set(from.fullPath, { x: window.scrollX, y: window.scrollY })
 })
@@ -311,7 +283,6 @@ onBeforeUnmount(() => {
   }
 })
 
-/** 被 keep-alive 缓存挂起时，清理全局副作用 */
 onDeactivated(() => {
   document.body.classList.remove('article-hub-page')
   window.removeEventListener('scroll', handleWindowScroll)
@@ -422,9 +393,13 @@ function normalizeArticle(item, index) {
   const category = item.category || 'frontend'
   const highlights = Array.isArray(item.highlights) ? item.highlights.filter(Boolean) : []
   const tags = Array.isArray(item.tags) ? item.tags.filter(Boolean) : []
+  const articleId = item.id || `tech-article-${index}`
+  const localLastReadAt = localReadHistory.value[String(articleId)] || ''
+  const lastReadAt = item.lastReadAt || localLastReadAt
+  const lastReadAtTime = resolveTimeValue(lastReadAt)
 
   return {
-    id: item.id || `tech-article-${index}`,
+    id: articleId,
     category,
     categoryLabel: item.categoryLabel || resolveCategoryLabel(category),
     title: item.title || '未命名文章',
@@ -439,12 +414,14 @@ function normalizeArticle(item, index) {
     likeCount: Number(item.likeCount || 0),
     collectCount: Number(item.collectCount || 0),
     commentCount: Number(item.commentCount || 0),
-    readTime: item.readTime || '6 min',
+    readTime: item.readTime || '',
+    lastReadAt,
+    lastReadAtTime,
     featured: Boolean(item.featured),
     isVip: Boolean(item.isVip ?? item.vip),
     isCollected: Boolean(item.isCollected ?? item.collected),
     isLiked: Boolean(item.isLiked ?? item.liked),
-    inHistory: Boolean(item.inHistory ?? item.history),
+    inHistory: Boolean(item.inHistory ?? item.history ?? lastReadAt),
     highlights,
     tags,
     author: {
@@ -470,8 +447,9 @@ function normalizeArticle(item, index) {
 
 function resolveCategoryLabel(category) {
   const labelMap = {
-    frontend: '前端',
-    backend: '后端',
+    frontend: '前端工程',
+    backend: '后端架构',
+    project: '项目业务解析',
     all: '全部文章',
     history: '历史',
     collect: '收藏',
@@ -482,6 +460,7 @@ function resolveCategoryLabel(category) {
 
 function resolveAccentByCategory(category) {
   if (category === 'backend') return 'linear-gradient(135deg, #c84b2f, #0891b2)'
+  if (category === 'project') return 'linear-gradient(135deg, #7c3aed, #22c55e)'
   return 'linear-gradient(135deg, #c84b2f, #f59e0b)'
 }
 
@@ -500,13 +479,58 @@ function formatCount(value) {
 
 function formatReadTime(value) {
   const minuteMatch = String(value || '').match(/(\d+)/)
-  return minuteMatch ? `${minuteMatch[1]} 分钟阅读` : '6 分钟阅读'
+  return minuteMatch ? `${minuteMatch[1]} 分钟阅读` : '1 分钟阅读'
+}
+
+function resolveTimeValue(value) {
+  if (!value) {
+    return 0
+  }
+
+  const date = new Date(String(value).replace(' ', 'T'))
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+}
+
+function formatArticleReadMeta(article) {
+  if (article.lastReadAt) {
+    return formatHistoryTime(article.lastReadAt)
+  }
+
+  return formatReadTime(article.readTime)
 }
 
 function formatLongDate(value) {
   const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return value || '待发布'
   return `${match[1]}.${match[2]}.${match[3]}`
+}
+
+function formatHistoryTime(value) {
+  const date = new Date(String(value || '').replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  if (diffMs >= 0 && diffMs < 60000) return '刚刚阅读'
+  if (diffMs >= 0 && diffMs < 3600000) return `${Math.floor(diffMs / 60000)} 分钟前阅读`
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOfToday - startOfTarget) / 86400000)
+  const timeText = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+
+  if (diffDays === 0) return `今天 ${timeText} 阅读`
+  if (diffDays === 1) return `昨天 ${timeText} 阅读`
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${timeText}`
+}
+
+function readLocalArticleReadHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOCAL_TECH_ARTICLE_READ_HISTORY_KEY) || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 </script>
 

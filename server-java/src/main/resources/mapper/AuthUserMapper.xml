@@ -46,4 +46,9 @@
     INSERT INTO auth_user (username, email, password_hash, status, created_at, updated_at)
     VALUES (#{username}, #{email}, #{passwordHash}, #{status}, NOW(), NOW())
   </insert>
+
+  <update id="updatePassword">
+    UPDATE auth_user SET password_hash = #{passwordHash}, updated_at = NOW()
+    WHERE id = #{id}
+  </update>
 </mapper>

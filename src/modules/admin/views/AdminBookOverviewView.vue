@@ -1,5 +1,11 @@
 <template>
   <div class="book-overview-shell">
+    <Transition name="book-overview-success-fade">
+      <div v-if="successMessage" class="book-overview-success-toast">
+        {{ successMessage }}
+      </div>
+    </Transition>
+
     <section v-if="errorMessage" class="book-overview-alert">
       {{ errorMessage }}
     </section>
@@ -231,6 +237,7 @@
             :key="option"
             type="button"
             :class="{ active: categoryEditorForm.category === option }"
+            :disabled="categorySaving"
             @click="categoryEditorForm.category = option"
           >
             {{ option }}
@@ -329,6 +336,7 @@ const books = ref([])
 const importJobs = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 const activeTab = ref('all')
 const selectedCategoryKey = ref('all')
 const page = ref(1)
@@ -345,6 +353,7 @@ const deleteTargetBook = ref(null)
 const softDeletingBook = ref(false)
 const hardDeletingBook = ref(false)
 const deleteHoverAction = ref('')
+let successMessageTimer = null
 
 const bookCategoryOptions = Object.values(BOOK_CATEGORY_PRESETS).map((item) => item.label)
 
@@ -624,6 +633,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleOutsideActionPointerDown)
   window.removeEventListener('resize', closeBookActionMenu)
   window.removeEventListener('scroll', closeBookActionMenu, true)
+  clearSuccessMessageTimer()
 })
 
 watch([page, filteredBooks], () => {
@@ -639,6 +649,25 @@ watch(activeTab, () => {
 watch(selectedCategoryKey, () => {
   page.value = 1
 })
+
+watch(successMessage, (message) => {
+  clearSuccessMessageTimer()
+  if (!message) return
+  successMessageTimer = window.setTimeout(() => {
+    successMessage.value = ''
+    successMessageTimer = null
+  }, 1800)
+})
+
+function clearSuccessMessageTimer() {
+  if (!successMessageTimer) return
+  window.clearTimeout(successMessageTimer)
+  successMessageTimer = null
+}
+
+function showSuccessMessage(message) {
+  successMessage.value = message
+}
 
 async function loadBooks() {
   loading.value = true
@@ -892,8 +921,8 @@ function openCategoryEditor(book) {
   categoryEditorVisible.value = true
 }
 
-function closeCategoryEditor() {
-  if (categorySaving.value) return
+function closeCategoryEditor(force = false) {
+  if (!force && categorySaving.value) return
   categoryEditorVisible.value = false
   categoryEditorBook.value = null
 }
@@ -903,7 +932,8 @@ async function saveCategoryEditor() {
   if (!book) return
   if (book.sourceType === 'importJob') {
     errorMessage.value = '待审核书籍请进入导入中心审核页修改标签'
-    closeCategoryEditor()
+    closeCategoryEditor(true)
+    showSuccessMessage('标签保存成功')
     return
   }
   categorySaving.value = true
@@ -911,7 +941,7 @@ async function saveCategoryEditor() {
   try {
     await updateAdminBookCategory(book.bookKey || book.id, categoryEditorForm.category)
     await Promise.all([loadBooks(), loadImportJobs()])
-    closeCategoryEditor()
+    closeCategoryEditor(true)
   } catch (error) {
     errorMessage.value = error.message || '保存书籍标签失败'
   } finally {
@@ -925,8 +955,8 @@ function openDeleteConfirm(book) {
   deleteConfirmVisible.value = true
 }
 
-function closeDeleteConfirm() {
-  if (softDeletingBook.value || hardDeletingBook.value) return
+function closeDeleteConfirm(force = false) {
+  if (!force && (softDeletingBook.value || hardDeletingBook.value)) return
   deleteConfirmVisible.value = false
   deleteTargetBook.value = null
   deleteHoverAction.value = ''
@@ -937,7 +967,8 @@ async function confirmSoftDeleteBook() {
   if (!book) return
   if (book.sourceType === 'importJob') {
     errorMessage.value = '待审核导入任务请在书籍导入中心处理'
-    closeDeleteConfirm()
+    closeDeleteConfirm(true)
+    showSuccessMessage('软删除成功')
     return
   }
   softDeletingBook.value = true
@@ -945,7 +976,8 @@ async function confirmSoftDeleteBook() {
   try {
     await softDeleteAdminBook(book.bookKey || book.id)
     await Promise.all([loadBooks(), loadImportJobs()])
-    closeDeleteConfirm()
+    closeDeleteConfirm(true)
+    showSuccessMessage('彻底删除成功')
   } catch (error) {
     errorMessage.value = error.message || '软删除书籍失败'
   } finally {
@@ -958,7 +990,7 @@ async function confirmHardDeleteBook() {
   if (!book) return
   if (book.sourceType === 'importJob') {
     errorMessage.value = '待审核导入任务请在书籍导入中心处理'
-    closeDeleteConfirm()
+    closeDeleteConfirm(true)
     return
   }
   hardDeletingBook.value = true
@@ -966,7 +998,7 @@ async function confirmHardDeleteBook() {
   try {
     await hardDeleteAdminBook(book.bookKey || book.id)
     await Promise.all([loadBooks(), loadImportJobs()])
-    closeDeleteConfirm()
+    closeDeleteConfirm(true)
   } catch (error) {
     errorMessage.value = error.message || '彻底删除书籍失败'
   } finally {
@@ -982,6 +1014,44 @@ async function confirmHardDeleteBook() {
   padding: 8px 0 0;
   background: linear-gradient(180deg, #070e1a 0%, #0d1829 100%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+
+.book-overview-success-toast {
+  position: fixed;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3200;
+  min-width: 220px;
+  max-width: min(92vw, 420px);
+  padding: 12px 18px;
+  border: 1px solid rgba(85, 214, 146, 0.28);
+  border-radius: 999px;
+  background: rgba(10, 28, 18, 0.92);
+  box-shadow: 0 18px 40px rgba(2, 12, 8, 0.32);
+  color: #d7ffe6;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(14px);
+}
+
+.book-overview-success-fade-enter-active,
+.book-overview-success-fade-leave-active {
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.book-overview-success-fade-enter-from,
+.book-overview-success-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -10px);
+}
+
+.book-overview-success-fade-enter-to,
+.book-overview-success-fade-leave-from {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .book-overview-alert {

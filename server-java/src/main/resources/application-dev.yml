@@ -4,7 +4,7 @@ spring:
     # QQ 邮箱 SMTP 服务配置，开发环境请通过环境变量注入账号与授权码
     host: ${MAIL_HOST:smtp.qq.com}
     port: ${MAIL_PORT:465}
-    username: ${MAIL_USERNAME:1843599766@qq.com}
+    username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
     protocol: ${MAIL_PROTOCOL:smtps}
     default-encoding: UTF-8
@@ -37,4 +37,4 @@ app:
   auth:
     verification:
       # 发件人邮箱必须非空，开发环境默认跟随 MAIL_USERNAME，也可通过 MAIL_FROM 单独覆盖
-      mail-from: ${MAIL_FROM:${MAIL_USERNAME:1843599766@qq.com}}
+      mail-from: ${MAIL_FROM:${MAIL_USERNAME:}}

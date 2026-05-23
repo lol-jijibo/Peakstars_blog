@@ -90,25 +90,7 @@
 }
 
 .nav-item-book {
-  padding-left: 34px;
-  position: relative;
-}
-
-.nav-item-book::before {
-  content: '';
-  position: absolute;
-  left: 24px;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(110, 127, 150, 0.8);
-  transform: translateY(-50%);
-}
-
-.nav-item-book.active::before {
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(32, 215, 212, 0.45);
+  padding-left: 24px;
 }
 
 .icon {

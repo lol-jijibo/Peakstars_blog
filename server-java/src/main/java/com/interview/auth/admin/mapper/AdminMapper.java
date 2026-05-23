@@ -2,7 +2,6 @@ package com.interview.auth.admin.mapper;
 
 import com.interview.auth.admin.entity.ContentDraft;
 import com.interview.auth.admin.entity.ContentEditLog;
-import com.interview.auth.domain.entity.AiHotspot;
 import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
@@ -22,17 +21,11 @@ public interface AdminMapper {
 
     Integer countPublishedWorldNewsIssues();
 
-    Integer countPublishedAiHotspots();
-
     Integer sumTechArticleViews();
 
     Integer sumWorldNewsReads();
 
-    Integer sumAiHotspotViews();
-
     Integer sumTechArticleComments();
-
-    Integer sumAiHotspotComments();
 
     Integer countTodayEdits();
 
@@ -42,19 +35,13 @@ public interface AdminMapper {
 
     List<WorldNewsIssue> findAllWorldNewsIssues();
 
-    List<AiHotspot> findAllAiHotspots();
-
     int saveTechArticle(TechArticle article);
 
     int saveWorldNewsIssue(WorldNewsIssue issue);
 
-    int saveAiHotspot(AiHotspot hotspot);
-
     int disableTechArticle(@Param("articleKey") String articleKey);
 
     int disableWorldNewsIssue(@Param("issueKey") String issueKey);
-
-    int disableAiHotspot(@Param("hotspotKey") String hotspotKey);
 
     Integer countPublishedInterviews();
 

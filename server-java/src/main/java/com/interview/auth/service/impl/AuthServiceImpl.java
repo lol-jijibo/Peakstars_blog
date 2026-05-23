@@ -76,6 +76,11 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(400, "Incorrect password");
         }
 
+        if (passwordService.isLegacyHash(authUser.getPasswordHash())) {
+            authUser.setPasswordHash(passwordService.encode(request.getPassword()));
+            authUserMapper.updatePassword(authUser.getId(), authUser.getPasswordHash());
+        }
+
         LoginResponse loginResponse = new LoginResponse();
         loginResponse.setToken(tokenService.generateToken(authUser.getId(), authUser.getEmail(), authUser.getUsername()));
         loginResponse.setUser(toResponse(authUser));

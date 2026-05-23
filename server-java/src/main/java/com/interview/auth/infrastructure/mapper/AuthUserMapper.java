@@ -51,4 +51,14 @@ public interface AuthUserMapper {
      * @return 影响行数
      */
     int insert(AuthUser authUser);
+
+    /**
+     * 更新用户密码哈希。
+     * 用于旧版 SHA-256 哈希在登录后自动升级为 BCrypt。
+     *
+     * @param id 用户主键 ID
+     * @param passwordHash 新的 BCrypt 哈希值
+     * @return 影响行数
+     */
+    int updatePassword(@Param("id") Long id, @Param("passwordHash") String passwordHash);
 }

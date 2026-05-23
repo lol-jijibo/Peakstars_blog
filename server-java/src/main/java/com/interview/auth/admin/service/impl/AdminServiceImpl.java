@@ -19,11 +19,13 @@ import com.interview.auth.admin.mapper.AdminMapper;
 import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.BusinessException;
-import com.interview.auth.domain.entity.AiHotspot;
+import com.interview.auth.common.TechArticleReadTimeCalculator;
 import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
+import com.interview.auth.infrastructure.storage.ContentStorageService;
+import com.interview.auth.infrastructure.storage.StorageRoutingService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -45,6 +47,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,7 +65,6 @@ public class AdminServiceImpl implements AdminService {
 
     private static final String TYPE_TECH = "tech";
     private static final String TYPE_WORLD = "world";
-    private static final String TYPE_AI = "ai";
     private static final String TYPE_INTERVIEW = "interview";
     private static final String DEFAULT_OPERATOR = "admin";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -81,6 +85,7 @@ public class AdminServiceImpl implements AdminService {
     private final AdminMapper adminMapper;
     private final AdminContentImportService adminContentImportService;
     private final com.interview.auth.infrastructure.storage.ContentStorageService contentStorageService;
+    private final StorageRoutingService storageRoutingService;
     private volatile boolean editLogStorageAvailable = true;
 
     /**
@@ -134,7 +139,6 @@ public class AdminServiceImpl implements AdminService {
         return switch (normalizeType(type)) {
             case TYPE_TECH -> adminMapper.findAllTechArticles().stream().map(this::toTechAdminRecord).toList();
             case TYPE_WORLD -> adminMapper.findAllWorldNewsIssues().stream().map(this::toWorldAdminRecord).toList();
-            case TYPE_AI -> adminMapper.findAllAiHotspots().stream().map(this::toAiAdminRecord).toList();
             case TYPE_INTERVIEW -> adminMapper.findAllInterviews().stream().map(this::toInterviewAdminRecord).toList();
             default -> throw new BusinessException(400, "Unsupported content type");
         };
@@ -154,7 +158,6 @@ public class AdminServiceImpl implements AdminService {
         AdminContentRecordResponse saved = switch (normalizedType) {
             case TYPE_TECH -> saveTechArticle(resolvedKey, request);
             case TYPE_WORLD -> saveWorldNewsIssue(resolvedKey, request);
-            case TYPE_AI -> saveAiHotspot(resolvedKey, request);
             case TYPE_INTERVIEW -> saveInterview(resolvedKey, request);
             default -> throw new BusinessException(400, "Unsupported content type");
         };
@@ -185,7 +188,7 @@ public class AdminServiceImpl implements AdminService {
 
     /**
      * 预处理外部导入内容并返回标准化结果。
-     * 复用正式保存链路同一套 HTML 清洗与 MinIO 迁移能力，保证后台预览和入库结果完全一致。
+     * 复用正式保存链路同一套 HTML 清洗与 OSS 迁移能力，保证后台预览和入库结果完全一致。
      */
     @Override
     public AdminContentImportPreviewResponse previewImportedContent(String type, AdminContentImportPreviewRequest request) {
@@ -203,7 +206,6 @@ public class AdminServiceImpl implements AdminService {
         int affectedRows = switch (normalizedType) {
             case TYPE_TECH -> adminMapper.disableTechArticle(contentKey);
             case TYPE_WORLD -> adminMapper.disableWorldNewsIssue(contentKey);
-            case TYPE_AI -> adminMapper.disableAiHotspot(contentKey);
             case TYPE_INTERVIEW -> adminMapper.disableInterview(Integer.valueOf(contentKey));
             default -> 0;
         };
@@ -225,20 +227,18 @@ public class AdminServiceImpl implements AdminService {
 
         int techCount = safeInt(adminMapper.countPublishedTechArticles());
         int worldCount = safeInt(adminMapper.countPublishedWorldNewsIssues());
-        int aiCount = safeInt(adminMapper.countPublishedAiHotspots());
         int interviewCount = safeInt(adminMapper.countPublishedInterviews());
         int techViews = safeInt(adminMapper.sumTechArticleViews());
         int worldViews = safeInt(adminMapper.sumWorldNewsReads());
-        int aiViews = safeInt(adminMapper.sumAiHotspotViews());
         int interviewViews = safeInt(adminMapper.sumInterviewViews());
-        int totalComments = safeInt(adminMapper.sumTechArticleComments()) + safeInt(adminMapper.sumAiHotspotComments());
+        int totalComments = safeInt(adminMapper.sumTechArticleComments());
 
         AdminSummaryResponse summary = new AdminSummaryResponse();
         summary.setOnlineUsers(onlineClientMap.size());
-        summary.setTotalViews(techViews + worldViews + aiViews + interviewViews);
+        summary.setTotalViews(techViews + worldViews + interviewViews);
         summary.setTotalComments(totalComments);
         summary.setEditsToday(loadTodayEditCountSafely());
-        summary.setTotalContents(techCount + worldCount + aiCount + interviewCount);
+        summary.setTotalContents(techCount + worldCount + interviewCount);
         summary.setLastUpdatedAt(LocalDateTime.now().format(DATE_TIME_FORMATTER));
         return summary;
     }
@@ -269,7 +269,6 @@ public class AdminServiceImpl implements AdminService {
         return List.of(
             createModuleStat(TYPE_TECH, "技术文章", safeInt(adminMapper.countPublishedTechArticles()), safeInt(adminMapper.sumTechArticleViews()), safeInt(adminMapper.sumTechArticleComments())),
             createModuleStat(TYPE_WORLD, "看天下", safeInt(adminMapper.countPublishedWorldNewsIssues()), safeInt(adminMapper.sumWorldNewsReads()), 0),
-            createModuleStat(TYPE_AI, "AI 热点", safeInt(adminMapper.countPublishedAiHotspots()), safeInt(adminMapper.sumAiHotspotViews()), safeInt(adminMapper.sumAiHotspotComments())),
             createModuleStat(TYPE_INTERVIEW, "面经管理", safeInt(adminMapper.countPublishedInterviews()), safeInt(adminMapper.sumInterviewViews()), 0)
         );
     }
@@ -300,7 +299,6 @@ public class AdminServiceImpl implements AdminService {
         List<AdminContentRecordResponse> records = new ArrayList<>();
         records.addAll(adminMapper.findAllTechArticles().stream().map(this::toTechAdminRecord).toList());
         records.addAll(adminMapper.findAllWorldNewsIssues().stream().map(this::toWorldAdminRecord).toList());
-        records.addAll(adminMapper.findAllAiHotspots().stream().map(this::toAiAdminRecord).toList());
         records.addAll(adminMapper.findAllInterviews().stream().map(this::toInterviewAdminRecord).toList());
 
         return records.stream()
@@ -311,7 +309,7 @@ public class AdminServiceImpl implements AdminService {
 
     /**
      * 目的: 构建后台评论管理模块的统一巡检列表。
-     * 逻辑: 将技术文章与 AI 热点里的评论指标折算成待跟进量、互动率和优先级，输出稳定的运营视图给前端表格和图表直接消费。
+     * 逻辑: 将技术文章里的评论指标折算成待跟进量、互动率和优先级，输出稳定的运营视图给前端表格和图表直接消费。
      */
     private List<AdminCommentRecordResponse> buildCommentRecords() {
         List<AdminCommentRecordResponse> records = new ArrayList<>();
@@ -325,17 +323,6 @@ public class AdminServiceImpl implements AdminService {
             safeInt(article.getReadCount()),
             safeInt(article.getCommentCount())
         )));
-        adminMapper.findAllAiHotspots().forEach(hotspot -> records.add(createCommentRecord(
-            TYPE_AI,
-            hotspot.getHotspotKey(),
-            "AI 热点",
-            hotspot.getTitle(),
-            hotspot.getAuthorName(),
-            hotspot.getPublishedAt(),
-            safeInt(hotspot.getViewCount()),
-            safeInt(hotspot.getCommentCount())
-        )));
-
         return records.stream()
             .filter(item -> safeInt(item.getCommentCount()) > 0)
             .sorted(Comparator
@@ -404,7 +391,8 @@ public class AdminServiceImpl implements AdminService {
     private AdminContentRecordResponse saveTechArticle(String articleKey, AdminContentUpsertRequest request) {
         TechArticle article = new TechArticle();
         article.setArticleKey(articleKey);
-        article.setCategory(defaultString(request.getCategory(), "frontend"));
+        article.setCategory(normalizeTechCategoryCode(request.getCategory()));
+        article.setCategoryLabel(defaultString(request.getCategoryLabel(), resolveTechCategoryLabel(article.getCategory())));
         article.setTitle(requireTitle(request.getTitle()));
         article.setSummary(defaultString(request.getSummary(), ""));
         article.setEssence(defaultString(request.getEssence(), request.getSummary()));
@@ -420,7 +408,7 @@ public class AdminServiceImpl implements AdminService {
         article.setLikeCount(safeInt(request.getLikeCount()));
         article.setCollectCount(safeInt(request.getCollectCount()));
         article.setCommentCount(safeInt(request.getCommentCount()));
-        article.setReadTime(defaultString(request.getReadTime(), "6 min"));
+        article.setReadTime(TechArticleReadTimeCalculator.estimateReadTime(article.getContentHtml(), request.getReadTime()));
         article.setIsVip(toFlag(request.getVip()));
         article.setIsCollected(toFlag(request.getCollected()));
         article.setIsLiked(toFlag(request.getLiked()));
@@ -459,34 +447,6 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 写入 AI 热点内容。
-     * 把后台统一请求映射成热点实体，并保留赛道、热度、推荐态和标签配置。
-     */
-    private AdminContentRecordResponse saveAiHotspot(String hotspotKey, AdminContentUpsertRequest request) {
-        AiHotspot hotspot = new AiHotspot();
-        hotspot.setHotspotKey(hotspotKey);
-        hotspot.setTrack(defaultString(request.getTrack(), "agent"));
-        hotspot.setHotspotType(defaultString(request.getHotspotType(), hotspot.getTrack()));
-        hotspot.setTitle(requireTitle(request.getTitle()));
-        hotspot.setSummary(defaultString(request.getSummary(), ""));
-        hotspot.setAuthorName(defaultString(request.getAuthorName(), "后台编辑"));
-        hotspot.setPublishedAt(parseDateTime(defaultString(request.getPublishedAt(), LocalDateTime.now().format(DATE_TIME_FORMATTER))));
-        hotspot.setCoverUrl(defaultString(request.getCoverUrl(), ""));
-        hotspot.setContentHtml(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary())));
-        hotspot.setTagList(joinPipeValues(request.getTags()));
-        hotspot.setViewCount(safeInt(request.getViewCount()));
-        hotspot.setCommentCount(safeInt(request.getCommentCount()));
-        hotspot.setLikeCount(safeInt(request.getLikeCount()));
-        hotspot.setHeat(safeInt(request.getHeat()));
-        hotspot.setIsRecommended(toFlag(request.getRecommended()));
-        hotspot.setIsToday(toFlag(request.getToday()));
-        hotspot.setStatus(1);
-        hotspot.setSortOrder(0);
-        adminMapper.saveAiHotspot(hotspot);
-        return toAiAdminRecord(hotspot);
-    }
-
-    /**
      * 把技术文章实体转换成后台统一记录。
      * 统一输出后台表格与编辑抽屉所需字段，前端不再依赖多个模块的不同对象结构。
      */
@@ -496,6 +456,7 @@ public class AdminServiceImpl implements AdminService {
         response.setId(article.getArticleKey());
         response.setTitle(article.getTitle());
         response.setCategory(article.getCategory());
+        response.setCategoryLabel(defaultString(article.getCategoryLabel(), resolveTechCategoryLabel(article.getCategory())));
         response.setSummary(article.getSummary());
         response.setEssence(article.getEssence());
         response.setHighlights(splitPipeValues(article.getHighlightList()));
@@ -510,7 +471,7 @@ public class AdminServiceImpl implements AdminService {
         response.setCommentCount(safeInt(article.getCommentCount()));
         response.setLikeCount(safeInt(article.getLikeCount()));
         response.setCollectCount(safeInt(article.getCollectCount()));
-        response.setReadTime(article.getReadTime());
+        response.setReadTime(TechArticleReadTimeCalculator.estimateReadTime(article.getContentHtml(), article.getReadTime()));
         response.setFeatured(isTrue(article.getFeatured()));
         response.setVip(isTrue(article.getIsVip()));
         response.setCollected(isTrue(article.getIsCollected()));
@@ -541,32 +502,6 @@ public class AdminServiceImpl implements AdminService {
         response.setCoverHeadline(issue.getCoverHeadline());
         response.setCoverSummary(issue.getCoverSummary());
         response.setCoverFooter(issue.getCoverFooter());
-        return response;
-    }
-
-    /**
-     * 把 AI 热点实体转换成后台统一记录。
-     * 保留热度、推荐态和标签数组，方便后台做热点分组和编辑管理。
-     */
-    private AdminContentRecordResponse toAiAdminRecord(AiHotspot hotspot) {
-        AdminContentRecordResponse response = new AdminContentRecordResponse();
-        response.setType(TYPE_AI);
-        response.setId(hotspot.getHotspotKey());
-        response.setTitle(hotspot.getTitle());
-        response.setSummary(hotspot.getSummary());
-        response.setAuthorName(hotspot.getAuthorName());
-        response.setCoverUrl(hotspot.getCoverUrl());
-        response.setContentHtml(hotspot.getContentHtml());
-        response.setPublishedAt(formatDateTime(hotspot.getPublishedAt()));
-        response.setViewCount(safeInt(hotspot.getViewCount()));
-        response.setCommentCount(safeInt(hotspot.getCommentCount()));
-        response.setLikeCount(safeInt(hotspot.getLikeCount()));
-        response.setTrack(hotspot.getTrack());
-        response.setHotspotType(hotspot.getHotspotType());
-        response.setHeat(safeInt(hotspot.getHeat()));
-        response.setRecommended(isTrue(hotspot.getIsRecommended()));
-        response.setToday(isTrue(hotspot.getIsToday()));
-        response.setTags(splitPipeValues(hotspot.getTagList()));
         return response;
     }
 
@@ -606,7 +541,7 @@ public class AdminServiceImpl implements AdminService {
         interview.setTitle(requireTitle(request.getTitle()));
         interview.setAuthor(defaultString(request.getAuthorName(), "后台编辑"));
         interview.setSummary(defaultString(request.getSummary(), ""));
-        interview.setContent(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary())));
+        interview.setContent(normalizeInterviewContentForStorage(defaultString(request.getContentHtml(), wrapParagraph(request.getSummary()))));
         interview.setCoverUrl(defaultString(request.getCoverUrl(), ""));
         interview.setViews(safeInt(request.getViewCount()));
         interview.setLikes(safeInt(request.getLikeCount()));
@@ -623,7 +558,7 @@ public class AdminServiceImpl implements AdminService {
 
     /**
      * 在正式保存前标准化后台内容请求。
-     * 对正文 HTML 与封面链接统一执行白名单清洗和 MinIO 资源迁移，避免外部富文本未经治理直接入库。
+     * 对正文 HTML 与封面链接统一执行白名单清洗和 OSS 资源迁移，避免外部富文本未经治理直接入库。
      */
     private void preprocessContentRequest(String type, AdminContentUpsertRequest request) {
         String rawHtml = defaultString(request.getContentHtml(), wrapParagraph(request.getSummary()));
@@ -702,6 +637,114 @@ public class AdminServiceImpl implements AdminService {
      */
     private String formatPublishDate(LocalDate value) {
         return value == null ? null : value.format(DATE_ONLY_FORMATTER);
+    }
+
+    /**
+     * 标准化技术文章分类编码。
+     * 兼容后台中文选项和历史英文编码，保证入库 category 始终使用稳定枚举值。
+     */
+    private String normalizeTechCategoryCode(String category) {
+        if (category == null || category.isBlank()) {
+            return "frontend";
+        }
+        return switch (category.trim().toLowerCase()) {
+            case "前端", "前端工程", "前端开发", "frontend" -> "frontend";
+            case "后端", "后端架构", "后端开发", "backend" -> "backend";
+            case "项目业务解析", "项目解析", "业务解析", "project", "business" -> "project";
+            default -> category.trim().toLowerCase();
+        };
+    }
+
+    /**
+     * 根据技术文章分类编码输出中文标签。
+     * 保存和回显复用同一映射，避免后台表格与前台技术文章列表显示不一致。
+     */
+    private String resolveTechCategoryLabel(String category) {
+        return switch (normalizeTechCategoryCode(category)) {
+            case "backend" -> "后端架构";
+            case "project" -> "项目业务解析";
+            case "frontend" -> "前端工程";
+            default -> defaultString(category, "技术文章");
+        };
+    }
+
+    /**
+     * 统一规范面经正文里的站内图片地址。
+     * 只规范历史代理路径并保留 OSS 直链，避免新上传图片被重新改写回后端代理。
+     */
+    private String normalizeInterviewContentForStorage(String contentHtml) {
+        String normalizedHtml = defaultString(contentHtml, "");
+        if (normalizedHtml.isBlank()) {
+            return normalizedHtml;
+        }
+        Document document = Jsoup.parseBodyFragment(normalizedHtml);
+        for (Element image : document.select("img[src], image[href], image[xlink\\:href]")) {
+            String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+            String rawUrl = defaultString(image.attr(attributeName), "").trim();
+            String resolvedUrl = normalizeInterviewAssetUrl(rawUrl);
+            if (!resolvedUrl.equals(image.attr(attributeName))) {
+                image.attr(attributeName, resolvedUrl);
+            }
+        }
+        return document.body().html();
+    }
+
+    /**
+     * 统一收口面经正文里的站内资源地址。
+     * 保留外链和 OSS 直链，仅补齐 uploads 相对路径前缀，避免编辑器再次保存后改坏图片。
+     */
+    private String normalizeInterviewAssetUrl(String assetUrl) {
+        String normalizedUrl = defaultString(assetUrl, "").trim();
+        if (normalizedUrl.isBlank() || normalizedUrl.startsWith("/uploads/")) {
+            return normalizedUrl;
+        }
+        String lowerUrl = normalizedUrl.toLowerCase();
+        if (lowerUrl.startsWith("data:")) {
+            return normalizedUrl;
+        }
+        if (normalizedUrl.startsWith("uploads/")) {
+            return "/" + normalizedUrl;
+        }
+        if (isManagedStorageUrl(normalizedUrl) && (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://"))) {
+            int uploadsIndex = normalizedUrl.indexOf("/uploads/");
+            if (uploadsIndex >= 0) {
+                return normalizedUrl.substring(uploadsIndex);
+            }
+        }
+        return normalizedUrl;
+    }
+
+    /**
+     * 统一判断后台内容模块里的资源链接是否属于本站受管对象存储。
+     * 同时兼容 OSS 与历史代理资源，避免保存时把站内图片误判成外链。
+     */
+    private boolean isManagedStorageUrl(String assetUrl) {
+        if (assetUrl == null || assetUrl.isBlank()) {
+            return false;
+        }
+        return isStorageUrlSafely("interview", assetUrl)
+            || isStorageUrlSafely("book", assetUrl)
+            || isStorageUrlSafely(contentStorageService, assetUrl);
+    }
+
+    /**
+     * 安全判断指定模块的存储实现是否识别当前资源地址。
+     * 存储未启用时直接返回 false，避免浏览内容时被上传配置阻断。
+     */
+    private boolean isStorageUrlSafely(String moduleType, String assetUrl) {
+        try {
+            return isStorageUrlSafely(storageRoutingService.resolveForModule(moduleType), assetUrl);
+        } catch (BusinessException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 统一收口底层存储实现的空值判断。
+     * 仅在存储服务存在时执行地址识别，保证内容保存和展示逻辑可继续运行。
+     */
+    private boolean isStorageUrlSafely(ContentStorageService storageService, String assetUrl) {
+        return storageService != null && storageService.isStorageUrl(assetUrl);
     }
 
     /**
@@ -824,7 +867,7 @@ public class AdminServiceImpl implements AdminService {
      */
     private String normalizeType(String type) {
         String normalized = defaultString(type, "").trim().toLowerCase();
-        if (List.of(TYPE_TECH, TYPE_WORLD, TYPE_AI, TYPE_INTERVIEW).contains(normalized)) {
+        if (List.of(TYPE_TECH, TYPE_WORLD, TYPE_INTERVIEW).contains(normalized)) {
             return normalized;
         }
         throw new BusinessException(400, "Unsupported content type");
@@ -852,7 +895,6 @@ public class AdminServiceImpl implements AdminService {
         return switch (type) {
             case TYPE_TECH -> "tech-" + slugBase;
             case TYPE_WORLD -> "world-" + slugBase;
-            case TYPE_AI -> "ai-" + slugBase;
             case TYPE_INTERVIEW -> "interview-" + slugBase;
             default -> slugBase;
         };
@@ -1176,8 +1218,8 @@ public class AdminServiceImpl implements AdminService {
      * 每个快照只保留当前时刻关键指标，避免把整份仪表盘对象长期留在内存中。
      */
     @Override
-    public String uploadCoverImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
-        return contentStorageService.upload("cover", fileName, inputStream, size, contentType);
+    public String uploadCoverImage(String moduleType, String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
+        return storageRoutingService.resolveForModule(moduleType).upload("cover", fileName, inputStream, size, contentType);
     }
 
     /**
@@ -1185,8 +1227,8 @@ public class AdminServiceImpl implements AdminService {
      * 复用统一内容存储服务，使用独立正文前缀区分封面图与正文插图。
      */
     @Override
-    public String uploadRichTextImage(String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
-        return contentStorageService.upload("rich-text", fileName, inputStream, size, contentType);
+    public String uploadRichTextImage(String moduleType, String fileName, java.io.InputStream inputStream, long size, String contentType) throws Exception {
+        return storageRoutingService.resolveForModule(moduleType).upload("rich-text", fileName, inputStream, size, contentType);
     }
 
     private record DashboardSnapshot(

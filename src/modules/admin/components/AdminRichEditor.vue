@@ -34,6 +34,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  storageType: {
+    type: String,
+    default: ''
+  },
   placeholder: {
     type: String,
     default: '输入正文内容，使用标题、引用、列表、图片和表格组织文章结构。'
@@ -184,7 +188,7 @@ function buildAiConfig() {
  * 业务逻辑：接管编辑器默认图片上传行为，调用后台正文图片接口并按 AiEditor 约定返回 src。
  */
 async function uploadEditorImageToMinio(file) {
-  const result = await uploadRichTextImage(file)
+  const result = await uploadRichTextImage(file, props.storageType)
   return {
     errorCode: 0,
     data: {

@@ -10,8 +10,8 @@ spring:
     # 兼容本地 MySQL 8 默认认证握手
     # 在开发环境关闭 SSL 时显式允许拉取公钥，避免接口查询阶段拿不到 JDBC 连接
     url: jdbc:mysql://localhost:3306/interview_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: lixuF123456
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
@@ -70,6 +70,10 @@ app:
 
    # 文件存储配置
   storage:
+    local:
+      # 本地上传文件必须落在项目持久目录，避免电脑重启后系统临时目录被清理导致封面失效
+      upload-dir: ${LOCAL_UPLOAD_DIR:./uploads}
+      base-url: ${LOCAL_UPLOAD_BASE_URL:/uploads}
     oss:
       enabled: ${OSS_ENABLED:false}
       endpoint: ${OSS_ENDPOINT:}
@@ -80,12 +84,12 @@ app:
     minio:
       enabled: ${MINIO_ENABLED:false}
       endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-      access-key: ${MINIO_ACCESS_KEY:minioadmin}
-      secret-key: ${MINIO_SECRET_KEY:minioadmin}
+      access-key: ${MINIO_ACCESS_KEY:}
+      secret-key: ${MINIO_SECRET_KEY:}
       bucket: ${MINIO_BUCKET:peakstars-content}
       public-base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000}
   auth:
-    token-secret: interview-demo-auth-secret
+    token-secret: ${AUTH_TOKEN_SECRET}
     token-expire-hours: 168
     verification:
       register-code-expire-seconds: ${REGISTER_CODE_EXPIRE_SECONDS:300}

@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 统一代理后台上传资源的访问请求，兼容本地目录、MinIO 和 OSS 三类来源。
- * 先查本地文件，再按存储配置回源对象存储，保证前端始终通过 /uploads 稳定预览。
+ * 先查本地文件，再优先回源 OSS 并兼容历史 MinIO 资源，保证旧图片平滑过渡。
  */
 @RestController
 @Slf4j
@@ -47,7 +47,7 @@ public class StorageProxyController {
      */
     @GetMapping("/uploads/**")
     public ResponseEntity<?> serveUploadedFile(HttpServletRequest request) {
-        String filePath = request.getRequestURI().substring("/uploads/".length());
+        String filePath = normalizeProxyFilePath(request.getRequestURI().substring("/uploads/".length()));
 
         ResponseEntity<?> localResponse = tryServeFromLocal(filePath);
         if (localResponse != null) {
@@ -73,6 +73,10 @@ public class StorageProxyController {
      */
     private ResponseEntity<?> tryServeFromLocal(String filePath) {
         Path localFile = Paths.get(uploadDir).resolve(filePath).normalize();
+        if (!localFile.startsWith(Paths.get(uploadDir).normalize())) {
+            log.warn("路径穿越尝试被拒绝: {}", filePath);
+            return null;
+        }
         if (!Files.exists(localFile) || !Files.isRegularFile(localFile)) {
             return null;
         }
@@ -133,7 +137,11 @@ public class StorageProxyController {
      */
     private ResponseEntity<?> tryServeFromMinio(String filePath) {
         MinioClient minioClient = minioClientProvider.getIfAvailable();
-        if (minioClient == null || minioProperties == null || !minioProperties.isEnabled()) {
+        if (minioClient == null
+            || minioProperties == null
+            || !minioProperties.isEnabled()
+            || minioProperties.getBucket() == null
+            || minioProperties.getBucket().trim().isEmpty()) {
             return null;
         }
         try {
@@ -180,5 +188,25 @@ public class StorageProxyController {
         if (filePath.endsWith(".webp")) return "image/webp";
         if (filePath.endsWith(".svg")) return "image/svg+xml";
         return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+    }
+
+    /**
+     * 统一把 /uploads 代理路径转换成对象存储实际对象键，同时过滤路径穿越字符。
+     * 兼容历史上把 bucket 名拼进前端图片地址的旧数据，避免代理回源时多带一层桶名前缀导致对象不存在。
+     */
+    private String normalizeProxyFilePath(String filePath) {
+        String normalized = filePath == null ? "" : filePath.trim();
+
+        // 拒绝包含路径穿越字符的请求
+        if (normalized.contains("..") || normalized.contains("//")) {
+            log.warn("拒绝包含非法路径字符的代理请求: {}", normalized);
+            return "";
+        }
+
+        String bucketName = minioProperties == null ? "" : String.valueOf(minioProperties.getBucket() == null ? "" : minioProperties.getBucket()).trim();
+        if (!bucketName.isBlank() && normalized.startsWith(bucketName + "/")) {
+            return normalized.substring(bucketName.length() + 1);
+        }
+        return normalized;
     }
 }

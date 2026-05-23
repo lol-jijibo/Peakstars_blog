@@ -8,6 +8,10 @@ import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.infrastructure.mapper.InterviewMapper;
+import com.interview.auth.common.BusinessException;
+import com.interview.auth.infrastructure.storage.ContentStorageService;
+import com.interview.auth.infrastructure.storage.StorageRoutingService;
+import java.util.Locale;
 import com.interview.auth.service.InterviewService;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -17,6 +21,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +39,8 @@ public class InterviewServiceImpl implements InterviewService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final InterviewMapper interviewMapper;
+    private final ContentStorageService contentStorageService;
+    private final StorageRoutingService storageRoutingService;
 
     /**
      * 按分类、关键词和分页参数查询面经列表。
@@ -164,7 +173,7 @@ public class InterviewServiceImpl implements InterviewService {
         resp.setTitle((String) row.get("title"));
         resp.setAuthor((String) row.get("author"));
         resp.setSummary((String) row.get("summary"));
-        resp.setContent((String) row.get("content"));
+        resp.setContent(resolveInterviewContent((String) row.get("content")));
         resp.setViews(toInt(row.get("views")));
         resp.setLikes(toInt(row.get("likes")));
         resp.setCollects(toInt(row.get("collects")));
@@ -177,6 +186,83 @@ public class InterviewServiceImpl implements InterviewService {
         resp.setCompanyDesc((String) row.get("companyDesc"));
         resp.setTags(splitTags((String) row.get("tagsStr")));
         return resp;
+    }
+
+    /**
+     * 统一修正面经正文里的图片资源地址。
+     * 保留 OSS 直链并兼容历史代理路径，避免用户端详情页重新依赖后端回源图片。
+     */
+    private String resolveInterviewContent(String content) {
+        if (content == null || content.isBlank()) {
+            return content;
+        }
+        Document document = Jsoup.parseBodyFragment(content);
+        for (Element image : document.select("img[src], image[href], image[xlink\\:href]")) {
+            String attributeName = image.hasAttr("src") ? "src" : image.hasAttr("href") ? "href" : "xlink:href";
+            String originalUrl = String.valueOf(image.attr(attributeName) == null ? "" : image.attr(attributeName)).trim();
+            String resolvedUrl = resolveStoredAssetUrl(originalUrl);
+            if (!resolvedUrl.equals(image.attr(attributeName))) {
+                image.attr(attributeName, resolvedUrl);
+            }
+        }
+        return document.body().html();
+    }
+
+    /**
+     * 统一收敛面经正文里的站内存储图片地址。
+     * 保留外链、data URL 和 OSS 直链，仅补齐 uploads 相对路径前缀。
+     */
+    private String resolveStoredAssetUrl(String assetUrl) {
+        if (assetUrl == null || assetUrl.isBlank()) {
+            return "";
+        }
+        String trimmed = assetUrl.trim();
+        if (trimmed.startsWith("/uploads/") || trimmed.toLowerCase(Locale.ROOT).startsWith("data:")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("uploads/")) {
+            return "/" + trimmed;
+        }
+        if (isManagedStorageUrl(trimmed) && trimmed.startsWith("http")) {
+            int uploadsIndex = trimmed.indexOf("/uploads/");
+            if (uploadsIndex >= 0) {
+                return trimmed.substring(uploadsIndex);
+            }
+        }
+        return trimmed;
+    }
+
+    /**
+     * 统一判断面经正文图片是否属于本站受管对象存储。
+     * 同时兼容 OSS 与历史代理资源，避免展示层只认识单一存储实现。
+     */
+    private boolean isManagedStorageUrl(String assetUrl) {
+        if (assetUrl == null || assetUrl.isBlank()) {
+            return false;
+        }
+        return isStorageUrlSafely("interview", assetUrl)
+            || isStorageUrlSafely("book", assetUrl)
+            || isStorageUrlSafely(contentStorageService, assetUrl);
+    }
+
+    /**
+     * 安全判断指定模块的存储实现是否识别当前资源地址。
+     * 存储未启用时直接返回 false，避免用户端详情页因配置缺失中断。
+     */
+    private boolean isStorageUrlSafely(String moduleType, String assetUrl) {
+        try {
+            return isStorageUrlSafely(storageRoutingService.resolveForModule(moduleType), assetUrl);
+        } catch (BusinessException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 统一收口底层存储实现的空值判断。
+     * 仅在存储服务存在时执行地址识别，保证正文图片规整逻辑始终可继续。
+     */
+    private boolean isStorageUrlSafely(ContentStorageService storageService, String assetUrl) {
+        return storageService != null && storageService.isStorageUrl(assetUrl);
     }
 
     /**

@@ -1,5 +1,10 @@
 const BASE_URL = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
 
+function getAuthHeaders() {
+  const token = localStorage.getItem('interview_demo_access_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function parseResponsePayload(response) {
   const rawText = await response.text()
   if (!rawText) {
@@ -17,6 +22,7 @@ async function request(url, options = {}) {
   const response = await fetch(`${BASE_URL}${url}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...(options.headers || {})
     },
     ...options
@@ -44,6 +50,7 @@ function uploadFile(url, file, fieldName = 'file') {
 
   return fetch(`${BASE_URL}${url}`, {
     method: 'POST',
+    headers: { ...getAuthHeaders() },
     body: formData
   })
     .then(parseResponsePayload)

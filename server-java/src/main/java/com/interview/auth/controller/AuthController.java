@@ -1,6 +1,7 @@
 package com.interview.auth.controller;
 
 import com.interview.auth.common.ApiResponse;
+import com.interview.auth.common.BusinessException;
 import com.interview.auth.domain.dto.request.ForgotPasswordRequest;
 import com.interview.auth.domain.dto.request.LoginRequest;
 import com.interview.auth.domain.dto.request.RegisterRequest;
@@ -9,6 +10,7 @@ import com.interview.auth.domain.dto.response.AuthUserResponse;
 import com.interview.auth.domain.dto.response.LoginResponse;
 import com.interview.auth.domain.dto.response.VerificationCodeSendResponse;
 import com.interview.auth.service.AuthService;
+import com.interview.auth.service.LoginRateLimitService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -30,6 +32,7 @@ public class AuthController {
      * Controller 只负责接收请求、参数校验和组织响应，具体业务逻辑交给 Service 层处理。
      */
     private final AuthService authService;
+    private final LoginRateLimitService loginRateLimitService;
 
     /**
      * 发送注册验证码。
@@ -70,19 +73,27 @@ public class AuthController {
     }
 
     /**
-     * 用户登录。
-     * 业务目标：
-     * 1. 校验账号和密码。
-     * 2. 调用服务层完成身份认证。
-     * 3. 返回登录态所需的 token 和当前用户信息。
+     * 用户登录（含频率限制）。
+     * 同一账号+IP 在 15 分钟内失败 5 次后锁定 15 分钟，防止暴力破解。
      */
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        // Service 层会负责账号识别、密码比对以及 token 生成。
-        LoginResponse response = authService.login(request);
+    public ApiResponse<LoginResponse> login(
+        @Valid @RequestBody LoginRequest request,
+        HttpServletRequest httpServletRequest
+    ) {
+        String account = request.getAccount().trim().toLowerCase();
+        String clientIp = extractClientIp(httpServletRequest);
 
-        // 登录成功后将用户信息和 token 一并返回，前端可直接完成登录态持久化。
-        return ApiResponse.success("Welcome back, " + response.getUser().getUsername(), response);
+        loginRateLimitService.checkNotLocked(account, clientIp);
+
+        try {
+            LoginResponse response = authService.login(request);
+            loginRateLimitService.onLoginSuccess(account, clientIp);
+            return ApiResponse.success("Welcome back, " + response.getUser().getUsername(), response);
+        } catch (BusinessException e) {
+            loginRateLimitService.onLoginFailure(account, clientIp);
+            throw e;
+        }
     }
 
     /**

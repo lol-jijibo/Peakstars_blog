@@ -1,12 +1,12 @@
 package com.interview.auth.controller;
 
 import com.interview.auth.common.ApiResponse;
-import com.interview.auth.domain.dto.response.AiHotspotResponse;
 import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
 import com.interview.auth.domain.dto.response.WorldNewsSuggestionResponse;
 import com.interview.auth.service.ContentService;
+import com.interview.auth.service.TokenService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,13 +16,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 对外暴露技术文章、看天下和 AI 热点三类内容接口。
- * Controller 只负责保持统一返回结构，查询和字段组装都交给 Service 处理。
+ * 对外暴露技术文章和看天下两类内容接口。
+ * Controller 负责识别当前登录用户，并把用户身份传给 Service 组装个性化阅读信息。
  */
 @RestController
 @RequestMapping("/api/content")
@@ -30,14 +31,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class ContentController {
 
     private final ContentService contentService;
+    private final TokenService tokenService;
 
     /**
      * 提供技术文章模块列表接口。
-     * 返回结果已经按前端既有字段转换完成，页面可以直接渲染。
+     * 根据当前登录用户合并最近阅读时间，让浏览记录页直接展示真实阅读时刻。
      */
     @GetMapping("/tech-articles")
-    public ApiResponse<List<TechArticleResponse>> listTechArticles() {
-        return ApiResponse.success(contentService.listTechArticles());
+    public ApiResponse<List<TechArticleResponse>> listTechArticles(
+        @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(contentService.listTechArticles(resolveCurrentUserId(authorization)));
     }
 
     /**
@@ -76,7 +80,7 @@ public class ContentController {
 
     /**
      * 提供看天下榜单接口。
-     * 按榜单类型切换排序方式，复用到频道页四个榜单卡片区域。
+     * 按榜单类型切换排序方式，复用到频道页多个榜单卡片区域。
      */
     @GetMapping("/world-news/ranking")
     public ApiResponse<List<WorldNewsIssueResponse>> listWorldNewsRanking(
@@ -105,22 +109,29 @@ public class ContentController {
         return ApiResponse.success(contentService.getWorldNewsIssueDetail(issueKey));
     }
 
-    /**
-     * 提供 AI 热点列表接口。
-     * 推荐标记、发布时间和标签数组都由后端组织，前端只负责切换展示。
-     */
-    @GetMapping("/ai-hotspots")
-    public ApiResponse<List<AiHotspotResponse>> listAiHotspots() {
-        return ApiResponse.success(contentService.listAiHotspots());
-    }
 
     /**
      * 为指定技术文章增加阅读量。
-     * 用户打开详情页时调用，返回最新阅读数用于页面即时刷新。
+     * 用户打开详情页时同时刷新个人最近阅读时间，返回最新阅读数用于页面同步。
      */
     @PostMapping("/tech-articles/{articleKey}/read")
-    public ApiResponse<Map<String, Object>> incrementReadCount(@PathVariable String articleKey) {
-        return ApiResponse.success(contentService.incrementArticleReadCount(articleKey));
+    public ApiResponse<Map<String, Object>> incrementReadCount(
+        @PathVariable String articleKey,
+        @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(contentService.incrementArticleReadCount(articleKey, resolveCurrentUserId(authorization)));
+    }
+
+    /**
+     * 切换指定技术文章的点赞状态。
+     * 根据当前登录用户新增或取消点赞记录，并返回最新点赞状态和计数。
+     */
+    @PostMapping("/tech-articles/{articleKey}/like")
+    public ApiResponse<Map<String, Object>> toggleArticleLike(
+        @PathVariable String articleKey,
+        @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(contentService.toggleArticleLike(articleKey, resolveCurrentUserId(authorization)));
     }
 
     /**
@@ -134,7 +145,7 @@ public class ContentController {
 
     /**
      * 为指定技术文章新增评论。
-     * 新评论写入成功后同步回写文章统计值，并把新评论结构返回给前端。
+     * 新评论写入成功后同步回写文章统计值，并把最新评论返回给前端。
      */
     @PostMapping("/tech-articles/{articleKey}/comments")
     public ApiResponse<Map<String, Object>> addArticleComment(@PathVariable String articleKey, @RequestBody Map<String, Object> body) {
@@ -148,13 +159,32 @@ public class ContentController {
 
     /**
      * 删除指定评论并回收文章上的评论计数。
-     * 删除动作只改状态字段，接口返回最终是否删除成功。
+     * 需要登录后才能执行，删除动作只改状态字段。
      */
     @DeleteMapping("/comments/{commentId}")
-    public ApiResponse<Map<String, Object>> deleteArticleComment(@PathVariable Long commentId) {
+    public ApiResponse<Map<String, Object>> deleteArticleComment(
+        @PathVariable Long commentId,
+        @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        Long currentUserId = resolveCurrentUserId(authorization);
+        if (currentUserId == null) {
+            return ApiResponse.fail(401, "请先登录后再删除评论");
+        }
         boolean deleted = contentService.deleteArticleComment(commentId);
         Map<String, Object> result = new HashMap<>();
         result.put("deleted", deleted);
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 解析当前请求里的用户身份。
+     * 读取 Bearer Token 中的 userId，未登录时返回空值供内容接口走公共分支。
+     */
+    private Long resolveCurrentUserId(String authorization) {
+        if (authorization == null || authorization.isBlank()) {
+            return null;
+        }
+        Map<String, Object> payload = tokenService.parseToken(authorization);
+        return Long.valueOf(String.valueOf(payload.get("userId")));
     }
 }

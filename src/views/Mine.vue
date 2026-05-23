@@ -87,7 +87,7 @@
           >
             <span class="recent-tag">{{ article.category === 'frontend' ? '前端' : '后端' }}</span>
             <strong>{{ article.title }}</strong>
-            <span class="recent-meta">{{ article.author.name }} · {{ article.readTime }}</span>
+            <span class="recent-meta">{{ article.author.name }} · {{ formatRecentReadTime(article.lastReadAt || article.readTime) }}</span>
           </button>
         </div>
       </section>
@@ -118,6 +118,7 @@ import { useRouter } from 'vue-router'
 import { recommendedAuthors } from '@/data/techCategories'
 import { useAuthStore } from '@/stores/auth'
 import { getTechArticles } from '@/api/content'
+import { formatReadHistoryTime } from '@/utils/readHistoryTime'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -125,10 +126,10 @@ const avatarUrl = '/qq.jpg'
 const showAvatarImage = ref(true)
 
 const navTabs = [
-  { path: '/interview', icon: '📘', label: '面经' },
+  { path: '/interview', icon: '📌', label: '面经' },
   { path: '/collect', icon: '⭐', label: '收藏' },
   { path: '/like', icon: '❤️', label: '点赞' },
-  { path: '/mine', icon: '👤', label: '我的' }
+  { path: '/mine', icon: '👁', label: '我的' }
 ]
 
 const followingAuthors = recommendedAuthors.slice(0, 3)
@@ -196,7 +197,7 @@ const quickEntries = computed(() => [
   },
   {
     key: 'admin',
-    icon: '📊',
+    icon: '🧭',
     label: '内容后台',
     caption: '进入管理台查看实时数据',
     count: 'GO',
@@ -212,11 +213,14 @@ onMounted(async () => {
   try {
     const list = await getTechArticles()
     const articles = Array.isArray(list) ? list : []
-    recentArticles.value = articles.filter((a) => a.inHistory).slice(0, 10)
+    recentArticles.value = articles
+      .filter((a) => a.inHistory)
+      .sort((left, right) => Date.parse(String(right.lastReadAt || '')) - Date.parse(String(left.lastReadAt || '')))
+      .slice(0, 10)
     collectedCount.value = articles.filter((a) => a.isCollected).length
     likedCount.value = articles.filter((a) => a.isLiked).length
   } catch {
-    // 加载失败时保持空状态
+    recentArticles.value = []
   }
 })
 
@@ -242,6 +246,10 @@ function formatDate(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
     date.getDate()
   ).padStart(2, '0')}`
+}
+
+function formatRecentReadTime(value) {
+  return formatReadHistoryTime(value, '刚刚阅读')
 }
 </script>
 

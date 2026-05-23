@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+﻿<?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper
   PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
   "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
@@ -8,6 +8,7 @@
     <id column="id" property="id"/>
     <result column="article_key" property="articleKey"/>
     <result column="category" property="category"/>
+    <result column="category_label" property="categoryLabel"/>
     <result column="title" property="title"/>
     <result column="summary" property="summary"/>
     <result column="essence" property="essence"/>
@@ -31,6 +32,7 @@
     <result column="featured" property="featured"/>
     <result column="status" property="status"/>
     <result column="sort_order" property="sortOrder"/>
+    <result column="last_read_at" property="lastReadAt"/>
     <result column="created_at" property="createdAt"/>
     <result column="updated_at" property="updatedAt"/>
   </resultMap>
@@ -51,29 +53,6 @@
     <result column="cover_footer" property="coverFooter"/>
     <result column="content_html" property="contentHtml"/>
     <result column="published_at" property="publishedAt"/>
-    <result column="status" property="status"/>
-    <result column="sort_order" property="sortOrder"/>
-    <result column="created_at" property="createdAt"/>
-    <result column="updated_at" property="updatedAt"/>
-  </resultMap>
-
-  <resultMap id="AiHotspotResultMap" type="com.interview.auth.domain.entity.AiHotspot">
-    <id column="id" property="id"/>
-    <result column="hotspot_key" property="hotspotKey"/>
-    <result column="track" property="track"/>
-    <result column="hotspot_type" property="hotspotType"/>
-    <result column="title" property="title"/>
-    <result column="summary" property="summary"/>
-    <result column="author_name" property="authorName"/>
-    <result column="published_at" property="publishedAt"/>
-    <result column="cover_url" property="coverUrl"/>
-    <result column="tag_list" property="tagList"/>
-    <result column="view_count" property="viewCount"/>
-    <result column="comment_count" property="commentCount"/>
-    <result column="like_count" property="likeCount"/>
-    <result column="heat" property="heat"/>
-    <result column="is_recommended" property="isRecommended"/>
-    <result column="is_today" property="isToday"/>
     <result column="status" property="status"/>
     <result column="sort_order" property="sortOrder"/>
     <result column="created_at" property="createdAt"/>
@@ -121,6 +100,7 @@
       id,
       article_key,
       category,
+      category_label,
       title,
       summary,
       essence,
@@ -144,11 +124,55 @@
       featured,
       status,
       sort_order,
+      NULL AS last_read_at,
       created_at,
       updated_at
     FROM tech_article
     WHERE status = 1
     ORDER BY featured DESC, published_at DESC, sort_order ASC
+  </select>
+
+  <select id="findPublishedTechArticlesByUser" resultMap="TechArticleResultMap">
+    SELECT
+      article.id,
+      article.article_key,
+      article.category,
+      article.category_label,
+      article.title,
+      article.summary,
+      article.essence,
+      article.highlight_list,
+      article.author_name,
+      article.author_role,
+      article.author_initials,
+      article.author_accent,
+      article.cover_url,
+      article.content_html,
+      article.published_at,
+      article.read_count,
+      article.like_count,
+      article.collect_count,
+      article.comment_count,
+      article.read_time,
+      article.is_vip,
+      article.is_collected,
+      CASE WHEN article_like.id IS NULL THEN 0 ELSE 1 END AS is_liked,
+      CASE WHEN history.last_read_at IS NULL THEN 0 ELSE 1 END AS in_history,
+      article.featured,
+      article.status,
+      article.sort_order,
+      history.last_read_at,
+      article.created_at,
+      article.updated_at
+    FROM tech_article article
+    LEFT JOIN tech_article_read_history history
+      ON history.article_key = article.article_key
+      AND history.user_id = #{userId}
+    LEFT JOIN tech_article_like article_like
+      ON article_like.article_key = article.article_key
+      AND article_like.user_id = #{userId}
+    WHERE article.status = 1
+    ORDER BY article.featured DESC, article.published_at DESC, article.sort_order ASC
   </select>
 
   <select id="findPublishedWorldNewsIssues" resultMap="WorldNewsIssueResultMap">
@@ -241,32 +265,6 @@
     LIMIT 1
   </select>
 
-  <select id="findPublishedAiHotspots" resultMap="AiHotspotResultMap">
-    SELECT
-      id,
-      hotspot_key,
-      track,
-      hotspot_type,
-      title,
-      summary,
-      author_name,
-      published_at,
-      cover_url,
-      tag_list,
-      view_count,
-      comment_count,
-      like_count,
-      heat,
-      is_recommended,
-      is_today,
-      status,
-      sort_order,
-      created_at,
-      updated_at
-    FROM ai_hotspot
-    WHERE status = 1
-    ORDER BY sort_order ASC, published_at DESC
-  </select>
 
   <update id="incrementReadCount">
     UPDATE tech_article
@@ -277,6 +275,48 @@
   <select id="findReadCount" resultType="java.lang.Integer">
     SELECT read_count FROM tech_article WHERE article_key = #{articleKey} AND status = 1
   </select>
+
+  <select id="countArticleLikeByUser" resultType="int">
+    SELECT COUNT(*)
+    FROM tech_article_like
+    WHERE article_key = #{articleKey}
+      AND user_id = #{userId}
+  </select>
+
+  <insert id="insertArticleLike">
+    INSERT IGNORE INTO tech_article_like (user_id, article_key)
+    VALUES (#{userId}, #{articleKey})
+  </insert>
+
+  <delete id="deleteArticleLike">
+    DELETE FROM tech_article_like
+    WHERE article_key = #{articleKey}
+      AND user_id = #{userId}
+  </delete>
+
+  <update id="incrementLikeCount">
+    UPDATE tech_article
+    SET like_count = like_count + 1
+    WHERE article_key = #{articleKey} AND status = 1
+  </update>
+
+  <update id="decrementLikeCount">
+    UPDATE tech_article
+    SET like_count = GREATEST(like_count - 1, 0)
+    WHERE article_key = #{articleKey} AND status = 1
+  </update>
+
+  <select id="findLikeCount" resultType="java.lang.Integer">
+    SELECT like_count FROM tech_article WHERE article_key = #{articleKey} AND status = 1
+  </select>
+
+  <insert id="upsertArticleReadHistory">
+    INSERT INTO tech_article_read_history (user_id, article_key, read_count, last_read_at)
+    VALUES (#{userId}, #{articleKey}, 1, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      read_count = read_count + 1,
+      last_read_at = CURRENT_TIMESTAMP
+  </insert>
 
   <insert id="insertArticleComment">
     INSERT INTO article_comment (article_key, nickname, content, avatar_text, avatar_accent, parent_id)

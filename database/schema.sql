@@ -1,4 +1,4 @@
--- ============================================================
+﻿-- ============================================================
 -- 面经宝典 - 数据库表结构
 -- 数据库版本：MySQL 5.7+ / 8.0+
 -- 字符集：utf8mb4（支持 emoji）
@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS `tech_article` (
   `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '技术文章主键ID',
   `article_key`       VARCHAR(64)     NOT NULL                COMMENT '技术文章业务主键，前端使用该字段做稳定路由与渲染 key',
   `category`          VARCHAR(32)     NOT NULL                COMMENT '文章分类，如 frontend / backend',
+  `category_label`    VARCHAR(64)     NOT NULL DEFAULT ''     COMMENT '文章分类展示文案，如 项目业务解析',
   `title`             VARCHAR(255)    NOT NULL                COMMENT '文章标题',
   `summary`           VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '文章摘要，用于列表卡片文案',
   `essence`           VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '文章精华摘要，用于导航下拉预览',
@@ -142,6 +143,20 @@ CREATE TABLE IF NOT EXISTS `tech_article` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='技术文章内容表';
 
 -- ------------------------------------------------------------
+-- 7.0.1 技术文章用户点赞记录表
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tech_article_like` (
+  `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '点赞记录主键ID',
+  `user_id`     BIGINT UNSIGNED NOT NULL                COMMENT '关联 auth_user 主键',
+  `article_key` VARCHAR(64)     NOT NULL                COMMENT '关联 tech_article.article_key',
+  `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_tech_article_like_user_article` (`user_id`, `article_key`),
+  KEY `idx_tech_article_like_article` (`article_key`),
+  KEY `idx_tech_article_like_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='技术文章用户点赞记录表';
+
+-- ------------------------------------------------------------
 -- 7.1 技术文章表增量补列
 -- 业务目的：兼容老环境已存在表结构的场景，给后台富文本编辑补齐正文 HTML 字段。
 -- 业务逻辑：通过 information_schema 判断字段是否存在，仅在缺失时执行 ALTER，避免重复执行报错。
@@ -157,7 +172,7 @@ SET @content_draft_sql = IF(
   'CREATE TABLE IF NOT EXISTS `content_draft` (
     `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT   COMMENT ''草稿主键ID'',
     `draft_key`     VARCHAR(64)     NOT NULL                  COMMENT ''草稿唯一标识（前端生成）'',
-    `content_type`  VARCHAR(32)     NOT NULL DEFAULT ''''       COMMENT ''内容类型，tech/world/ai/interview'',
+    `content_type`  VARCHAR(32)     NOT NULL DEFAULT ''''       COMMENT ''内容类型，tech/world/interview'',
     `title`         VARCHAR(255)    NOT NULL DEFAULT ''''       COMMENT ''草稿标题'',
     `content_html`  MEDIUMTEXT      NOT NULL                  COMMENT ''正文富文本 HTML'',
     `extra_json`    TEXT            NOT NULL                  COMMENT ''其余表单字段 JSON'',
@@ -188,6 +203,31 @@ SET @tech_article_content_html_sql = IF(
 PREPARE tech_article_content_html_stmt FROM @tech_article_content_html_sql;
 EXECUTE tech_article_content_html_stmt;
 DEALLOCATE PREPARE tech_article_content_html_stmt;
+
+SET @tech_article_category_label_exists = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'tech_article'
+    AND COLUMN_NAME = 'category_label'
+);
+SET @tech_article_category_label_sql = IF(
+  @tech_article_category_label_exists = 0,
+  'ALTER TABLE `tech_article` ADD COLUMN `category_label` VARCHAR(64) NOT NULL DEFAULT '''' COMMENT ''文章分类展示文案，如 项目业务解析'' AFTER `category`',
+  'SELECT 1'
+);
+PREPARE tech_article_category_label_stmt FROM @tech_article_category_label_sql;
+EXECUTE tech_article_category_label_stmt;
+DEALLOCATE PREPARE tech_article_category_label_stmt;
+
+UPDATE `tech_article`
+SET `category_label` = CASE `category`
+  WHEN 'frontend' THEN '前端工程'
+  WHEN 'backend' THEN '后端架构'
+  WHEN 'project' THEN '项目业务解析'
+  ELSE `category`
+END
+WHERE `category_label` = '';
 
 -- ------------------------------------------------------------
 -- 8. 看天下期刊表
@@ -238,64 +278,13 @@ PREPARE world_news_content_html_stmt FROM @world_news_content_html_sql;
 EXECUTE world_news_content_html_stmt;
 DEALLOCATE PREPARE world_news_content_html_stmt;
 
--- ------------------------------------------------------------
--- 9. AI 热点表
--- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS `ai_hotspot` (
-  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'AI 热点主键ID',
-  `hotspot_key`       VARCHAR(64)     NOT NULL                COMMENT '热点业务主键，前端列表使用该字段做稳定 key',
-  `track`             VARCHAR(32)     NOT NULL                COMMENT '热点赛道，如 agent / multimodal / infra',
-  `hotspot_type`      VARCHAR(32)     NOT NULL                COMMENT '热点类型，当前与赛道保持一致，预留后续细分类',
-  `title`             VARCHAR(255)    NOT NULL                COMMENT '热点标题',
-  `summary`           VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '热点摘要',
-  `author_name`       VARCHAR(64)     NOT NULL DEFAULT ''     COMMENT '发布作者名称',
-  `published_at`      DATETIME        NOT NULL                COMMENT '发布时间，用于最新排序',
-  `cover_url`         VARCHAR(255)    NOT NULL DEFAULT ''     COMMENT '热点封面地址',
-  `content_html`      MEDIUMTEXT      NOT NULL                COMMENT '热点富文本内容，供后台管理页和 AI 编辑流程维护',
-  `tag_list`          VARCHAR(1000)   NOT NULL DEFAULT ''     COMMENT '热点标签列表，使用竖线分隔，便于后端转换为数组',
-  `view_count`        INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '浏览数',
-  `comment_count`     INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '评论数',
-  `like_count`        INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '点赞数',
-  `heat`              INT UNSIGNED    NOT NULL DEFAULT 0      COMMENT '热度分，用于推荐排序',
-  `is_recommended`    TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '是否进入推荐列表',
-  `is_today`          TINYINT(1)      NOT NULL DEFAULT 0      COMMENT '是否属于今日热点',
-  `status`            TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1=发布 0=下线',
-  `sort_order`        INT             NOT NULL DEFAULT 0      COMMENT '业务排序权重，值越小越靠前',
-  `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_ai_hotspot_key` (`hotspot_key`),
-  KEY `idx_ai_hotspot_track` (`track`),
-  KEY `idx_ai_hotspot_publish` (`published_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 热点内容表';
-
--- ------------------------------------------------------------
--- 9.1 AI 热点表增量补列
--- 业务目的：补齐 AI 热点正文 HTML 字段，支撑后台富文本编辑和 AI 润色后的内容落库。
--- 业务逻辑：老表缺少字段时自动追加，已存在字段时直接跳过，保证脚本可重复执行。
--- ------------------------------------------------------------
-SET @ai_hotspot_content_html_exists = (
-  SELECT COUNT(*)
-  FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE()
-    AND TABLE_NAME = 'ai_hotspot'
-    AND COLUMN_NAME = 'content_html'
-);
-SET @ai_hotspot_content_html_sql = IF(
-  @ai_hotspot_content_html_exists = 0,
-  'ALTER TABLE `ai_hotspot` ADD COLUMN `content_html` MEDIUMTEXT NOT NULL COMMENT ''热点富文本内容，供后台管理页和 AI 编辑流程维护'' AFTER `cover_url`',
-  'SELECT 1'
-);
-PREPARE ai_hotspot_content_html_stmt FROM @ai_hotspot_content_html_sql;
-EXECUTE ai_hotspot_content_html_stmt;
-DEALLOCATE PREPARE ai_hotspot_content_html_stmt;
 
 -- ------------------------------------------------------------
 -- 10. 内容编辑日志表
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `content_edit_log` (
   `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '内容编辑日志主键ID',
-  `content_type`  VARCHAR(32)     NOT NULL                COMMENT '内容类型，如 tech / world / ai',
+  `content_type`  VARCHAR(32)     NOT NULL                COMMENT '内容类型，如 tech / world',
   `content_key`   VARCHAR(64)     NOT NULL                COMMENT '内容业务主键，方便定位具体记录',
   `action_type`   VARCHAR(32)     NOT NULL                COMMENT '操作类型，如 create / update / batch-import / delete',
   `operator_name` VARCHAR(64)     NOT NULL DEFAULT 'admin' COMMENT '操作人名称，当前先记录后台默认操作者',

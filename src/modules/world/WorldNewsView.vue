@@ -28,7 +28,14 @@
         <div class="world-bookshelf-section-head">
           <h2>继续阅读</h2>
           <div class="world-bookshelf-section-actions">
-            <button class="world-bookshelf-link" type="button" @click="reloadBooks">刷新书架</button>
+            <button
+              class="world-bookshelf-link"
+              type="button"
+              :disabled="continueSwitching || continueBatchCount <= 1"
+              @click="refreshContinueBatch"
+            >
+              刷新书架
+            </button>
             <div class="world-bookshelf-avatar">
               <img
                 v-if="showAvatarImage"
@@ -41,67 +48,90 @@
           </div>
         </div>
 
-        <div v-if="continueReadingList.length" class="world-bookshelf-reading-grid">
-          <article
-            v-for="item in continueReadingList"
-            :key="item.id"
-            class="world-bookshelf-reading-card"
-            @click="openBook(item.id)"
+        <transition name="world-content-fade" mode="out-in">
+          <div
+            v-if="continueReadingList.length"
+            :key="`continue-list-${continueBatchIndex}`"
+            class="world-bookshelf-reading-grid"
           >
-            <div class="world-bookshelf-mini-cover" :style="buildCoverStyle(item)"></div>
-            <div class="world-bookshelf-reading-copy">
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.author }}</p>
-            </div>
-          </article>
-        </div>
-        <div v-else-if="loading" class="world-bookshelf-empty">
-          <p>书籍内容加载中，请稍候。</p>
-        </div>
-        <div v-else class="world-bookshelf-empty">
-          <p>还没有已发布书籍，先去后台导入一本吧。</p>
-        </div>
+            <article
+              v-for="(item, index) in continueReadingList"
+              :key="`${item.id}-${continueBatchIndex}-${index}`"
+              class="world-bookshelf-reading-card world-bookshelf-reading-card-stagger"
+              :style="{ '--stagger-delay': `${index * 48}ms` }"
+              @click="openBook(item.id)"
+            >
+              <div class="world-bookshelf-mini-cover" :style="buildCoverStyle(item)"></div>
+              <div class="world-bookshelf-reading-copy">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.author }}</p>
+              </div>
+            </article>
+          </div>
+          <div v-else-if="loading" key="continue-loading" class="world-bookshelf-empty">
+            <p>书架内容加载中，请稍候。</p>
+          </div>
+          <div v-else key="continue-empty" class="world-bookshelf-empty">
+            <p>还没有阅读记录，先选一本到阅读页看看吧。</p>
+          </div>
+        </transition>
       </section>
 
       <section class="world-bookshelf-section">
         <div class="world-bookshelf-section-head">
           <h2>推荐阅读</h2>
-          <button class="world-bookshelf-link" type="button" @click="refreshRecommendBatch">
+          <button
+            class="world-bookshelf-link"
+            type="button"
+            :disabled="recommendSwitching || recommendBatchCount <= 1"
+            @click="refreshRecommendBatch"
+          >
             换一批
           </button>
         </div>
 
-        <div v-if="recommendList.length" class="world-bookshelf-recommend-grid">
-          <article
-            v-for="item in recommendList"
-            :key="item.id"
-            class="world-bookshelf-recommend-card"
-            @click="openBook(item.id)"
+        <transition name="world-content-fade" mode="out-in">
+          <div
+            v-if="recommendList.length"
+            :key="`recommend-list-${recommendBatchIndex}`"
+            class="world-bookshelf-recommend-grid"
           >
-            <div class="world-bookshelf-cover-frame">
-              <div class="world-bookshelf-large-cover" :style="buildCoverStyle(item)"></div>
-            </div>
-            <h3>{{ item.title }}</h3>
-            <p class="world-bookshelf-recommend-author">{{ item.author }}</p>
-          </article>
-        </div>
-        <div v-else-if="loading" class="world-bookshelf-empty">
-          <p>正在生成推荐书单。</p>
-        </div>
-        <div v-else class="world-bookshelf-empty">
-          <p>当前还没有可展示的书籍推荐。</p>
-        </div>
+            <article
+              v-for="(item, index) in recommendList"
+              :key="`${item.id}-${recommendBatchIndex}-${index}`"
+              class="world-bookshelf-recommend-card world-bookshelf-recommend-card-stagger"
+              :style="{ '--stagger-delay': `${index * 48}ms` }"
+              @click="openBook(item.id)"
+            >
+              <div class="world-bookshelf-cover-frame">
+                <div class="world-bookshelf-large-cover" :style="buildCoverStyle(item)"></div>
+              </div>
+              <h3>{{ item.title }}</h3>
+              <p class="world-bookshelf-recommend-author">{{ item.author }}</p>
+            </article>
+          </div>
+          <div v-else-if="loading" key="recommend-loading" class="world-bookshelf-empty">
+            <p>正在生成推荐书单。</p>
+          </div>
+          <div v-else key="recommend-empty" class="world-bookshelf-empty">
+            <p>当前还没有可展示的书籍推荐。</p>
+          </div>
+        </transition>
       </section>
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import { getBooks } from '@/api/book'
 import { useAuthStore } from '@/stores/auth'
+
+const BOOK_READING_HISTORY_STORAGE_KEY = 'peakstars-book-reading-history'
+const BOOK_BATCH_SIZE = 4
+const BOOK_SWITCH_DURATION = 360
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -109,24 +139,133 @@ const authStore = useAuthStore()
 const searchKeyword = ref('')
 const loading = ref(false)
 const books = ref([])
-const recommendOffset = ref(0)
+const readingHistory = ref([])
+const continueBatchIndex = ref(0)
+const continueSwitching = ref(false)
+const recommendBatchIndex = ref(0)
+const recommendSwitching = ref(false)
 const showAvatarImage = ref(true)
 
-const continueReadingList = computed(() => {
+let continueSwitchTimer = null
+let recommendSwitchTimer = null
+
+const filteredBookList = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   const source = keyword
     ? books.value.filter((item) => `${item.title || ''}${item.author || ''}`.toLowerCase().includes(keyword))
     : books.value
-  return source.slice(0, 8).map((item, index) => normalizeBook(item, index))
+  return source.map((item, index) => normalizeBook(item, index))
 })
 
-const recommendList = computed(() => {
-  const source = continueReadingList.value
+const readingHistoryMap = computed(() => {
+  return new Map(
+    readingHistory.value
+      .filter((item) => item?.bookId)
+      .map((item) => [String(item.bookId), item])
+  )
+})
+
+const continueBookSource = computed(() => {
+  const source = filteredBookList.value
   if (!source.length) {
     return []
   }
-  const start = recommendOffset.value % source.length
-  return [...source.slice(start), ...source.slice(0, start)].slice(0, 4)
+
+  const ranked = source
+    .map((item, index) => {
+      const history = readingHistoryMap.value.get(String(item.id))
+      const timestamp = history?.updatedAt ? Date.parse(history.updatedAt) : 0
+      return {
+        ...item,
+        historyUpdatedAt: Number.isFinite(timestamp) ? timestamp : 0,
+        historyChapterTitle: String(history?.chapterTitle || ''),
+        originalIndex: index
+      }
+    })
+    .filter((item) => item.historyUpdatedAt > 0)
+    .sort((left, right) => {
+      if (right.historyUpdatedAt !== left.historyUpdatedAt) {
+        return right.historyUpdatedAt - left.historyUpdatedAt
+      }
+      return left.originalIndex - right.originalIndex
+    })
+
+  if (!ranked.length) {
+    return source.slice(0, BOOK_BATCH_SIZE)
+  }
+
+  if (ranked.length >= BOOK_BATCH_SIZE) {
+    return ranked
+  }
+
+  const rankedIds = new Set(ranked.map((item) => String(item.id)))
+  const fallbackBooks = source.filter((item) => !rankedIds.has(String(item.id)))
+  return ranked.concat(fallbackBooks.slice(0, BOOK_BATCH_SIZE - ranked.length))
+})
+
+const continueBookIds = computed(() => {
+  return new Set(continueBookSource.value.map((item) => String(item.id)))
+})
+
+const recommendBookSource = computed(() => {
+  const source = filteredBookList.value
+  if (!source.length) {
+    return []
+  }
+
+  const unreadFirst = source.filter((item) => !continueBookIds.value.has(String(item.id)))
+  const fallback = source.filter((item) => continueBookIds.value.has(String(item.id)))
+  const combinedSource = unreadFirst.length ? unreadFirst.concat(fallback) : [...source]
+
+  return combinedSource
+    .map((item, index) => ({
+      ...item,
+      historyUpdatedAt: readingHistoryMap.value.get(String(item.id))?.updatedAt
+        ? Date.parse(readingHistoryMap.value.get(String(item.id)).updatedAt)
+        : 0,
+      originalIndex: index
+    }))
+    .sort((left, right) => {
+      const leftUnread = continueBookIds.value.has(String(left.id)) ? 1 : 0
+      const rightUnread = continueBookIds.value.has(String(right.id)) ? 1 : 0
+      if (leftUnread !== rightUnread) {
+        return leftUnread - rightUnread
+      }
+      if (left.category !== right.category) {
+        return String(left.category || '').localeCompare(String(right.category || ''))
+      }
+      if (left.title !== right.title) {
+        return String(left.title || '').localeCompare(String(right.title || ''))
+      }
+      if (left.historyUpdatedAt !== right.historyUpdatedAt) {
+        return left.historyUpdatedAt - right.historyUpdatedAt
+      }
+      return left.originalIndex - right.originalIndex
+    })
+})
+
+const continueBatches = computed(() => {
+  return buildBookBatches(continueBookSource.value)
+})
+
+const continueBatchCount = computed(() => {
+  return continueBatches.value.length
+})
+
+const continueReadingList = computed(() => {
+  return continueBatches.value[continueBatchIndex.value] || []
+})
+
+const recommendBatches = computed(() => {
+  return buildBookBatches(recommendBookSource.value)
+})
+
+const recommendBatchCount = computed(() => {
+  return recommendBatches.value.length
+})
+
+const recommendList = computed(() => {
+  return recommendBatches.value[recommendBatchIndex.value] || []
 })
 
 const avatarFallback = computed(() => {
@@ -134,8 +273,47 @@ const avatarFallback = computed(() => {
   return source.trim().slice(0, 1).toUpperCase()
 })
 
+watch([filteredBookList, readingHistory], () => {
+  stopContinueSwitching()
+  continueBatchIndex.value = 0
+  stopRecommendSwitching()
+  recommendBatchIndex.value = 0
+}, { deep: true })
+
+watch(continueBatchCount, (count) => {
+  if (!count) {
+    stopContinueSwitching()
+    continueBatchIndex.value = 0
+    return
+  }
+
+  if (continueBatchIndex.value >= count) {
+    continueBatchIndex.value = 0
+  }
+})
+
+watch(recommendBatchCount, (count) => {
+  if (!count) {
+    stopRecommendSwitching()
+    recommendBatchIndex.value = 0
+    return
+  }
+
+  if (recommendBatchIndex.value >= count) {
+    recommendBatchIndex.value = 0
+  }
+})
+
 onMounted(() => {
   reloadBooks()
+  syncReadingHistory()
+  window.addEventListener('storage', handleStorageChange)
+})
+
+onBeforeUnmount(() => {
+  stopContinueSwitching()
+  stopRecommendSwitching()
+  window.removeEventListener('storage', handleStorageChange)
 })
 
 async function reloadBooks() {
@@ -148,15 +326,91 @@ async function reloadBooks() {
   }
 }
 
-function refreshRecommendBatch() {
-  if (!continueReadingList.value.length) {
+function syncReadingHistory() {
+  if (typeof window === 'undefined') {
+    readingHistory.value = []
     return
   }
-  recommendOffset.value = (recommendOffset.value + 4) % continueReadingList.value.length
+
+  try {
+    const rawHistory = window.localStorage.getItem(BOOK_READING_HISTORY_STORAGE_KEY)
+    const parsedHistory = JSON.parse(rawHistory || '[]')
+    readingHistory.value = Array.isArray(parsedHistory) ? parsedHistory : []
+  } catch (error) {
+    readingHistory.value = []
+  }
+}
+
+function handleStorageChange(event) {
+  if (event.key === BOOK_READING_HISTORY_STORAGE_KEY) {
+    syncReadingHistory()
+  }
+}
+
+function buildBookBatches(source) {
+  if (!source.length) {
+    return []
+  }
+
+  if (source.length <= BOOK_BATCH_SIZE) {
+    return [source]
+  }
+
+  const batchCount = Math.ceil(source.length / BOOK_BATCH_SIZE)
+  return Array.from({ length: batchCount }, (_, batchIndex) => {
+    const start = batchIndex * BOOK_BATCH_SIZE
+    return Array.from({ length: BOOK_BATCH_SIZE }, (_, offset) => {
+      return source[(start + offset) % source.length]
+    })
+  })
+}
+
+function refreshContinueBatch() {
+  if (continueBatchCount.value <= 1 || continueSwitching.value) {
+    return
+  }
+
+  stopContinueSwitching()
+  continueSwitching.value = true
+  continueBatchIndex.value = (continueBatchIndex.value + 1) % continueBatchCount.value
+  continueSwitchTimer = window.setTimeout(() => {
+    continueSwitching.value = false
+    continueSwitchTimer = null
+  }, BOOK_SWITCH_DURATION)
+}
+
+function refreshRecommendBatch() {
+  if (recommendBatchCount.value <= 1 || recommendSwitching.value) {
+    return
+  }
+
+  stopRecommendSwitching()
+  recommendSwitching.value = true
+  recommendBatchIndex.value = (recommendBatchIndex.value + 1) % recommendBatchCount.value
+  recommendSwitchTimer = window.setTimeout(() => {
+    recommendSwitching.value = false
+    recommendSwitchTimer = null
+  }, BOOK_SWITCH_DURATION)
 }
 
 function openBook(bookKey) {
   router.push(`/book/${bookKey}`)
+}
+
+function stopContinueSwitching() {
+  continueSwitching.value = false
+  if (continueSwitchTimer) {
+    window.clearTimeout(continueSwitchTimer)
+    continueSwitchTimer = null
+  }
+}
+
+function stopRecommendSwitching() {
+  recommendSwitching.value = false
+  if (recommendSwitchTimer) {
+    window.clearTimeout(recommendSwitchTimer)
+    recommendSwitchTimer = null
+  }
 }
 
 function normalizeBook(item, index) {
@@ -167,6 +421,7 @@ function normalizeBook(item, index) {
     kicker: shortenText(item.category || '书籍', 8),
     footer: shortenText(item.author || '未知作者', 10),
     author: shortenText(item.author || '未知作者', 16),
+    category: item.category || '',
     accent: buildAccentByIndex(index),
     coverUrl: item.coverUrl || ''
   }

@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 承接技术文章模块的前端展示结构，服务文章列表页与导航下拉预览。
- * 后端直接返回前端可渲染的布尔状态、亮点数组和作者对象，减少页面层转换成本。
+ * 承接技术文章列表与详情页响应字段，统一输出前端直接可用的数据结构。
+ * 后端在这里补齐作者对象、阅读状态和最近阅读时间，减少页面层转换成本。
  */
 @Getter
 @Setter
@@ -14,6 +14,7 @@ public class TechArticleResponse {
 
     private String id;
     private String category;
+    private String categoryLabel;
     private String title;
     private String summary;
     private String essence;
@@ -27,6 +28,7 @@ public class TechArticleResponse {
     private Integer collectCount;
     private Integer commentCount;
     private String readTime;
+    private String lastReadAt;
     private Boolean isVip;
     private Boolean isCollected;
     private Boolean isLiked;

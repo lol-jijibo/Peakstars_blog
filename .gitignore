@@ -21,5 +21,12 @@ server/package-lock.json
 # Java build output
 server-java/target/
 
+# Local uploaded assets
+server-java/uploads/
+
 # Vite cache
 .vite/
+
+# Environment files (contain secrets)
+.env
+.env.local

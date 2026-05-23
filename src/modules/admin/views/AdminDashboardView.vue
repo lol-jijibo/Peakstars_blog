@@ -46,7 +46,7 @@
       <nav class="nav">
         <div class="nav-section">内容</div>
         <button
-          v-for="module in moduleOptions"
+          v-for="module in visibleModuleOptions"
           :key="module.key"
           class="nav-item"
           :class="{ active: routeSection === module.key }"
@@ -189,7 +189,7 @@
               <span class="panel-title">模块流量对比</span>
               <span class="panel-action">ECharts</span>
             </div>
-            <AdminModuleChart :module-stats="moduleStats" />
+            <AdminModuleChart :module-stats="visibleModuleStats" />
             <div class="analytics-highlight-grid analytics-highlight-grid-compact">
               <div v-for="item in moduleSnapshotCards" :key="item.key" class="analytics-highlight-card">
                 <span class="analytics-highlight-label">{{ item.label }}</span>
@@ -476,8 +476,9 @@
           <div class="form-group">
             <label class="form-label">{{ activeModule.formCategoryLabel }}</label>
             <select v-if="currentType === 'tech'" v-model="draftForm.category" class="form-input">
-              <option value="frontend">前端</option>
-              <option value="backend">后端</option>
+              <option v-for="category in adminTechCategoryOptions" :key="category.key" :value="category.key">
+                {{ category.label }}
+              </option>
             </select>
             <input
               v-else-if="currentType === 'world'"
@@ -491,11 +492,6 @@
               <option value="java">Java 后端</option>
               <option value="agent">Agent开发</option>
               <option value="llm">大模型原理</option>
-            </select>
-            <select v-else-if="currentType === 'ai'" v-model="draftForm.track" class="form-input">
-              <option value="agent">Agent</option>
-              <option value="multimodal">多模态</option>
-              <option value="infra">基础设施</option>
             </select>
             <div v-else class="form-input-placeholder">—</div>
           </div>
@@ -626,6 +622,7 @@
           <label class="form-label">正文内容</label>
           <AdminRichEditor
             v-model="draftForm.contentHtml"
+            storage-type="interview-rich-text"
             placeholder="请输入正文内容"
           />
         </div>
@@ -719,25 +716,6 @@ const moduleOptions = computed(() => [
     }
   },
   {
-    key: 'ai',
-    icon: 'AI',
-    badge: `${resolveModuleCount('ai')}`,
-    navLabel: '热点管理',
-    topbarTitle: 'AI 热点管理',
-    shortLabel: '热点',
-    panelTitle: '最新热点',
-    sideTitle: '热点赛道',
-    formCategoryLabel: '赛道',
-    formTagLabel: '标签',
-    formTagPlaceholder: '例如 Agent, 工作流, 工具调用',
-    statLabels: {
-      total: '热点总数',
-      views: '总浏览量',
-      comments: '讨论量',
-      focus: '今日热点'
-    }
-  },
-  {
     key: 'interview',
     icon: '面',
     badge: `${resolveModuleCount('interview')}`,
@@ -819,7 +797,7 @@ function cancelConfirm() {
   confirmVisible.value = false
   if (confirmResolver) confirmResolver(false)
 }
-const contentSectionKeys = ['tech', 'world', 'ai', 'interview']
+const contentSectionKeys = ['tech', 'ai', 'interview']
 const routeSection = computed(() => String(route.params.section || 'tech'))
 const isContentPage = computed(() => contentSectionKeys.includes(routeSection.value))
 const isBooksImportPage = computed(() => routeSection.value === 'books-import')
@@ -839,6 +817,11 @@ const coverUploading = ref(false)
 const importPreviewLoading = ref(false)
 const importFileName = ref('')
 const draftForm = reactive(createEmptyDraft())
+const adminTechCategoryOptions = [
+  { key: 'frontend', label: '前端工程' },
+  { key: 'backend', label: '后端架构' },
+  { key: 'project', label: '项目业务解析' }
+]
 
 // 标签相关：根据分类动态加载可选标签
 const availableTags = ref([])
@@ -923,7 +906,8 @@ const summary = computed(() => currentSummary.value || {
   lastUpdatedAt: ''
 })
 
-const activeModule = computed(() => moduleOptions.value.find((item) => item.key === currentType.value) || moduleOptions.value[0])
+const visibleModuleOptions = computed(() => moduleOptions.value.filter((item) => contentSectionKeys.includes(item.key)))
+const activeModule = computed(() => visibleModuleOptions.value.find((item) => item.key === currentType.value) || visibleModuleOptions.value[0] || moduleOptions.value[0])
 /**
  * 只在后端具备封面持久化能力的模块中展示封面上传入口。
  * 面经与期刊当前没有对应封面字段写库链路，前端需要主动收口避免出现"保存成功但回显丢失"的假象。
@@ -943,6 +927,12 @@ const coverFieldNotice = computed(() => {
   return '当前模块支持封面图上传与保存。'
 })
 const currentRecords = computed(() => adminStore.getContentList(currentType.value))
+const visibleModuleStats = computed(() => moduleStats.value.filter((item) => contentSectionKeys.includes(item.moduleKey)))
+const visibleHotContents = computed(() => hotContents.value.filter((item) => {
+  const contentType = item.type || item.contentType || item.moduleKey
+  return contentSectionKeys.includes(contentType)
+}))
+const visibleRecentEdits = computed(() => recentEdits.value.filter((item) => !item.contentType || contentSectionKeys.includes(item.contentType)))
 const pageTitle = computed(() => {
   if (isBooksImportPage.value) {
     return '书籍导入'
@@ -965,8 +955,8 @@ const pageTitle = computed(() => {
 // 目的: 统一沉淀后台数据分析模块的核心概览卡，避免图表说明和摘要数字口径割裂。
 // 逻辑: 从后端 dashboard 聚合结果中提取总量、热度和模块峰值，直接服务数据分析面板和评论管理摘要区。
 const analyticsHighlights = computed(() => {
-  const hottestModule = [...moduleStats.value].sort((left, right) => Number(right.viewCount || 0) - Number(left.viewCount || 0))[0]
-  const hottestContent = hotContents.value[0]
+  const hottestModule = [...visibleModuleStats.value].sort((left, right) => Number(right.viewCount || 0) - Number(left.viewCount || 0))[0]
+  const hottestContent = visibleHotContents.value[0]
   const pendingCount = commentRecords.value.reduce((total, item) => total + Number(item.pendingCount || 0), 0)
   return [
     {
@@ -995,7 +985,7 @@ const analyticsHighlights = computed(() => {
 // 目的: 将三个内容模块的聚合结果拆成独立摘要卡，确保数据分析页能直接看到每个模块的变化数据。
 // 逻辑: 统一使用 dashboard 的模块统计结果生成卡片，避免页面层再次分散查询不同模块的数据口径。
 const moduleSnapshotCards = computed(() => {
-  return moduleStats.value.map((item) => ({
+  return visibleModuleStats.value.map((item) => ({
     key: item.moduleKey,
     label: item.moduleLabel,
     value: formatCount(item.viewCount),
@@ -1029,12 +1019,19 @@ const filterTabs = computed(() => {
   const draftTab = { key: 'draft', label: `待编辑${draftCount ? ` (${draftCount})` : ''}` }
   const allTab = { key: 'all', label: `全部${totalCount ? ` (${totalCount})` : ''}` }
 
+  function tab(label, count) {
+    return `${label} (${count})`
+  }
+
+  const records = currentRecords.value
+
   if (currentType.value === 'tech') {
     return [
       allTab,
-      { key: 'featured', label: '精选' },
-      { key: 'vip', label: 'VIP' },
-      { key: 'history', label: '最近浏览' },
+      { key: 'project', label: tab('项目业务解析', records.filter(r => matchFilter(r, 'project')).length) },
+      { key: 'featured', label: tab('精选', records.filter(r => matchFilter(r, 'featured')).length) },
+      { key: 'vip', label: tab('VIP', records.filter(r => matchFilter(r, 'vip')).length) },
+      { key: 'history', label: tab('最近浏览', records.filter(r => matchFilter(r, 'history')).length) },
       draftTab
     ]
   }
@@ -1042,9 +1039,9 @@ const filterTabs = computed(() => {
   if (currentType.value === 'world') {
     return [
       allTab,
-      { key: 'recommended', label: '高推荐' },
-      { key: 'latest', label: '最新期号' },
-      { key: 'cover', label: '封面重点' },
+      { key: 'recommended', label: tab('高推荐', records.filter(r => matchFilter(r, 'recommended')).length) },
+      { key: 'latest', label: tab('最新期号', records.filter(r => matchFilter(r, 'today')).length) },
+      { key: 'cover', label: tab('封面重点', records.filter(r => matchFilter(r, 'high-heat')).length) },
       draftTab
     ]
   }
@@ -1052,20 +1049,14 @@ const filterTabs = computed(() => {
   if (currentType.value === 'interview') {
     return [
       allTab,
-      { key: 'easy', label: '基础' },
-      { key: 'medium', label: '中等' },
-      { key: 'hard', label: '困难' },
+      { key: 'easy', label: tab('基础', records.filter(r => matchFilter(r, 'easy')).length) },
+      { key: 'medium', label: tab('中等', records.filter(r => matchFilter(r, 'medium')).length) },
+      { key: 'hard', label: tab('困难', records.filter(r => matchFilter(r, 'hard')).length) },
       draftTab
     ]
   }
 
-  return [
-    allTab,
-    { key: 'recommended', label: '推荐' },
-    { key: 'today', label: '今日热点' },
-    { key: 'high-heat', label: '高热度' },
-    draftTab
-  ]
+  return [allTab, draftTab]
 })
 
 const filteredRecords = computed(() => {
@@ -1111,8 +1102,8 @@ const filteredRecords = computed(() => {
 })
 
 const currentRecentEdits = computed(() => {
-  const scopedLogs = recentEdits.value.filter((item) => item.contentType === currentType.value)
-  return (scopedLogs.length ? scopedLogs : recentEdits.value).slice(0, 4)
+  const scopedLogs = visibleRecentEdits.value.filter((item) => item.contentType === currentType.value)
+  return (scopedLogs.length ? scopedLogs : visibleRecentEdits.value).slice(0, 4)
 })
 
 // 目的: 把后台评论管理记录转换成页面可直接渲染的评论巡检列表。
@@ -1157,7 +1148,7 @@ const commentSummaryCards = computed(() => {
 // 目的: 将评论管理页的三模块评论变化拆成独立摘要卡，便于直接横向比较各模块评论压力。
 // 逻辑: 复用 dashboard 的模块评论统计，即使某个模块当前评论为 0 也明确展示，避免误判为未加载。
 const commentModuleCards = computed(() => {
-  return moduleStats.value.map((item) => ({
+  return visibleModuleStats.value.map((item) => ({
     key: item.moduleKey,
     label: item.moduleLabel,
     value: formatCount(item.commentCount),
@@ -1170,6 +1161,7 @@ const sideCategoryItems = computed(() => {
     return [
       { name: '前端开发', count: countBy(currentRecords.value, (item) => item.category === 'frontend'), color: '#e8c97e' },
       { name: '后端架构', count: countBy(currentRecords.value, (item) => item.category === 'backend'), color: '#7ab0e0' },
+      { name: '项目业务解析', count: countBy(currentRecords.value, (item) => item.category === 'project'), color: '#9d7ae0' },
       { name: 'VIP 深读', count: countBy(currentRecords.value, (item) => Boolean(item.vip)), color: '#70c99a' },
       { name: '精选分发', count: countBy(currentRecords.value, (item) => Boolean(item.featured)), color: '#e07070' }
     ]
@@ -1193,18 +1185,15 @@ const sideCategoryItems = computed(() => {
   }
 
   return [
-    { name: 'Agent 落地', count: countBy(currentRecords.value, (item) => item.track === 'agent'), color: '#e8c97e' },
-    { name: '多模态交互', count: countBy(currentRecords.value, (item) => item.track === 'multimodal'), color: '#7ab0e0' },
-    { name: '模型基础设施', count: countBy(currentRecords.value, (item) => item.track === 'infra'), color: '#70c99a' },
-    { name: '今日热点', count: countBy(currentRecords.value, (item) => Boolean(item.today)), color: '#e07070' }
+    { name: '内容合计', count: currentRecords.value.length, color: '#7ab0e0' }
   ]
 })
 
 // 目的: 输出后台数据分析区的热点内容榜，辅助运营将图表结论落到具体内容对象。
 // 逻辑: 使用后端 dashboard 已经聚合好的热度内容列表，并在前端补充排名序号与进度条宽度。
 const hotContentRankings = computed(() => {
-  const highestViewCount = Math.max(...hotContents.value.map((item) => Number(item.viewCount || 0)), 0)
-  return hotContents.value.map((item, index) => ({
+  const highestViewCount = Math.max(...visibleHotContents.value.map((item) => Number(item.viewCount || 0)), 0)
+  return visibleHotContents.value.map((item, index) => ({
     ...item,
     rank: index + 1,
     ratio: highestViewCount > 0 ? Math.max(12, Math.round((Number(item.viewCount || 0) / highestViewCount) * 100)) : 0
@@ -1212,7 +1201,7 @@ const hotContentRankings = computed(() => {
 })
 
 const progressInfo = computed(() => {
-  const targetMap = { tech: 20, world: 6, ai: 10, interview: 10 }
+  const targetMap = { tech: 20, ai: 10, interview: 10 }
   const target = targetMap[currentType.value] || 10
   const current = moduleSummary.value.currentMonthCount
   const percent = Math.min(100, Math.round((current / target) * 100))
@@ -1378,17 +1367,10 @@ function matchFilter(record, filterKey) {
 
   if (currentType.value === 'tech') {
     return {
+      project: record.category === 'project',
       featured: Boolean(record.featured),
       vip: Boolean(record.vip),
       history: Boolean(record.history)
-    }[filterKey]
-  }
-
-  if (currentType.value === 'world') {
-    return {
-      recommended: Number(record.recommendation || 0) >= 80,
-      latest: isCurrentMonth(record.publishedAt),
-      cover: Boolean(record.coverSummary)
     }[filterKey]
   }
 
@@ -1444,7 +1426,7 @@ function resolveMeta(record) {
 
 function resolveCategory(record) {
   if (record.type === 'tech') {
-    return record.category === 'frontend' ? '前端开发' : '后端架构'
+    return resolveTechCategoryLabel(record.category, record.categoryLabel)
   }
   if (record.type === 'world') {
     return record.issueLabel || '期刊'
@@ -1459,7 +1441,7 @@ function resolveCategory(record) {
     }
     return interviewCategoryMap[record.category] || record.category || '综合'
   }
-  return record.track || 'AI'
+  return record.category || '内容'
 }
 
 function resolveStatus(record) {
@@ -1489,12 +1471,6 @@ function resolveStatus(record) {
     return { label: diff, className: record.track === 'hard' ? 'badge-review' : record.track === 'medium' ? 'badge-published' : 'badge-draft' }
   }
 
-  if (record.today) {
-    return { label: '今日热点', className: 'badge-review' }
-  }
-  if (record.recommended) {
-    return { label: '推荐', className: 'badge-published' }
-  }
   return { label: '已收录', className: 'badge-draft' }
 }
 
@@ -1549,6 +1525,14 @@ function isFocusRecord(record) {
     return record.track === 'hard' || Number(record.collectCount || 0) >= 10
   }
   return record.today || record.recommended
+}
+
+function resolveTechCategoryLabel(category, categoryLabel = '') {
+  if (categoryLabel) {
+    return categoryLabel
+  }
+  const option = adminTechCategoryOptions.find((item) => item.key === category)
+  return option?.label || '技术文章'
 }
 
 function countBy(records, predicate) {
@@ -1814,7 +1798,7 @@ async function handleCoverFileSelect(event) {
 
   coverUploading.value = true
   try {
-    const result = await uploadCoverImage(file)
+    const result = await uploadCoverImage(file, currentType.value === 'interview' ? 'interview-cover' : currentType.value)
     draftForm.coverUrl = result.url
     showToast('封面图片上传成功', 'success')
   } catch (error) {
@@ -2094,13 +2078,13 @@ function createEmptyDraft() {
     publishedAt: formatDateTimeLocal(new Date()),
     issueLabel: '',
     recommendation: 80,
-    track: 'agent',
+    track: 'easy',
     difficulty: 'easy',
     heat: 80,
     featured: false,
     vip: false,
     history: false,
-    recommended: true,
+    recommended: false,
     today: false,
     highlightsText: '',
     tagsText: '',
@@ -2123,9 +2107,7 @@ function createDraftFromRecord(record) {
     coverUrl: record.coverUrl || '',
     contentHtml: record.contentHtml || '',
     publishedAt: normalizeDateTimeLocal(record.publishedAt),
-    issueLabel: record.issueLabel || '',
-    recommendation: Number(record.recommendation || 80),
-    track: isInterview ? (record.track || 'easy') : (record.track || 'agent'),
+    track: isInterview ? (record.track || 'easy') : (record.track || 'easy'),
     difficulty: isInterview ? (record.track || 'easy') : 'easy',
     heat: Number(record.heat || 80),
     featured: Boolean(record.featured),
@@ -2133,7 +2115,7 @@ function createDraftFromRecord(record) {
     history: Boolean(record.history),
     recommended: Boolean(record.recommended),
     today: Boolean(record.today),
-    highlightsText: [record.coverKicker, ...(record.highlights || [])].filter(Boolean).join(', '),
+    highlightsText: (record.highlights || []).join(', '),
     tagsText: (record.tags || []).join(', '),
     selectedTags: record.tags || [], // 从 record.tags 初始化选中的标签
     visualStatus: inferVisualStatus(record),
@@ -2160,6 +2142,7 @@ function buildSavePayload(form, type) {
     return {
       id: form.id || '',
       category: form.category,
+      categoryLabel: resolveTechCategoryLabel(form.category),
       title: form.title,
       summary: form.summary,
       essence: form.summary,
@@ -2172,7 +2155,7 @@ function buildSavePayload(form, type) {
       commentCount: 0,
       likeCount: 0,
       collectCount: 0,
-      readTime: '6 min',
+      readTime: '1 min',
       featured: isFeatured,
       vip: isVip,
       collected: false,
@@ -2229,15 +2212,7 @@ function buildSavePayload(form, type) {
     title: form.title,
     summary: form.summary,
     authorName: form.authorName || 'PeakStars',
-    track: form.track,
-    hotspotType: form.track,
     publishedAt: normalizeDateTimePayload(form.publishedAt),
-    viewCount: 0,
-    commentCount: 0,
-    likeCount: 0,
-    heat: form.visualStatus === 'review' ? 90 : Number(form.heat || 80),
-    recommended: form.visualStatus !== 'draft',
-    today: form.visualStatus === 'review' || form.today,
     tags: splitCommaText(form.tagsText),
     coverUrl: form.coverUrl,
     contentHtml: form.contentHtml
@@ -2298,6 +2273,7 @@ function buildImportRecord(row, type) {
       id: row.id,
       title: row.title,
       category: row.category || 'frontend',
+      categoryLabel: row.categoryLabel || resolveTechCategoryLabel(row.category || 'frontend'),
       summary: row.summary,
       essence: row.summary,
       authorName: row.authorName || 'PeakStars',
@@ -2307,7 +2283,7 @@ function buildImportRecord(row, type) {
       commentCount: Number(row.commentCount || 0),
       likeCount: Number(row.likeCount || 0),
       collectCount: Number(row.collectCount || 0),
-      readTime: row.readTime || '6 min',
+      readTime: row.readTime || '1 min',
       featured: parseBooleanish(row.featured),
       vip: parseBooleanish(row.vip),
       collected: false,
@@ -2341,17 +2317,9 @@ function buildImportRecord(row, type) {
   return {
     id: row.id,
     title: row.title,
-    track: row.track || 'agent',
-    hotspotType: row.hotspotType || row.track || 'agent',
     summary: row.summary,
     authorName: row.authorName || 'PeakStars',
     publishedAt: row.publishedAt,
-    viewCount: Number(row.viewCount || 0),
-    commentCount: Number(row.commentCount || 0),
-    likeCount: Number(row.likeCount || 0),
-    heat: Number(row.heat || 0),
-    recommended: parseBooleanish(row.recommended),
-    today: parseBooleanish(row.today),
     tags: splitCommaText(row.tags),
     coverUrl: row.coverUrl,
     contentHtml: row.contentHtml || `<p>${row.summary || ''}</p>`
@@ -2373,12 +2341,6 @@ function inferVisualStatus(record) {
   }
   if (record.type === 'interview') {
     return record.track === 'hard' ? 'review' : 'published'
-  }
-  if (record.today) {
-    return 'review'
-  }
-  if (!record.recommended) {
-    return 'draft'
   }
   return 'published'
 }

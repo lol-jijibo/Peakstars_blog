@@ -30,15 +30,11 @@
 }
 
 .site-brand-mark {
-  display: grid;
-  place-items: center;
   width: 48px;
   height: 48px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(90, 200, 250, 0.22), rgba(108, 99, 255, 0.24));
-  color: #ffffff;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: block;
+  object-fit: cover;
   box-shadow: 0 16px 26px rgba(90, 200, 250, 0.15);
 }
 

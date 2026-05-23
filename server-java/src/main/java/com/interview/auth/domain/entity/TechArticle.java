@@ -5,8 +5,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 承接技术文章表的持久化字段，供 MyBatis 直接映射数据库记录。
- * 实体保留作者、亮点和展示状态等原始字段，具体数组拆分与前端结构转换交给 Service 层完成。
+ * 对应数据库 tech_article 表，封装技术文章展示与阅读状态的核心字段。
+ * 配合 MyBatis 完成 ORM 映射，由 Service 层补齐当前用户阅读记录后输出给前端。
  */
 @Getter
 @Setter
@@ -15,6 +15,7 @@ public class TechArticle {
     private Long id;
     private String articleKey;
     private String category;
+    private String categoryLabel;
     private String title;
     private String summary;
     private String essence;
@@ -38,6 +39,7 @@ public class TechArticle {
     private Integer featured;
     private Integer status;
     private Integer sortOrder;
+    private LocalDateTime lastReadAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

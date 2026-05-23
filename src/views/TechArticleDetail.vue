@@ -19,7 +19,7 @@
       <button class="article-topbar-action" type="button" @click="goArticleList">返回列表 →</button>
     </header>
 
-    <div class="article-shell">
+    <div v-if="isArticleReady" class="article-shell">
       <main class="article-main">
         <header class="article-header">
           <div class="article-meta-top">
@@ -35,11 +35,26 @@
             <div class="article-author-avatar">{{ authorAvatarText }}</div>
             <div class="article-byline-text">
               <span class="article-author-name">{{ author.name }}</span>
-              <span class="article-date-read">{{ displayPublishedAt }} · {{ displayReadTime }}</span>
+              <span class="article-date-read">
+                <span>{{ displayPublishedAt }}</span>
+                <span class="article-date-read-sep">·</span>
+                <span class="article-read-history">{{ displayReadTime }}</span>
+              </span>
             </div>
 
             <button class="article-author-follow-inline" type="button" @click="toggleFollow">
               {{ isFollowed ? '已关注' : '+ 关注' }}
+            </button>
+
+            <button
+              class="article-like-inline"
+              :class="{ 'is-liked': currentArticle.isLiked }"
+              type="button"
+              :disabled="likeSubmitting"
+              @click="handleToggleArticleLike"
+            >
+              <span class="article-like-icon">{{ currentArticle.isLiked ? '♥' : '♡' }}</span>
+              <span>{{ currentArticle.isLiked ? '已点赞' : '点赞' }}</span>
             </button>
 
             <div class="article-stats">
@@ -179,6 +194,23 @@
             </div>
           </div>
         </section>
+        <section class="article-bottom-share">
+          <h2 class="article-sidebar-title">分享</h2>
+          <div class="article-share-list">
+            <button class="article-share-button" type="button" @click="shareToX">
+              <span class="article-share-icon article-share-icon--x">X</span>
+              分享到 X
+            </button>
+            <button class="article-share-button" type="button" @click="shareToLinkedIn">
+              <span class="article-share-icon article-share-icon--in">in</span>
+              分享到 LinkedIn
+            </button>
+            <button class="article-share-button" type="button" @click="copyLink">
+              <span class="article-share-icon article-share-icon--copy">↗</span>
+              {{ copiedText }}
+            </button>
+          </div>
+        </section>
       </main>
 
       <aside class="article-sidebar">
@@ -216,7 +248,9 @@
           </button>
         </section>
 
-        <section class="article-sidebar-section article-sidebar-share">
+        <section
+          class="article-sidebar-section article-sidebar-share"
+        >
           <h2 class="article-sidebar-title">分享</h2>
           <div class="article-share-list">
             <button class="article-share-button" type="button" @click="shareToX">
@@ -237,6 +271,24 @@
     </div>
 
     <!-- Toast 通知 -->
+    <div v-else class="article-shell article-shell--loading">
+      <main class="article-main">
+        <div v-if="isArticleLoading" class="article-loading-panel" aria-label="文章加载中">
+          <div class="article-loading-kicker"></div>
+          <div class="article-loading-title"></div>
+          <div class="article-loading-subtitle"></div>
+          <div class="article-loading-meta"></div>
+          <div class="article-loading-line"></div>
+          <div class="article-loading-line article-loading-line--short"></div>
+          <div class="article-loading-block"></div>
+        </div>
+        <div v-else class="article-empty-panel">
+          <h1>{{ articleLoadFailed ? '文章加载失败' : '文章暂未找到' }}</h1>
+          <button type="button" @click="goArticleList">返回文章列表</button>
+        </div>
+      </main>
+    </div>
+
     <Transition name="toast">
       <div v-if="toastVisible" class="toast-notification">{{ toastMessage }}</div>
     </Transition>
@@ -263,16 +315,20 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getTechArticles, incrementArticleReadCount, getArticleComments, addArticleComment, deleteArticleComment, invalidateTechArticlesCache } from '@/api/content'
+import { getTechArticles, incrementArticleReadCount, toggleArticleLike, getArticleComments, addArticleComment, deleteArticleComment, invalidateTechArticlesCache } from '@/api/content'
 import { highlight, RULE_MAP } from '@/utils/codeHighlight'
 import { useThemeStore } from '@/stores/theme'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const { isDark, toggleTheme } = useThemeStore()
+const authStore = useAuthStore()
 
 const techArticles = ref([])
 const article = ref(null)
+const isArticleLoading = ref(false)
+const articleLoadFailed = ref(false)
 const articleBodyRef = ref(null)
 const seriesSectionRef = ref(null)
 const outlineItems = ref([])
@@ -280,6 +336,7 @@ const activeOutlineId = ref('')
 const scrollProgress = ref(0)
 const copiedText = ref('复制链接')
 const isFollowed = ref(false)
+const likeSubmitting = ref(false)
 const comments = ref([])
 const commentContent = ref('')
 const commentFormFocused = ref(false)
@@ -290,6 +347,8 @@ const confirmVisible = ref(false)
 const confirmTitle = ref('')
 const confirmMessage = ref('')
 let confirmResolver = null
+let articleLoadToken = 0
+const LOCAL_TECH_ARTICLE_READ_HISTORY_KEY = 'peakstars_tech_article_read_history'
 
 function showConfirm(title, message) {
   return new Promise((resolve) => {
@@ -328,19 +387,40 @@ function showToast(message, duration = 2000) {
  * 逻辑：优先读取接口合并结果，找不到时尝试加载全部文章后再查找。
  */
 async function loadArticle(articleId) {
+  const loadToken = ++articleLoadToken
+  isArticleLoading.value = true
+  articleLoadFailed.value = false
+  article.value = null
+  comments.value = []
+  outlineItems.value = []
+  activeOutlineId.value = ''
+
   try {
-    const list = await getTechArticles()
+    const localLastReadAt = markLocalArticleReadTime(articleId)
+    const list = await getTechArticles({ forceRefresh: true })
+    if (loadToken !== articleLoadToken) return
+
     techArticles.value = Array.isArray(list) ? list : []
-    article.value = techArticles.value.find((item) => String(item.id) === String(articleId)) || null
+    const matchedArticle = techArticles.value.find((item) => String(item.id) === String(articleId)) || null
+    article.value = matchedArticle ? { ...matchedArticle, lastReadAt: matchedArticle.lastReadAt || localLastReadAt } : null
   } catch {
+    if (loadToken !== articleLoadToken) return
+
     techArticles.value = []
     article.value = null
+    articleLoadFailed.value = true
+  } finally {
+    if (loadToken === articleLoadToken) {
+      isArticleLoading.value = false
+    }
   }
 
   // 进入文章详情页时递增阅读量，同时标记浏览历史
   if (article.value?.id) {
     try {
       const result = await incrementArticleReadCount(article.value.id)
+      if (loadToken !== articleLoadToken) return
+
       if (result && result.readCount !== undefined) {
         article.value = { ...article.value, readCount: result.readCount }
       }
@@ -354,18 +434,48 @@ async function loadArticle(articleId) {
   // 加载评论列表
   if (article.value?.id) {
     try {
-      comments.value = await getArticleComments(article.value.id)
+      const nextComments = await getArticleComments(article.value.id)
+      if (loadToken !== articleLoadToken) return
+
+      comments.value = nextComments
     } catch {
+      if (loadToken !== articleLoadToken) return
+
       comments.value = []
     }
   }
+
+  if (loadToken !== articleLoadToken) return
 
   await nextTick()
   syncOutline()
   updateScrollState()
 }
 
+function markLocalArticleReadTime(articleId) {
+  const articleKey = String(articleId || '').trim()
+  if (!articleKey) {
+    return
+  }
+
+  const historyMap = readLocalArticleReadHistory()
+  const readAt = new Date().toISOString()
+  historyMap[articleKey] = readAt
+  localStorage.setItem(LOCAL_TECH_ARTICLE_READ_HISTORY_KEY, JSON.stringify(historyMap))
+  return readAt
+}
+
+function readLocalArticleReadHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOCAL_TECH_ARTICLE_READ_HISTORY_KEY) || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
 const currentArticle = computed(() => article.value || {})
+const isArticleReady = computed(() => !isArticleLoading.value && Boolean(article.value?.id))
 
 const author = computed(() => ({
   name: currentArticle.value.author?.name || currentArticle.value.authorName || 'PeakDepth',
@@ -426,7 +536,11 @@ const authorIntro = computed(() => {
 })
 
 const displayPublishedAt = computed(() => formatLongDate(currentArticle.value.publishedAt))
-const displayReadTime = computed(() => formatReadTime(currentArticle.value.readTime))
+const displayReadTime = computed(() => {
+  return currentArticle.value.lastReadAt
+    ? formatHistoryTime(currentArticle.value.lastReadAt)
+    : formatReadTime(currentArticle.value.readTime)
+})
 const displayReadCount = computed(() => formatCompactCount(currentArticle.value.readCount || 0))
 const displayLikeCount = computed(() => formatCompactCount(currentArticle.value.likeCount || 0))
 const displayCommentCount = computed(() => formatCompactCount(currentArticle.value.commentCount || 0))
@@ -537,6 +651,36 @@ async function handleDeleteComment(comment) {
 
 function toggleFollow() {
   isFollowed.value = !isFollowed.value
+}
+
+async function handleToggleArticleLike() {
+  if (!currentArticle.value?.id || likeSubmitting.value) {
+    return
+  }
+
+  if (!authStore.isLoggedIn.value) {
+    showToast('请先登录后再点赞')
+    router.push({ path: '/auth', query: { redirect: route.fullPath } })
+    return
+  }
+
+  likeSubmitting.value = true
+  try {
+    const result = await toggleArticleLike(currentArticle.value.id)
+    const liked = Boolean(result?.liked)
+    const likeCount = Number(result?.likeCount ?? currentArticle.value.likeCount ?? 0)
+    article.value = {
+      ...currentArticle.value,
+      isLiked: liked,
+      likeCount
+    }
+    invalidateTechArticlesCache()
+    showToast(liked ? '已点赞' : '已取消点赞')
+  } catch (error) {
+    showToast(error?.message || '点赞失败，请稍后再试')
+  } finally {
+    likeSubmitting.value = false
+  }
 }
 
 const relatedArticles = computed(() => {
@@ -994,8 +1138,9 @@ function shareToLinkedIn() {
 
 function resolveCategoryLabel(category) {
   const labelMap = {
-    frontend: '前端',
-    backend: '后端',
+    frontend: '前端工程',
+    backend: '后端架构',
+    project: '项目业务解析',
     all: '全部文章',
     history: '历史',
     collect: '收藏',
@@ -1023,10 +1168,29 @@ function formatReadTime(value) {
   const minuteMatch = text.match(/(\d+)/)
 
   if (!minuteMatch) {
-    return '8 分钟阅读'
+    return '1 分钟阅读'
   }
 
   return `${minuteMatch[1]} 分钟阅读`
+}
+
+function formatHistoryTime(value) {
+  const date = new Date(String(value || '').replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return ''
+
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  if (diffMs >= 0 && diffMs < 60000) return '刚刚阅读'
+  if (diffMs >= 0 && diffMs < 3600000) return `${Math.floor(diffMs / 60000)} 分钟前阅读`
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOfToday - startOfTarget) / 86400000)
+  const timeText = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+
+  if (diffDays === 0) return `今天 ${timeText} 阅读`
+  if (diffDays === 1) return `昨天 ${timeText} 阅读`
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${timeText}`
 }
 
 function formatCompactCount(value) {
@@ -1074,7 +1238,7 @@ function buildArticleHtml(targetArticle) {
   const essence = escapeHtml(targetArticle.essence || targetArticle.summary || '')
   const title = escapeHtml(targetArticle.title || '')
   const coverUrl = escapeAttribute(targetArticle.coverUrl || '')
-  const categoryLabel = resolveCategoryLabel(targetArticle.category)
+  const categoryLabel = targetArticle.categoryLabel || resolveCategoryLabel(targetArticle.category)
   const highlightItems = (targetArticle.highlights || []).filter(Boolean)
 
   const highlightsHtml = highlightItems.length

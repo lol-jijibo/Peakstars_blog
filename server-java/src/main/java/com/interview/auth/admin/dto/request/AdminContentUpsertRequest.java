@@ -16,6 +16,7 @@ public class AdminContentUpsertRequest {
     private String id;
     private String title;
     private String category;
+    private String categoryLabel;
     private String summary;
     private String essence;
     private List<String> highlights;
@@ -44,7 +45,6 @@ public class AdminContentUpsertRequest {
     private String coverSummary;
     private String coverFooter;
     private String track;
-    private String hotspotType;
     private Integer heat;
     private Boolean recommended;
     private Boolean today;

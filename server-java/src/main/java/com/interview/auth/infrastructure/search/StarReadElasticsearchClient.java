@@ -373,6 +373,7 @@ public class StarReadElasticsearchClient {
         return switch (defaultText(category, "").trim().toLowerCase()) {
             case "frontend" -> "前端书架";
             case "backend" -> "后端书架";
+            case "project" -> "项目业务解析";
             case "vip" -> "专题长读";
             default -> "精选阅读";
         };
@@ -386,6 +387,7 @@ public class StarReadElasticsearchClient {
         return switch (defaultText(category, "").trim().toLowerCase()) {
             case "frontend" -> "值得一读";
             case "backend" -> "深读推荐";
+            case "project" -> "项目拆解";
             case "vip" -> "好评加藏";
             default -> "star_read";
         };
