@@ -30,6 +30,12 @@ public class AuthUserResponse {
     private String email;
 
     /**
+     * 角色。
+     * 说明：admin 为管理员（博客本人），user 为普通用户。
+     */
+    private String role;
+
+    /**
      * 注册时间。
      * 说明：这里已经被格式化为字符串，方便前端直接展示。
      */

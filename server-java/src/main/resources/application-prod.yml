@@ -1,0 +1,34 @@
+# 生产环境配置
+# 启动方式：java -jar xxx.jar --spring.profiles.active=prod
+# 或设置环境变量：SPRING_PROFILES_ACTIVE=prod
+
+spring:
+  datasource:
+    # 生产环境强制启用 SSL，保护数据库连接安全
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:interview_db}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=true&requireSSL=true&allowPublicKeyRetrieval=false
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:10000}
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000
+
+# 日志配置（生产环境默认 WARN 级别，减少磁盘 IO）
+logging:
+  level:
+    root: WARN
+    com.interview: INFO
+    com.interview.auth.admin.service: INFO
+    org.springframework.web: WARN
+
+app:
+  auth:
+    # 生产环境必须通过环境变量 AUTH_TOKEN_SECRET 注入强随机密钥
+    # token 有效期缩短到 24 小时
+    token-expire-hours: ${AUTH_TOKEN_EXPIRE_HOURS:24}
+  storage:
+    oss:
+      enabled: ${OSS_ENABLED:false}
+    minio:
+      enabled: ${MINIO_ENABLED:false}

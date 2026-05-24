@@ -14,10 +14,11 @@ import java.util.Map;
 public interface ContentService {
 
     /**
-     * 返回技术文章列表，并补齐当前用户的最近阅读状态与阅读时间。
+     * 分页返回技术文章列表，并补齐当前用户的最近阅读状态与阅读时间。
      * 未登录时只返回公共展示字段，已登录时额外合并用户维度的浏览记录。
+     * category 支持 all / frontend / backend / project / vip / history / collect / like。
      */
-    List<TechArticleResponse> listTechArticles(Long currentUserId);
+    PageResult<TechArticleResponse> listTechArticles(Long currentUserId, int page, int pageSize, String category);
 
     /**
      * 获取看天下期刊首页列表数据。
@@ -78,6 +79,12 @@ public interface ContentService {
      * 统一补齐父评论字段，方便前端直接组装嵌套回复结构。
      */
     List<Map<String, Object>> listArticleComments(String articleKey);
+
+    /**
+     * 获取各分类的技术文章数量统计。
+     * 返回 category → count 映射，供前端筛选按钮展示计数徽标。
+     */
+    Map<String, Long> getTechArticleCategoryCounts(Long currentUserId);
 
     /**
      * 删除指定评论并同步回收评论计数。

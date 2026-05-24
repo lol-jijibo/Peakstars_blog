@@ -37,6 +37,12 @@ public class AuthUser {
     private String passwordHash;
 
     /**
+     * 角色。
+     * 说明：admin 为管理员（博客本人），user 为普通用户。
+     */
+    private String role;
+
+    /**
      * 用户状态。
      * 说明：1 表示正常可登录，0 可用于后续扩展为禁用状态。
      */

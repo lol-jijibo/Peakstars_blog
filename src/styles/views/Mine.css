@@ -4,6 +4,7 @@
     radial-gradient(circle at top right, rgba(232, 119, 34, 0.14), transparent 28%),
     linear-gradient(180deg, #fff7f1 0%, #f5f5f5 28%, #f4f6fb 100%);
   color: #1f2937;
+  transition: background 0.35s ease, color 0.35s ease;
 }
 
 .mine-header {
@@ -13,6 +14,7 @@
   backdrop-filter: blur(12px);
   background: rgba(255, 255, 255, 0.84);
   border-bottom: 1px solid rgba(230, 119, 34, 0.08);
+  transition: background 0.35s ease, border-color 0.35s ease;
 }
 
 .header-inner {
@@ -49,6 +51,7 @@
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
 }
 
 .profile-card {
@@ -313,6 +316,7 @@
   backdrop-filter: blur(16px);
   z-index: 100;
   padding-bottom: env(safe-area-inset-bottom);
+  transition: background 0.35s ease, border-color 0.35s ease;
 }
 
 .tab-item {
@@ -324,6 +328,7 @@
   text-decoration: none;
   color: #94a3b8;
   gap: 3px;
+  transition: color 0.25s ease;
 }
 
 .tab-item.active {
@@ -358,46 +363,62 @@
   }
 }
 
-html[data-theme='light'] .mine-page {
-  /* Ä¿µÄ: ÁÁÉ«Ä£Ê½ÏÂĞŞÕı¸öÈËÖĞĞÄÒ³ÕûÌåÊÓ¾õ¡£ */
-  /* Âß¼­: Ê¹ÓÃÇ³±³¾°ÓëÉîÎÄ×ÖÖØ½¨²ã¼¶£¬±ÜÃâ´óÃæ»ı°××ÖÔÚÁÁµ×ÉÏÊ§Õæ¡£ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   DARK THEME
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+html[data-theme='dark'] .mine-page {
   background:
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 30%),
-    linear-gradient(180deg, #f8fbff 0%, #eef4fb 42%, #eef2f7 100%);
-  color: #132238;
+    radial-gradient(circle at top right, rgba(90, 200, 250, 0.08), transparent 30%),
+    linear-gradient(180deg, #0a0a0a 0%, #121212 42%, #0a0a0a 100%);
+  color: #eef4ff;
 }
 
-html[data-theme='light'] .mine-header,
-html[data-theme='light'] .profile-card,
-html[data-theme='light'] .quick-panel,
-html[data-theme='light'] .content-section,
-html[data-theme='light'] .follow-card,
-html[data-theme='light'] .recent-card,
-html[data-theme='light'] .tab-bar,
-html[data-theme='light'] .header {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(15, 23, 42, 0.08);
+html[data-theme='dark'] .mine-header {
+  background: rgba(10, 10, 10, 0.84);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-html[data-theme='light'] .profile-copy h1,
-html[data-theme='light'] .follow-copy strong,
-html[data-theme='light'] .recent-card strong,
-html[data-theme='light'] .logo,
-html[data-theme='light'] .empty-title {
-  color: #132238;
+html[data-theme='dark'] .profile-card,
+html[data-theme='dark'] .quick-panel,
+html[data-theme='dark'] .content-section {
+  background: rgba(18, 18, 18, 0.82);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
-html[data-theme='light'] .profile-copy p,
-html[data-theme='light'] .follow-copy p,
-html[data-theme='light'] .recent-meta,
-html[data-theme='light'] .empty-sub,
-html[data-theme='light'] .tab-item,
-html[data-theme='light'] .header-title {
-  color: #607086;
+html[data-theme='dark'] .follow-card,
+html[data-theme='dark'] .recent-card {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
-html[data-theme='light'] .tab-item.active,
-html[data-theme='light'] .go-btn,
-html[data-theme='light'] .logout-btn {
-  color: #ffffff;
+html[data-theme='dark'] .profile-copy h1,
+html[data-theme='dark'] .section-head h2,
+html[data-theme='dark'] .follow-copy strong,
+html[data-theme='dark'] .recent-card strong {
+  color: #f5f9ff;
+}
+
+html[data-theme='dark'] .profile-copy p,
+html[data-theme='dark'] .section-head p,
+html[data-theme='dark'] .follow-copy p,
+html[data-theme='dark'] .recent-meta {
+  color: #a8b8cf;
+}
+
+html[data-theme='dark'] .logo,
+html[data-theme='dark'] .header-title {
+  color: #e2e8f0;
+}
+
+html[data-theme='dark'] .tab-bar {
+  background: rgba(10, 10, 10, 0.92);
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme='dark'] .tab-item {
+  color: #64748b;
+}
+
+html[data-theme='dark'] .tab-item.active {
+  color: #f97316;
 }

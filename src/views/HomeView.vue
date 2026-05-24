@@ -313,13 +313,13 @@ const popularTags = computed(() => {
 
 async function loadHomeData() {
   const [articleResult, routeResult, interviewResult] = await Promise.allSettled([
-    getTechArticles(),
+    getTechArticles({ pageSize: 20 }),
     getLearningRoutes(),
     getInterviews({ page: 1, pageSize: 1 })
   ])
 
-  if (articleResult.status === 'fulfilled' && Array.isArray(articleResult.value)) {
-    techArticles.value = articleResult.value
+  if (articleResult.status === 'fulfilled' && articleResult.value?.list) {
+    techArticles.value = articleResult.value.list
   }
 
   if (routeResult.status === 'fulfilled' && Array.isArray(routeResult.value)) {

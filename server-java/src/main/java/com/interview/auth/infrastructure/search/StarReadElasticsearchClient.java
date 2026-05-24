@@ -20,12 +20,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * 封装 star_read 对 Elasticsearch 的轻量调用能力。
  * 通过 HTTP 直连搜索服务，未启用时返回空结果交由业务层执行本地兜底。
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class StarReadElasticsearchClient {
@@ -64,6 +66,7 @@ public class StarReadElasticsearchClient {
             Thread.currentThread().interrupt();
             return Optional.empty();
         } catch (Exception ex) {
+            log.warn("Elasticsearch 搜索请求异常，已降级到本地搜索: {}", ex.getMessage());
             return Optional.empty();
         }
     }
@@ -88,6 +91,7 @@ public class StarReadElasticsearchClient {
             Thread.currentThread().interrupt();
             return List.of();
         } catch (Exception ex) {
+            log.warn("Elasticsearch 建议请求异常，已降级到本地建议: {}", ex.getMessage());
             return List.of();
         }
     }

@@ -70,6 +70,16 @@
         </div>
       </section>
 
+      <div v-if="totalArticles > 0" class="article-stream-header">
+        <span class="article-stream-count">共 {{ totalArticles }} 篇文章</span>
+        <div class="article-page-size-selector">
+          <span class="page-size-label">每页显示</span>
+          <select v-model.number="pageSize" class="page-size-select" @change="onPageSizeChange">
+            <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} 条</option>
+          </select>
+        </div>
+      </div>
+
       <section v-if="filteredArticles.length" class="article-stream">
         <article
           v-for="article in filteredArticles"
@@ -138,6 +148,40 @@
         <strong>当前筛选下暂无文章</strong>
         <p>请切换浏览方式或分类后继续查看。</p>
       </section>
+
+      <nav v-if="totalPages > 1" class="article-pagination" aria-label="文章分页导航">
+        <button
+          type="button"
+          class="page-btn page-btn--prev"
+          :disabled="currentPage <= 0"
+          @click="goToPage(currentPage - 1)"
+        >
+          ← 上一页
+        </button>
+
+        <div class="page-numbers">
+          <button
+            v-for="pageNum in visiblePageNumbers"
+            :key="pageNum"
+            type="button"
+            class="page-btn page-btn--num"
+            :class="{ active: pageNum === currentPage }"
+            :disabled="pageNum === currentPage"
+            @click="goToPage(pageNum)"
+          >
+            {{ pageNum + 1 }}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          class="page-btn page-btn--next"
+          :disabled="currentPage >= totalPages - 1"
+          @click="goToPage(currentPage + 1)"
+        >
+          下一页 →
+        </button>
+      </nav>
     </main>
 
     <footer class="article-footer">
@@ -161,11 +205,17 @@ const route = useRoute()
 const router = useRouter()
 const { isDark, toggleTheme } = useThemeStore()
 const techArticles = ref([])
+const totalArticles = ref(0)
+const currentPage = ref(0)
+const pageSize = ref(10)
+const categoryCounts = ref({})
 const scrollProgress = ref(0)
 const articleListRestoreAnimating = ref(false)
 const LOCAL_TECH_ARTICLE_READ_HISTORY_KEY = 'peakstars_tech_article_read_history'
 const localReadHistory = ref(readLocalArticleReadHistory())
 let articleListRestoreTimer = null
+
+const pageSizeOptions = [5, 10, 20, 50]
 
 const articleModes = [
   { key: 'recommend', label: '推荐', description: '优先展示精选与最近发布的文章。' },
@@ -181,30 +231,39 @@ const topbarCategoryItems = sidebarCategories.filter((item) =>
 const activeModeKey = ref(resolveModeKey(route.query.mode))
 const activeCategoryKey = ref(resolveCategoryKey(route.query.category))
 
+const apiCategory = computed(() => {
+  if (activeModeKey.value === 'vip') return 'vip'
+  if (activeModeKey.value === 'collect') return 'collect'
+  return activeCategoryKey.value
+})
+
+const totalPages = computed(() => {
+  if (totalArticles.value <= 0) return 1
+  return Math.ceil(totalArticles.value / pageSize.value)
+})
+
+const visiblePageNumbers = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  const maxVisible = 5
+  let start = Math.max(0, current - Math.floor(maxVisible / 2))
+  let end = start + maxVisible
+  if (end > total) {
+    end = total
+    start = Math.max(0, end - maxVisible)
+  }
+  const pages = []
+  for (let i = start; i < end; i++) {
+    pages.push(i)
+  }
+  return pages
+})
+
 const normalizedArticles = computed(() =>
   techArticles.value.map((item, index) => normalizeArticle(item, index))
 )
 
-const filteredArticles = computed(() => {
-  const baseList = normalizedArticles.value.filter((article) =>
-    matchesMode(article, activeModeKey.value)
-  )
-  const categoryList = baseList.filter((article) =>
-    matchesCategory(article, activeCategoryKey.value)
-  )
-
-  return [...categoryList].sort((left, right) => {
-    if (right.lastReadAtTime !== left.lastReadAtTime) {
-      return right.lastReadAtTime - left.lastReadAtTime
-    }
-
-    if (Number(right.featured) !== Number(left.featured)) {
-      return Number(right.featured) - Number(left.featured)
-    }
-
-    return String(right.publishedAt).localeCompare(String(left.publishedAt))
-  })
-})
+const filteredArticles = computed(() => normalizedArticles.value)
 
 const activeModeInfo = computed(
   () => articleModes.find((item) => item.key === activeModeKey.value) || articleModes[0]
@@ -216,22 +275,52 @@ const activeCategoryInfo = computed(
 
 async function loadArticles() {
   try {
-    const list = await getTechArticles()
-    techArticles.value = Array.isArray(list) ? list : []
+    const data = await getTechArticles({
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      category: apiCategory.value
+    })
+    techArticles.value = Array.isArray(data.list) ? data.list : []
+    totalArticles.value = Number(data.total) || 0
+    if (data.categoryCounts) {
+      categoryCounts.value = data.categoryCounts
+    }
   } catch {
     techArticles.value = []
+    totalArticles.value = 0
   }
 }
 
 async function refreshArticlesSilently() {
   try {
-    const list = await getTechArticles({ forceRefresh: true })
-    if (Array.isArray(list) && list.length > 0) {
-      techArticles.value = list
+    const data = await getTechArticles({
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      category: apiCategory.value,
+      forceRefresh: true
+    })
+    if (Array.isArray(data.list) && data.list.length > 0) {
+      techArticles.value = data.list
+      totalArticles.value = Number(data.total) || 0
     }
   } catch {
     // noop
   }
+}
+
+function goToPage(pageNum) {
+  const clamped = Math.max(0, Math.min(pageNum, totalPages.value - 1))
+  if (clamped !== currentPage.value) {
+    currentPage.value = clamped
+    loadArticles()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+function onPageSizeChange() {
+  currentPage.value = 0
+  loadArticles()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(async () => {
@@ -263,11 +352,7 @@ onActivated(() => {
     })
   }
 
-  if (techArticles.value.length === 0) {
-    loadArticles()
-  } else {
-    refreshArticlesSilently()
-  }
+  refreshArticlesSilently()
 })
 
 onBeforeRouteLeave((to, from) => {
@@ -338,36 +423,28 @@ function resolveCategoryKey(category) {
   return sidebarCategories.some((item) => item.key === category) ? category : 'all'
 }
 
-function matchesMode(article, modeKey) {
-  if (modeKey === 'vip') return article.isVip
-  if (modeKey === 'collect') return article.isCollected
-  return true
-}
-
-function matchesCategory(article, categoryKey) {
-  if (categoryKey === 'all') return true
-  if (categoryKey === 'history') return article.inHistory
-  if (categoryKey === 'collect') return article.isCollected
-  if (categoryKey === 'like') return article.isLiked
-  return article.category === categoryKey
-}
-
 function selectMode(modeKey) {
   activeModeKey.value = modeKey
+  currentPage.value = 0
+  loadArticles()
 }
 
 function selectCategory(categoryKey) {
   activeCategoryKey.value = categoryKey
+  currentPage.value = 0
+  loadArticles()
 }
 
 function countByCategory(categoryKey) {
-  return normalizedArticles.value.filter((article) => {
-    return matchesMode(article, activeModeKey.value) && matchesCategory(article, categoryKey)
-  }).length
+  if (activeModeKey.value === 'vip') return categoryKey === 'all' ? (categoryCounts.value.vip || 0) : 0
+  if (activeModeKey.value === 'collect') return categoryKey === 'all' ? (categoryCounts.value.collect || 0) : 0
+  return Number(categoryCounts.value[categoryKey]) || 0
 }
 
 function countByMode(modeKey) {
-  return normalizedArticles.value.filter((article) => matchesMode(article, modeKey)).length
+  if (modeKey === 'vip') return Number(categoryCounts.value.vip) || 0
+  if (modeKey === 'collect') return Number(categoryCounts.value.collect) || 0
+  return Number(categoryCounts.value.all) || 0
 }
 
 function openArticleDetail(articleId) {

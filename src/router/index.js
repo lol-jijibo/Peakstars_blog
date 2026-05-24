@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { isAuthenticated } from '@/stores/auth'
+import { isAdminUser, isAuthenticated } from '@/stores/auth'
 import {
   finishEntryTransitionLoader,
   startEntryTransitionLoader,
@@ -81,16 +81,18 @@ const routes = [
   },
   {
     path: '/admin',
-    redirect: '/admin/books-import'
+    redirect: '/admin/books-import',
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
     path: '/admin/books',
-    redirect: '/admin/books-import'
+    redirect: '/admin/books-import',
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
     path: '/admin/:section(tech|interview|books-import|books-list|stats|comment)',
     component: () => import('@/modules/admin/views/AdminDashboardView.vue'),
-    meta: { title: '管理后台', requiresAuth: false }
+    meta: { title: '管理后台', requiresAuth: true, requiresAdmin: true }
   }
 ]
 
@@ -124,6 +126,11 @@ router.beforeEach((to) => {
       path: '/login',
       query: { redirect: to.fullPath }
     }
+  }
+
+  if (to.meta.requiresAdmin && !isAdminUser()) {
+    stopEntryTransitionLoader()
+    return { path: '/home' }
   }
 
   if (to.path === '/login' && isAuthenticated()) {

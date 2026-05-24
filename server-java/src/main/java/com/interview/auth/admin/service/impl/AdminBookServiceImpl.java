@@ -21,6 +21,7 @@ import com.interview.auth.admin.mapper.AdminBookMapper;
 import com.interview.auth.admin.service.AdminBookService;
 import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.common.BusinessException;
+import com.interview.auth.config.CacheConfig;
 import com.interview.auth.domain.dto.response.BookResponse;
 import com.interview.auth.domain.entity.Book;
 import com.interview.auth.domain.entity.BookChapter;
@@ -69,6 +70,7 @@ import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -115,6 +117,7 @@ public class AdminBookServiceImpl implements AdminBookService {
     private final AdminContentImportService adminContentImportService;
     private final ContentStorageService contentStorageService;
     private final StorageRoutingService storageRoutingService;
+    private final CacheManager cacheManager;
 
     @Override
     @Transactional
@@ -399,6 +402,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         job.setProgress(100);
         job.setMessage("书籍已发布到用户端");
         adminBookMapper.updateImportJob(job);
+        evictStarReadCache();
         return toBookResponse(book);
     }
 
@@ -419,6 +423,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         Book book = buildBookFromImportJob(job, stages);
         adminBookMapper.updatePublishedBookFromImportJob(book);
         replacePublishedBookChapters(book.getBookKey(), stages, normalizeCoverUrlForDisplay(book.getCoverUrl()));
+        evictStarReadCache();
     }
 
     /**
@@ -568,6 +573,7 @@ public class AdminBookServiceImpl implements AdminBookService {
                 adminBookMapper.updateImportJobDeletedByKey(job.getJobKey(), buildDeleteMessage(job.getStatus()));
             }
         }
+        evictStarReadCache();
     }
 
     /**
@@ -588,6 +594,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         adminBookMapper.deleteBookByKey(book.getBookKey());
 
         deleteStorageResources(storageUrls, book.getBookKey());
+        evictStarReadCache();
     }
 
     /**
@@ -2226,6 +2233,13 @@ public class AdminBookServiceImpl implements AdminBookService {
 
     private boolean isValidSingleFileFormat(String extension) {
         return List.of("epub", "pdf", "txt", "md", "markdown", "docx", "html", "htm").contains(extension);
+    }
+
+    private void evictStarReadCache() {
+        var cache = cacheManager.getCache(CacheConfig.CACHE_STAR_READ);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 
     private String getFormatLabel(String format) {

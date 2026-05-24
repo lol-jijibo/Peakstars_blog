@@ -9,42 +9,43 @@
     <result column="username" property="username"/>
     <result column="email" property="email"/>
     <result column="password_hash" property="passwordHash"/>
+    <result column="role" property="role"/>
     <result column="status" property="status"/>
     <result column="created_at" property="createdAt"/>
     <result column="updated_at" property="updatedAt"/>
   </resultMap>
 
   <select id="findByEmail" resultMap="AuthUserResultMap">
-    SELECT id, username, email, password_hash, status, created_at, updated_at
+    SELECT id, username, email, password_hash, role, status, created_at, updated_at
     FROM auth_user
     WHERE email = #{email}
     LIMIT 1
   </select>
 
   <select id="findByUsername" resultMap="AuthUserResultMap">
-    SELECT id, username, email, password_hash, status, created_at, updated_at
+    SELECT id, username, email, password_hash, role, status, created_at, updated_at
     FROM auth_user
     WHERE username = #{username}
     LIMIT 1
   </select>
 
   <select id="findById" resultMap="AuthUserResultMap">
-    SELECT id, username, email, password_hash, status, created_at, updated_at
+    SELECT id, username, email, password_hash, role, status, created_at, updated_at
     FROM auth_user
     WHERE id = #{id}
     LIMIT 1
   </select>
 
   <select id="findByEmailOrUsername" resultMap="AuthUserResultMap">
-    SELECT id, username, email, password_hash, status, created_at, updated_at
+    SELECT id, username, email, password_hash, role, status, created_at, updated_at
     FROM auth_user
     WHERE email = #{account} OR username = #{account}
     LIMIT 1
   </select>
 
   <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-    INSERT INTO auth_user (username, email, password_hash, status, created_at, updated_at)
-    VALUES (#{username}, #{email}, #{passwordHash}, #{status}, NOW(), NOW())
+    INSERT INTO auth_user (username, email, password_hash, role, status, created_at, updated_at)
+    VALUES (#{username}, #{email}, #{passwordHash}, #{role}, #{status}, NOW(), NOW())
   </insert>
 
   <update id="updatePassword">

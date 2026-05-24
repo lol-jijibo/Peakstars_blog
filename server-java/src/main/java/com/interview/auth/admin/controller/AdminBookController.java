@@ -13,7 +13,11 @@ import com.interview.auth.admin.service.AdminBookService;
 import com.interview.auth.common.ApiResponse;
 import com.interview.auth.domain.dto.response.BookResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +41,11 @@ public class AdminBookController {
 
     private static final long MAX_UPLOAD_SIZE = 200 * 1024 * 1024; // 200MB
 
+    private static final Set<String> ALLOWED_ZIP_EXTENSIONS = Set.of("zip");
+    private static final Set<String> ALLOWED_SINGLE_FILE_EXTENSIONS = Set.of(
+        "epub", "pdf", "txt", "md", "markdown", "docx", "html", "htm"
+    );
+
     private final AdminBookService adminBookService;
 
     /**
@@ -44,11 +53,9 @@ public class AdminBookController {
      */
     @PostMapping("/import-jobs")
     public ApiResponse<AdminBookImportJobResponse> createImportJob(@RequestParam("file") MultipartFile file) throws Exception {
-        if (file.isEmpty()) {
-            return ApiResponse.fail(400, "上传文件不能为空");
-        }
-        if (file.getSize() > MAX_UPLOAD_SIZE) {
-            return ApiResponse.fail(400, "文件大小超过 200MB 限制");
+        String error = validateBookFile(file, ALLOWED_ZIP_EXTENSIONS);
+        if (error != null) {
+            return ApiResponse.fail(400, error);
         }
         return ApiResponse.success(adminBookService.createImportJob(
             file.getOriginalFilename(),
@@ -63,11 +70,9 @@ public class AdminBookController {
      */
     @PostMapping("/import-jobs/file")
     public ApiResponse<AdminBookImportJobResponse> createImportJobFromFile(@RequestParam("file") MultipartFile file) throws Exception {
-        if (file.isEmpty()) {
-            return ApiResponse.fail(400, "上传文件不能为空");
-        }
-        if (file.getSize() > MAX_UPLOAD_SIZE) {
-            return ApiResponse.fail(400, "文件大小超过 200MB 限制");
+        String error = validateBookFile(file, ALLOWED_SINGLE_FILE_EXTENSIONS);
+        if (error != null) {
+            return ApiResponse.fail(400, error);
         }
         return ApiResponse.success(adminBookService.createImportJobFromFile(
             file.getOriginalFilename(),
@@ -288,5 +293,87 @@ public class AdminBookController {
     @PostMapping("/import-jobs/{jobKey}/repair-cover")
     public ApiResponse<AdminBookImportJobResponse> repairImportJobCover(@PathVariable String jobKey) throws Exception {
         return ApiResponse.success(adminBookService.repairImportJobCover(jobKey));
+    }
+
+    /**
+     * 统一校验上传书籍文件：文件名扩展名、Content-Type、文件魔数、大小限制。
+     * 防止将可执行文件或恶意脚本伪装成书籍格式上传。
+     */
+    private String validateBookFile(MultipartFile file, Set<String> allowedExtensions) {
+        if (file.isEmpty()) {
+            return "上传文件不能为空";
+        }
+
+        String originalName = file.getOriginalFilename();
+        if (originalName == null || !hasAllowedBookExtension(originalName, allowedExtensions)) {
+            return "仅支持上传 " + String.join(" / ", allowedExtensions) + " 格式文件";
+        }
+
+        if (file.getSize() > MAX_UPLOAD_SIZE) {
+            return "文件大小超过 200MB 限制";
+        }
+
+        if (!hasValidBookMagicBytes(file)) {
+            return "文件内容与扩展名不匹配，请确认文件格式正确";
+        }
+
+        return null;
+    }
+
+    private boolean hasAllowedBookExtension(String filename, Set<String> allowedExtensions) {
+        int dot = filename.lastIndexOf('.');
+        if (dot < 0) {
+            return false;
+        }
+        return allowedExtensions.contains(filename.substring(dot + 1).toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * 读取文件头部魔数校验真实格式。
+     * EPUB/DOCX 是 ZIP 压缩包，与 ZIP 共用魔数 PK\x03\x04。
+     * TXT/MD/HTML 为纯文本格式，无固定魔数，跳过校验。
+     */
+    private boolean hasValidBookMagicBytes(MultipartFile file) {
+        String originalName = file.getOriginalFilename();
+        if (originalName == null) {
+            return false;
+        }
+        String ext = originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+
+        // 纯文本格式无固定魔数，跳过校验
+        if (Set.of("txt", "md", "markdown", "html", "htm").contains(ext)) {
+            return true;
+        }
+
+        try (InputStream in = file.getInputStream()) {
+            byte[] header = new byte[4];
+            int read = in.read(header);
+            if (read < 4) {
+                return false;
+            }
+
+            // PDF: 25 50 44 46 (%PDF)
+            if (ext.equals("pdf")) {
+                return match(header, 0, 0x25, 0x50, 0x44, 0x46);
+            }
+
+            // ZIP / EPUB / DOCX: 50 4B 03 04 (PK..)
+            if (ext.equals("zip") || ext.equals("epub") || ext.equals("docx")) {
+                return match(header, 0, 0x50, 0x4B, 0x03, 0x04);
+            }
+
+            return false;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private boolean match(byte[] header, int offset, int... expected) {
+        for (int i = 0; i < expected.length; i++) {
+            if ((header[offset + i] & 0xFF) != expected[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

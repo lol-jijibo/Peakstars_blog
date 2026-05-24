@@ -35,18 +35,31 @@ public class ContentServiceImpl implements ContentService {
     private final ContentMapper contentMapper;
 
     /**
-     * 查询技术文章列表并转换成前端文章流结构。
-     * 后端补齐作者对象、精选标记和亮点数组，让文章页与导航预览复用同一数据源。
+     * 分页查询技术文章列表并转换成前端文章流结构。
+     * 根据是否登录选择不同查询分支，统一补齐作者对象、精选标记和亮点数组。
      */
     @Override
-    public List<TechArticleResponse> listTechArticles(Long currentUserId) {
-        List<TechArticle> articles = currentUserId == null
-            ? contentMapper.findPublishedTechArticles()
-            : contentMapper.findPublishedTechArticlesByUser(currentUserId);
-        return articles
+    public PageResult<TechArticleResponse> listTechArticles(Long currentUserId, int page, int pageSize, String category) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(pageSize, 1);
+        int offset = safePage * safeSize;
+        String safeCategory = normalizeCategory(category);
+
+        List<TechArticle> articles;
+        long total;
+        if (currentUserId == null) {
+            articles = contentMapper.findPublishedTechArticles(offset, safeSize, safeCategory);
+            total = contentMapper.countPublishedTechArticles(safeCategory);
+        } else {
+            articles = contentMapper.findPublishedTechArticlesByUser(currentUserId, offset, safeSize, safeCategory);
+            total = contentMapper.countPublishedTechArticlesByUser(currentUserId, safeCategory);
+        }
+
+        List<TechArticleResponse> list = articles
             .stream()
             .map(this::toTechArticleResponse)
             .toList();
+        return new PageResult<>(list, total, safePage, safeSize);
     }
 
     /**
@@ -226,6 +239,24 @@ public class ContentServiceImpl implements ContentService {
     }
 
     /**
+     * 按分类维度统计技术文章数量。
+     * 把数据库返回的 category/cnt 行转换成前端可直接消费的 Map。
+     */
+    @Override
+    public Map<String, Long> getTechArticleCategoryCounts(Long currentUserId) {
+        List<Map<String, Object>> rows = contentMapper.countTechArticlesByCategory(currentUserId);
+        Map<String, Long> counts = new HashMap<>();
+        for (Map<String, Object> row : rows) {
+            Object cat = row.get("category");
+            Object cnt = row.get("cnt");
+            if (cat != null) {
+                counts.put(String.valueOf(cat), cnt instanceof Number ? ((Number) cnt).longValue() : 0L);
+            }
+        }
+        return counts;
+    }
+
+    /**
      * 为指定技术文章增加阅读量。
      * 更新阅读数后顺带标记浏览历史，再把最新阅读数返回给前端刷新显示。
      */
@@ -371,6 +402,20 @@ public class ContentServiceImpl implements ContentService {
         return switch (type) {
             case "rising", "newbook", "overall", "masterpiece" -> type;
             default -> "rising";
+        };
+    }
+
+    /**
+     * 归一化前端传入的技术文章分类参数。
+     * 非法或空白值统一回退到 all，保证 SQL 动态条件不会注入意外值。
+     */
+    private String normalizeCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return "all";
+        }
+        return switch (category) {
+            case "all", "frontend", "backend", "project", "vip", "history", "collect", "like" -> category;
+            default -> "all";
         };
     }
 }

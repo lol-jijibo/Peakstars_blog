@@ -95,6 +95,50 @@
     )
   </sql>
 
+  <sql id="TechArticleCategoryCondition">
+    <if test="category != null and category != '' and category != 'all'">
+      <choose>
+        <when test="category == 'vip'">
+          AND is_vip = 1
+        </when>
+        <when test="category == 'history'">
+          AND in_history = 1
+        </when>
+        <when test="category == 'collect'">
+          AND is_collected = 1
+        </when>
+        <when test="category == 'like'">
+          AND is_liked = 1
+        </when>
+        <otherwise>
+          AND category = #{category}
+        </otherwise>
+      </choose>
+    </if>
+  </sql>
+
+  <sql id="TechArticleUserCategoryCondition">
+    <if test="category != null and category != '' and category != 'all'">
+      <choose>
+        <when test="category == 'vip'">
+          AND article.is_vip = 1
+        </when>
+        <when test="category == 'history'">
+          AND history.last_read_at IS NOT NULL
+        </when>
+        <when test="category == 'collect'">
+          AND article.is_collected = 1
+        </when>
+        <when test="category == 'like'">
+          AND article_like.id IS NOT NULL
+        </when>
+        <otherwise>
+          AND article.category = #{category}
+        </otherwise>
+      </choose>
+    </if>
+  </sql>
+
   <select id="findPublishedTechArticles" resultMap="TechArticleResultMap">
     SELECT
       id,
@@ -129,7 +173,49 @@
       updated_at
     FROM tech_article
     WHERE status = 1
+    <include refid="TechArticleCategoryCondition"/>
     ORDER BY featured DESC, published_at DESC, sort_order ASC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <!-- StarRead 轻量查询：排除 content_html(MEDIUMTEXT)，避免首页聚合时全量加载大字段 -->
+  <select id="findPublishedTechArticlesLight" resultMap="TechArticleResultMap">
+    SELECT
+      id,
+      article_key,
+      category,
+      category_label,
+      title,
+      summary,
+      essence,
+      highlight_list,
+      author_name,
+      author_role,
+      author_initials,
+      author_accent,
+      cover_url,
+      NULL AS content_html,
+      published_at,
+      read_count,
+      like_count,
+      collect_count,
+      comment_count,
+      read_time,
+      is_vip,
+      is_collected,
+      is_liked,
+      in_history,
+      featured,
+      status,
+      sort_order,
+      NULL AS last_read_at,
+      created_at,
+      updated_at
+    FROM tech_article
+    WHERE status = 1
+    <include refid="TechArticleCategoryCondition"/>
+    ORDER BY featured DESC, published_at DESC, sort_order ASC
+    LIMIT #{size} OFFSET #{offset}
   </select>
 
   <select id="findPublishedTechArticlesByUser" resultMap="TechArticleResultMap">
@@ -172,7 +258,101 @@
       ON article_like.article_key = article.article_key
       AND article_like.user_id = #{userId}
     WHERE article.status = 1
+    <include refid="TechArticleUserCategoryCondition"/>
     ORDER BY article.featured DESC, article.published_at DESC, article.sort_order ASC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="countPublishedTechArticles" resultType="long">
+    SELECT COUNT(*)
+    FROM tech_article
+    WHERE status = 1
+    <include refid="TechArticleCategoryCondition"/>
+  </select>
+
+  <select id="countPublishedTechArticlesByUser" resultType="long">
+    SELECT COUNT(*)
+    FROM tech_article article
+    LEFT JOIN tech_article_read_history history
+      ON history.article_key = article.article_key
+      AND history.user_id = #{userId}
+    LEFT JOIN tech_article_like article_like
+      ON article_like.article_key = article.article_key
+      AND article_like.user_id = #{userId}
+    WHERE article.status = 1
+    <include refid="TechArticleUserCategoryCondition"/>
+  </select>
+
+  <select id="countTechArticlesByCategory" resultType="java.util.Map">
+    SELECT
+      'all' AS category,
+      COUNT(*) AS cnt
+    FROM tech_article
+    WHERE status = 1
+
+    UNION ALL
+
+    SELECT
+      'frontend' AS category,
+      COUNT(*) AS cnt
+    FROM tech_article
+    WHERE status = 1 AND category = 'frontend'
+
+    UNION ALL
+
+    SELECT
+      'backend' AS category,
+      COUNT(*) AS cnt
+    FROM tech_article
+    WHERE status = 1 AND category = 'backend'
+
+    UNION ALL
+
+    SELECT
+      'project' AS category,
+      COUNT(*) AS cnt
+    FROM tech_article
+    WHERE status = 1 AND category = 'project'
+
+    UNION ALL
+
+    SELECT
+      'vip' AS category,
+      COUNT(*) AS cnt
+    FROM tech_article
+    WHERE status = 1 AND is_vip = 1
+
+    <if test="userId != null">
+      UNION ALL
+
+      SELECT
+        'history' AS category,
+        COUNT(*) AS cnt
+      FROM tech_article article
+      INNER JOIN tech_article_read_history history
+        ON history.article_key = article.article_key
+        AND history.user_id = #{userId}
+      WHERE article.status = 1
+
+      UNION ALL
+
+      SELECT
+        'collect' AS category,
+        COUNT(*) AS cnt
+      FROM tech_article
+      WHERE status = 1 AND is_collected = 1
+
+      UNION ALL
+
+      SELECT
+        'like' AS category,
+        COUNT(*) AS cnt
+      FROM tech_article article
+      INNER JOIN tech_article_like article_like
+        ON article_like.article_key = article.article_key
+        AND article_like.user_id = #{userId}
+      WHERE article.status = 1
+    </if>
   </select>
 
   <select id="findPublishedWorldNewsIssues" resultMap="WorldNewsIssueResultMap">

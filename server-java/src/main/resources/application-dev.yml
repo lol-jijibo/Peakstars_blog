@@ -33,8 +33,11 @@ app:
       # docker run -d --name minio -p 9000:9000 -p 9001:9001 ^
       #   -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin ^
       #   minio/minio server /data --console-address ":9001"
-      enabled: ${MINIO_ENABLED:false}
+      enabled: ${MINIO_ENABLED:true}
+      access-key: ${MINIO_ACCESS_KEY:minioadmin}
+      secret-key: ${MINIO_SECRET_KEY:minioadmin}
   auth:
+    token-secret: ${AUTH_TOKEN_SECRET:dev-secret-key-for-local-development-only}
     verification:
       # 发件人邮箱必须非空，开发环境默认跟随 MAIL_USERNAME，也可通过 MAIL_FROM 单独覆盖
       mail-from: ${MAIL_FROM:${MAIL_USERNAME:}}

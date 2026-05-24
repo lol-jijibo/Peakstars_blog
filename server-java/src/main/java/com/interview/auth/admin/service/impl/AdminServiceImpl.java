@@ -20,6 +20,7 @@ import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.BusinessException;
 import com.interview.auth.common.TechArticleReadTimeCalculator;
+import com.interview.auth.config.CacheConfig;
 import com.interview.auth.domain.entity.Category;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
@@ -50,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.springframework.cache.CacheManager;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,6 +88,7 @@ public class AdminServiceImpl implements AdminService {
     private final AdminContentImportService adminContentImportService;
     private final com.interview.auth.infrastructure.storage.ContentStorageService contentStorageService;
     private final StorageRoutingService storageRoutingService;
+    private final CacheManager cacheManager;
     private volatile boolean editLogStorageAvailable = true;
 
     /**
@@ -164,6 +167,7 @@ public class AdminServiceImpl implements AdminService {
 
         appendEditLog(normalizedType, resolvedKey, "update", request.getTitle());
         appendSnapshotIfNeeded(buildCurrentSummary());
+        evictStarReadCache();
         return saved;
     }
 
@@ -183,6 +187,7 @@ public class AdminServiceImpl implements AdminService {
 
         appendEditLog(normalizedType, "batch-import", "batch-import", "批量导入 " + results.size() + " 条内容");
         appendSnapshotIfNeeded(buildCurrentSummary());
+        evictStarReadCache();
         return results;
     }
 
@@ -216,6 +221,7 @@ public class AdminServiceImpl implements AdminService {
 
         appendEditLog(normalizedType, contentKey, "delete", contentKey);
         appendSnapshotIfNeeded(buildCurrentSummary());
+        evictStarReadCache();
     }
 
     /**
@@ -246,17 +252,20 @@ public class AdminServiceImpl implements AdminService {
     /**
      * 构建后台趋势图所需的时间序列点。
      * 趋势点来源于后端维护的快照队列，前端无需自行做轮询历史累积。
+     * 同步读取以保护 ArrayDeque 非线程安全的迭代操作。
      */
     private List<AdminTrendPointResponse> buildTrendPoints() {
         List<AdminTrendPointResponse> trendPoints = new ArrayList<>();
-        for (DashboardSnapshot snapshot : dashboardSnapshots) {
-            AdminTrendPointResponse point = new AdminTrendPointResponse();
-            point.setTimeLabel(snapshot.createdAt().format(TIME_LABEL_FORMATTER));
-            point.setOnlineUsers(snapshot.onlineUsers());
-            point.setTotalViews(snapshot.totalViews());
-            point.setTotalComments(snapshot.totalComments());
-            point.setEditsToday(snapshot.editsToday());
-            trendPoints.add(point);
+        synchronized (dashboardSnapshots) {
+            for (DashboardSnapshot snapshot : dashboardSnapshots) {
+                AdminTrendPointResponse point = new AdminTrendPointResponse();
+                point.setTimeLabel(snapshot.createdAt().format(TIME_LABEL_FORMATTER));
+                point.setOnlineUsers(snapshot.onlineUsers());
+                point.setTotalViews(snapshot.totalViews());
+                point.setTotalComments(snapshot.totalComments());
+                point.setEditsToday(snapshot.editsToday());
+                trendPoints.add(point);
+            }
         }
         return trendPoints;
     }
@@ -841,23 +850,35 @@ public class AdminServiceImpl implements AdminService {
      * 把当前仪表盘汇总值按节流规则写入趋势快照队列。
      * 只有间隔达到阈值时才记录新点，避免后台频繁轮询导致趋势图点位爆炸。
      */
-    private synchronized void appendSnapshotIfNeeded(AdminSummaryResponse summary) {
+    private void appendSnapshotIfNeeded(AdminSummaryResponse summary) {
         LocalDateTime now = LocalDateTime.now();
-        DashboardSnapshot lastSnapshot = dashboardSnapshots.peekLast();
-        if (lastSnapshot != null && Duration.between(lastSnapshot.createdAt(), now).compareTo(SNAPSHOT_MIN_INTERVAL) < 0) {
-            return;
+        synchronized (dashboardSnapshots) {
+            DashboardSnapshot lastSnapshot = dashboardSnapshots.peekLast();
+            if (lastSnapshot != null && Duration.between(lastSnapshot.createdAt(), now).compareTo(SNAPSHOT_MIN_INTERVAL) < 0) {
+                return;
+            }
+
+            dashboardSnapshots.addLast(new DashboardSnapshot(
+                now,
+                safeInt(summary.getOnlineUsers()),
+                safeInt(summary.getTotalViews()),
+                safeInt(summary.getTotalComments()),
+                safeInt(summary.getEditsToday())
+            ));
+
+            while (dashboardSnapshots.size() > MAX_TREND_POINTS) {
+                dashboardSnapshots.removeFirst();
+            }
         }
+    }
 
-        dashboardSnapshots.addLast(new DashboardSnapshot(
-            now,
-            safeInt(summary.getOnlineUsers()),
-            safeInt(summary.getTotalViews()),
-            safeInt(summary.getTotalComments()),
-            safeInt(summary.getEditsToday())
-        ));
-
-        while (dashboardSnapshots.size() > MAX_TREND_POINTS) {
-            dashboardSnapshots.removeFirst();
+    /**
+     * 内容变更后清除 StarRead 首页缓存，确保前台读者立即看到最新内容。
+     */
+    private void evictStarReadCache() {
+        var cache = cacheManager.getCache(CacheConfig.CACHE_STAR_READ);
+        if (cache != null) {
+            cache.clear();
         }
     }
 

@@ -1,6 +1,7 @@
 package com.interview.auth.config;
 
 import io.minio.MinioClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
  * 让依赖 MinIO 的上传、回源与历史资源代理都复用同一套连接配置。
  */
 @Configuration
+@ConditionalOnProperty(prefix = "app.storage.minio", name = "enabled", havingValue = "true")
 public class MinioStorageConfig {
 
     /**

@@ -533,6 +533,102 @@
   height: auto;
 }
 
+/* ── 文章流头部（总数 + 每页条数选择器）── */
+.article-stream-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.article-stream-count {
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  font-family: var(--mono);
+}
+
+.article-page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-size-label {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.page-size-select {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.page-size-select:hover,
+.page-size-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ── 分页导航 ── */
+.article-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.page-btn {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.45rem 0.9rem;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-pale);
+}
+
+.page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.page-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.page-btn--num {
+  min-width: 36px;
+  padding: 0.45rem 0;
+  text-align: center;
+}
+
 /* ── 空状态 ── */
 .article-empty-state {
   display: grid;
@@ -771,4 +867,33 @@ html[data-theme='dark'] .article-empty-state {
 
 html[data-theme='dark'] .article-footer {
   border-top-color: var(--border);
+}
+
+html[data-theme='dark'] .page-size-select {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+html[data-theme='dark'] .page-size-select:hover,
+html[data-theme='dark'] .page-size-select:focus {
+  border-color: var(--accent);
+}
+
+html[data-theme='dark'] .page-btn {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--ink-soft);
+}
+
+html[data-theme='dark'] .page-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-pale);
+}
+
+html[data-theme='dark'] .page-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
 }

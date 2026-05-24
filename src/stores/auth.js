@@ -43,6 +43,7 @@ function sanitizeUser(user) {
     id: user.id,
     username: user.username,
     email: user.email,
+    role: user.role || 'user',
     joinedAt: user.joinedAt
   }
 }
@@ -247,6 +248,11 @@ export function isAuthenticated() {
   return Boolean(state.accessToken && state.user)
 }
 
+// 给路由守卫使用的管理员判断。
+export function isAdminUser() {
+  return state.user?.role === 'admin'
+}
+
 // 暴露给页面使用的 auth store。
 export function useAuthStore() {
   return {
@@ -255,6 +261,7 @@ export function useAuthStore() {
     accessToken: computed(() => state.accessToken),
     rememberedAccount: computed(() => state.rememberedAccount),
     isLoggedIn: computed(() => Boolean(state.accessToken && state.user)),
+    isAdmin: computed(() => state.user?.role === 'admin'),
     getRemembered,
     sendResetEmail,
     sendRegisterEmailCode,

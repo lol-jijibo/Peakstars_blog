@@ -215,18 +215,49 @@
 
       <aside class="article-sidebar">
         <section v-if="outlineItems.length" class="article-sidebar-section">
-          <h2 class="article-sidebar-title">目录</h2>
+          <h2 class="article-sidebar-title">
+            目录
+            <button
+              v-if="collapsibleNodes.length"
+              class="article-toc-collapse-all"
+              type="button"
+              @click="toggleAllNodes"
+            >{{ allNodesCollapsed ? '展开全部' : '收起全部' }}</button>
+          </h2>
           <ul class="article-toc-list">
             <li
-              v-for="item in outlineItems"
-              :key="item.id"
-              class="article-toc-item"
+              v-for="node in outlineTree"
+              :key="node.key"
+              class="article-toc-item toc-tree-node"
               :class="[
-                { active: activeOutlineId === item.id },
-                item.level
+                node.item.level,
+                `toc-depth-${node.parentKeys.length}`,
+                {
+                  active: activeOutlineId === node.item.id,
+                  collapsed: isNodeCollapsed(node),
+                  'toc-has-children': node.children.length
+                }
               ]"
             >
-              <button type="button" @click="scrollToHeading(item.id)">{{ item.text }}</button>
+              <button
+                type="button"
+                class="article-toc-node-btn"
+                :class="{ 'toc-parent': node.children.length }"
+                @click="scrollToHeading(node.item.id)"
+              >
+                <span
+                  v-if="node.children.length"
+                  class="article-toc-chevron"
+                  :class="{ collapsed: collapsedNodes.has(node.key) }"
+                  @click.stop="toggleNode(node.key)"
+                  :aria-label="collapsedNodes.has(node.key) ? '展开子章节' : '收起子章节'"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M5 3.5L8.5 7L5 10.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="article-toc-text">{{ node.item.text }}</span>
+              </button>
             </li>
           </ul>
         </section>
@@ -333,7 +364,114 @@ const articleBodyRef = ref(null)
 const seriesSectionRef = ref(null)
 const outlineItems = ref([])
 const activeOutlineId = ref('')
+const collapsedNodes = ref(new Set())
 const scrollProgress = ref(0)
+
+const outlineTree = computed(() => {
+  const items = outlineItems.value
+  if (!items.length) return []
+
+  const flat = []
+  let currentH1 = null
+  let currentH2 = null
+
+  for (const item of items) {
+    const level = item.level
+    if (level === 'h1') {
+      currentH1 = { key: item.id, item, children: [], parentKeys: [] }
+      currentH2 = null
+      flat.push(currentH1)
+    } else if (level === 'h2') {
+      currentH2 = { key: item.id, item, children: [], parentKeys: [] }
+      if (currentH1) {
+        currentH2.parentKeys = [currentH1.key]
+        currentH1.children.push(currentH2)
+      }
+      flat.push(currentH2)
+    } else {
+      const parentKeys = []
+      if (currentH2) parentKeys.push(currentH2.key)
+      if (currentH1) parentKeys.push(currentH1.key)
+      const node = { key: item.id, item, children: [], parentKeys }
+      if (currentH2) {
+        currentH2.children.push(node)
+      } else if (currentH1) {
+        currentH1.children.push(node)
+      }
+      flat.push(node)
+    }
+  }
+
+  return flat
+})
+
+const collapsibleNodes = computed(() =>
+  outlineTree.value.filter(n => n.children.length)
+)
+
+const allNodesCollapsed = computed(() => {
+  const list = collapsibleNodes.value
+  if (!list.length) return false
+  return list.every(n => collapsedNodes.value.has(n.key))
+})
+
+function isNodeCollapsed(node) {
+  return node.parentKeys.some(k => collapsedNodes.value.has(k))
+}
+
+function toggleNode(key) {
+  const set = collapsedNodes.value
+  if (set.has(key)) {
+    set.delete(key)
+  } else {
+    set.add(key)
+  }
+  collapsedNodes.value = new Set(set)
+}
+
+function toggleAllNodes() {
+  const list = collapsibleNodes.value
+  if (!list.length) return
+
+  if (allNodesCollapsed.value) {
+    collapsedNodes.value = new Set()
+  } else {
+    collapsedNodes.value = new Set(list.map(n => n.key))
+  }
+}
+
+async function autoCollapseOverflow() {
+  await nextTick()
+  const tocList = document.querySelector('.article-toc-list')
+  const sidebar = document.querySelector('.article-sidebar')
+  if (!tocList || !sidebar) return
+
+  const nodesWithChildren = collapsibleNodes.value
+  if (!nodesWithChildren.length) return
+
+  const reserved = 260
+  const available = sidebar.clientHeight - reserved
+  if (tocList.scrollHeight <= available) return
+
+  // 找出活跃节点及其全部祖先 key
+  const activeKeys = new Set()
+  for (const node of outlineTree.value) {
+    if (node.item.id === activeOutlineId.value) {
+      activeKeys.add(node.key)
+      for (const pk of node.parentKeys) activeKeys.add(pk)
+      break
+    }
+  }
+
+  // 先从顶层收起，逐层往下
+  for (const node of nodesWithChildren) {
+    if (!activeKeys.has(node.key)) {
+      collapsedNodes.value.add(node.key)
+    }
+  }
+  collapsedNodes.value = new Set(collapsedNodes.value)
+}
+
 const copiedText = ref('复制链接')
 const isFollowed = ref(false)
 const likeSubmitting = ref(false)
@@ -397,10 +535,11 @@ async function loadArticle(articleId) {
 
   try {
     const localLastReadAt = markLocalArticleReadTime(articleId)
-    const list = await getTechArticles({ forceRefresh: true })
+    const data = await getTechArticles({ pageSize: 999, forceRefresh: true })
     if (loadToken !== articleLoadToken) return
 
-    techArticles.value = Array.isArray(list) ? list : []
+    const list = Array.isArray(data?.list) ? data.list : (Array.isArray(data) ? data : [])
+    techArticles.value = list
     const matchedArticle = techArticles.value.find((item) => String(item.id) === String(articleId)) || null
     article.value = matchedArticle ? { ...matchedArticle, lastReadAt: matchedArticle.lastReadAt || localLastReadAt } : null
   } catch {
@@ -450,6 +589,7 @@ async function loadArticle(articleId) {
   await nextTick()
   syncOutline()
   updateScrollState()
+  autoCollapseOverflow()
 }
 
 function markLocalArticleReadTime(articleId) {
@@ -714,6 +854,7 @@ watch(articleHtml, async () => {
   await nextTick()
   processCodeBlocks()
   syncOutline()
+  autoCollapseOverflow()
 })
 
 onMounted(() => {
@@ -737,9 +878,11 @@ function syncOutline() {
   if (!root) {
     outlineItems.value = []
     activeOutlineId.value = ''
+    collapsedNodes.value = new Set()
     return
   }
 
+  collapsedNodes.value = new Set()
   const headings = [...root.querySelectorAll('h1, h2, h3')]
   outlineItems.value = headings.map((heading, index) => {
     const id = `article-outline-${index}`

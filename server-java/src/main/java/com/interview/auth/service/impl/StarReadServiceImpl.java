@@ -1,5 +1,6 @@
 package com.interview.auth.service.impl;
 
+import com.interview.auth.config.CacheConfig;
 import com.interview.auth.domain.dto.response.StarReadBookResponse;
 import com.interview.auth.domain.dto.response.StarReadCategoryResponse;
 import com.interview.auth.domain.dto.response.StarReadHomeResponse;
@@ -25,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,7 +46,7 @@ public class StarReadServiceImpl implements StarReadService {
 
     /**
      * 组装 star_read 首页所需的阅读卡片、榜单和分类数据。
-     * 从现有技术文章中计算热门内容、榜单排序和标签聚合，保持页面结构简洁统一。
+     * 从缓存中读取已发布文章列表计算热门内容、榜单排序和标签聚合。
      */
     @Override
     public StarReadHomeResponse getHomeData() {
@@ -121,8 +123,10 @@ public class StarReadServiceImpl implements StarReadService {
             return elasticsearchSuggestions;
         }
 
+        // 只在 ES 不可用时才加载文章做本地匹配，避免重复查询
+        List<TechArticle> articles = loadPublishedArticles();
         Set<String> texts = new LinkedHashSet<>();
-        for (TechArticle article : loadPublishedArticles()) {
+        for (TechArticle article : articles) {
             collectMatchedText(texts, article.getTitle(), normalizedKeyword);
             collectMatchedText(texts, article.getAuthorName(), normalizedKeyword);
             collectMatchedText(texts, resolveCategoryLabel(article.getCategory()), normalizedKeyword);
@@ -136,11 +140,18 @@ public class StarReadServiceImpl implements StarReadService {
     }
 
     /**
-     * 读取当前已发布的技术文章列表。
-     * 复用现有内容查询口径，避免 star_read 与文章模块出现数据源分叉。
+     * 读取当前已发布的技术文章列表（不含正文 content_html 大字段）。
+     * 结果缓存在进程内存中，文章发布/编辑后通过 CacheEvict 刷新。
+     * 使用轻量查询避免 MEDIUMTEXT 列参与全表扫描和网络传输。
      */
+    @Cacheable(value = CacheConfig.CACHE_STAR_READ)
     private List<TechArticle> loadPublishedArticles() {
-        return contentMapper.findPublishedTechArticles();
+        long total = contentMapper.countPublishedTechArticles("all");
+        if (total <= 0) {
+            return List.of();
+        }
+        int safeSize = total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+        return contentMapper.findPublishedTechArticlesLight(0, safeSize, "all");
     }
 
     /**

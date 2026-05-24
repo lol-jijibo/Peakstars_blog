@@ -15,16 +15,51 @@ import org.apache.ibatis.annotations.Param;
 public interface ContentMapper {
 
     /**
-     * 读取已发布技术文章列表。
-     * 列表结果只包含文章公共字段，适合未携带用户身份的通用场景复用。
+     * 分页读取已发布技术文章列表，支持按分类过滤。
+     * category 为 all 或空时不追加分类条件，否则按具体分类、VIP、收藏等维度筛选。
      */
-    List<TechArticle> findPublishedTechArticles();
+    List<TechArticle> findPublishedTechArticles(
+        @Param("offset") int offset,
+        @Param("size") int size,
+        @Param("category") String category
+    );
 
     /**
-     * 读取已发布技术文章列表并合并当前用户的最近阅读时间。
+     * 读取已发布技术文章列表（不含正文 content_html 大字段），供 StarRead 首页聚合使用。
+     * 仅返回列表展示所需字段，避免 MEDIUMTEXT 列参与全表扫描和网络传输。
+     */
+    List<TechArticle> findPublishedTechArticlesLight(
+        @Param("offset") int offset,
+        @Param("size") int size,
+        @Param("category") String category
+    );
+
+    /**
+     * 分页读取已发布技术文章列表并合并当前用户的最近阅读时间，支持按分类过滤。
      * 通过左连接用户阅读记录表补齐 inHistory 与 lastReadAt，供浏览记录页直接展示。
      */
-    List<TechArticle> findPublishedTechArticlesByUser(@Param("userId") Long userId);
+    List<TechArticle> findPublishedTechArticlesByUser(
+        @Param("userId") Long userId,
+        @Param("offset") int offset,
+        @Param("size") int size,
+        @Param("category") String category
+    );
+
+    /**
+     * 统计已发布技术文章总数，支持按分类过滤。
+     */
+    long countPublishedTechArticles(@Param("category") String category);
+
+    /**
+     * 统计已发布技术文章总数（含用户维度），支持按分类过滤。
+     */
+    long countPublishedTechArticlesByUser(@Param("userId") Long userId, @Param("category") String category);
+
+    /**
+     * 按分类维度统计技术文章数量，供前端筛选按钮展示计数。
+     * 返回每行的 category 与 cnt 两列。
+     */
+    List<Map<String, Object>> countTechArticlesByCategory(@Param("userId") Long userId);
 
     /**
      * 读取已发布看天下期刊列表。

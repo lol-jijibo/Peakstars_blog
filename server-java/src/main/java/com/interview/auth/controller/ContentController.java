@@ -8,6 +8,7 @@ import com.interview.auth.domain.dto.response.WorldNewsSuggestionResponse;
 import com.interview.auth.service.ContentService;
 import com.interview.auth.service.TokenService;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -34,14 +35,27 @@ public class ContentController {
     private final TokenService tokenService;
 
     /**
-     * 提供技术文章模块列表接口。
-     * 根据当前登录用户合并最近阅读时间，让浏览记录页直接展示真实阅读时刻。
+     * 提供技术文章模块分页列表接口。
+     * 支持按分类筛选与自定义每页条数，同时返回各分类计数供筛选按钮展示。
      */
     @GetMapping("/tech-articles")
-    public ApiResponse<List<TechArticleResponse>> listTechArticles(
-        @RequestHeader(value = "Authorization", required = false) String authorization
+    public ApiResponse<Map<String, Object>> listTechArticles(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int pageSize,
+        @RequestParam(defaultValue = "all") String category
     ) {
-        return ApiResponse.success(contentService.listTechArticles(resolveCurrentUserId(authorization)));
+        Long currentUserId = resolveCurrentUserId(authorization);
+        PageResult<TechArticleResponse> pageResult = contentService.listTechArticles(currentUserId, page, pageSize, category);
+        Map<String, Long> categoryCounts = contentService.getTechArticleCategoryCounts(currentUserId);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("list", pageResult.list());
+        result.put("total", pageResult.total());
+        result.put("page", pageResult.page());
+        result.put("pageSize", pageResult.pageSize());
+        result.put("categoryCounts", categoryCounts);
+        return ApiResponse.success(result);
     }
 
     /**

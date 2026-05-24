@@ -139,6 +139,7 @@ const likedCount = ref(0)
 const recentCount = computed(() => recentArticles.value.length)
 
 const currentUser = computed(() => authStore.currentUser.value)
+const isAdmin = computed(() => authStore.isAdmin.value)
 
 const displayName = computed(() => {
   const user = currentUser.value
@@ -195,14 +196,16 @@ const quickEntries = computed(() => [
     count: recentCount.value,
     action: () => scrollToSection('recent-section')
   },
-  {
-    key: 'admin',
-    icon: '🧭',
-    label: '内容后台',
-    caption: '进入管理台查看实时数据',
-    count: 'GO',
-    action: () => router.push('/admin/tech')
-  }
+  ...(isAdmin.value
+    ? [{
+        key: 'admin',
+        icon: '🧭',
+        label: '内容后台',
+        caption: '进入管理台查看实时数据',
+        count: 'GO',
+        action: () => router.push('/admin/tech')
+      }]
+    : [])
 ])
 
 function handleQuickEntry(item) {
@@ -211,8 +214,8 @@ function handleQuickEntry(item) {
 
 onMounted(async () => {
   try {
-    const list = await getTechArticles()
-    const articles = Array.isArray(list) ? list : []
+    const data = await getTechArticles({ pageSize: 999 })
+    const articles = Array.isArray(data?.list) ? data.list : []
     recentArticles.value = articles
       .filter((a) => a.inHistory)
       .sort((left, right) => Date.parse(String(right.lastReadAt || '')) - Date.parse(String(left.lastReadAt || '')))

@@ -28,6 +28,9 @@ async function request(url, options = {}) {
 }
 
 function loadWithCache(cacheKey, url, options = {}) {
+  if (!contentCache[cacheKey]) {
+    contentCache[cacheKey] = { data: null, promise: null, timestamp: 0 }
+  }
   const target = contentCache[cacheKey]
   const forceRefresh = Boolean(options.forceRefresh)
   if (!forceRefresh && target.data && (Date.now() - target.timestamp < CACHE_TTL_MS)) {
@@ -57,14 +60,27 @@ function loadWithCache(cacheKey, url, options = {}) {
   return target.promise
 }
 
-export function getTechArticles(options = {}) {
-  return loadWithCache('techArticles', '/api/content/tech-articles', options)
+export function getTechArticles({ page = 0, pageSize = 10, category = 'all', forceRefresh = false } = {}) {
+  const params = new URLSearchParams({ page, pageSize, category })
+  const url = `/api/content/tech-articles?${params.toString()}`
+  const cacheKey = `techArticles_${page}_${pageSize}_${category}`
+  if (forceRefresh) {
+    const entry = contentCache[cacheKey]
+    if (entry) {
+      entry.data = null
+      entry.promise = null
+      entry.timestamp = 0
+    }
+  }
+  return loadWithCache(cacheKey, url, { forceRefresh })
 }
 
 export function invalidateTechArticlesCache() {
-  contentCache.techArticles.data = null
-  contentCache.techArticles.promise = null
-  contentCache.techArticles.timestamp = 0
+  Object.keys(contentCache).forEach((key) => {
+    if (key.startsWith('techArticles')) {
+      delete contentCache[key]
+    }
+  })
 }
 
 export function getWorldNews() {

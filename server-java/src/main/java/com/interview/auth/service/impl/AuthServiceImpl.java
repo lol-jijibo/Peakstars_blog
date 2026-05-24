@@ -57,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
         authUser.setUsername(username);
         authUser.setEmail(email);
         authUser.setPasswordHash(passwordService.encode(request.getPassword()));
+        authUser.setRole("user");
         authUser.setStatus(1);
         authUserMapper.insert(authUser);
 
@@ -108,6 +109,7 @@ public class AuthServiceImpl implements AuthService {
         response.setId(authUser.getId());
         response.setUsername(authUser.getUsername());
         response.setEmail(authUser.getEmail());
+        response.setRole(authUser.getRole());
         response.setJoinedAt(
             authUser.getCreatedAt() == null
                 ? null

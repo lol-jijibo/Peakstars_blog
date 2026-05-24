@@ -111,13 +111,6 @@ body,
   background: #e87722;
 }
 
-html[data-theme='dark'] .mine-page {
-  background:
-    radial-gradient(circle at top right, rgba(90, 200, 250, 0.08), transparent 30%),
-    linear-gradient(180deg, #0a0a0a 0%, #121212 42%, #0a0a0a 100%);
-  color: #eef4ff;
-}
-
 html[data-theme='dark'] .mine-header,
 html[data-theme='dark'] .profile-card,
 html[data-theme='dark'] .quick-panel,
@@ -128,15 +121,12 @@ html[data-theme='dark'] .detail-header,
 html[data-theme='dark'] .detail-hero,
 html[data-theme='dark'] .detail-content,
 html[data-theme='dark'] .detail-actions,
-html[data-theme='dark'] .empty-state,
-html[data-theme='dark'] .collect-page,
-html[data-theme='dark'] .like-page {
+html[data-theme='dark'] .empty-state {
   background: rgba(12, 12, 12, 0.9);
   border-color: rgba(255, 255, 255, 0.06);
 }
 
-html[data-theme='dark'] .simple-page,
-html[data-theme='dark'] .detail-page { 
+html[data-theme='dark'] .detail-page {
   background: linear-gradient(180deg, #0a0a0a 0%, #121212 100%);
   color: #eef4ff;
 }

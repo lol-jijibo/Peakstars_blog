@@ -5,14 +5,19 @@ spring:
   application:
     name: interview-auth-service
   profiles:
+    # 默认使用 dev 配置，生产环境请设置 SPRING_PROFILES_ACTIVE=prod
     active: dev
   datasource:
-    # 兼容本地 MySQL 8 默认认证握手
-    # 在开发环境关闭 SSL 时显式允许拉取公钥，避免接口查询阶段拿不到 JDBC 连接
-    url: jdbc:mysql://localhost:3306/interview_db?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    # SSL 参数按环境通过变量注入，避免硬编码不安全配置
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:interview_db}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=${DB_USE_SSL:false}&allowPublicKeyRetrieval=${DB_ALLOW_PUBLIC_KEY_RETRIEVAL:true}
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:10000}
+      leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD:30000}
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -90,7 +95,7 @@ app:
       public-base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000}
   auth:
     token-secret: ${AUTH_TOKEN_SECRET}
-    token-expire-hours: 168
+    token-expire-hours: ${AUTH_TOKEN_EXPIRE_HOURS:168}
     verification:
       register-code-expire-seconds: ${REGISTER_CODE_EXPIRE_SECONDS:300}
       register-send-cooldown-seconds: ${REGISTER_SEND_COOLDOWN_SECONDS:60}
@@ -100,3 +105,13 @@ app:
       register-code-length: ${REGISTER_CODE_LENGTH:6}
       mail-from: ${MAIL_FROM:${MAIL_USERNAME:}}
       register-mail-subject: ${REGISTER_MAIL_SUBJECT:PeakStars_blog Register Code}
+
+# Actuator 健康检查
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: when-authorized
