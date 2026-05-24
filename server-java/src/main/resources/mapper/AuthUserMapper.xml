@@ -52,4 +52,8 @@
     UPDATE auth_user SET password_hash = #{passwordHash}, updated_at = NOW()
     WHERE id = #{id}
   </update>
+
+  <select id="countUsers" resultType="long">
+    SELECT COUNT(1) FROM auth_user WHERE status = 1
+  </select>
 </mapper>

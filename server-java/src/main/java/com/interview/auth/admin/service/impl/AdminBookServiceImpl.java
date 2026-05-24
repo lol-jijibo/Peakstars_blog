@@ -21,6 +21,7 @@ import com.interview.auth.admin.mapper.AdminBookMapper;
 import com.interview.auth.admin.service.AdminBookService;
 import com.interview.auth.admin.service.AdminContentImportService;
 import com.interview.auth.common.BusinessException;
+import com.interview.auth.common.MagicBytesValidator;
 import com.interview.auth.config.CacheConfig;
 import com.interview.auth.domain.dto.response.BookResponse;
 import com.interview.auth.domain.entity.Book;
@@ -2006,55 +2007,11 @@ public class AdminBookServiceImpl implements AdminBookService {
         return !looksLikeTextMarkup(bytes);
     }
 
-    /**
-     * 通过文件魔数前缀推断是否为图片格式。
-     * 兜底处理纯扩展名检测遗漏的场景（如无后缀文件或非标准扩展名但实际为图片）。
-     */
     private boolean isImageFileByMagicBytes(byte[] bytes) {
         if (bytes == null || bytes.length < 4) {
             return false;
         }
-        // JPEG: FF D8 FF
-        if (bytes[0] == (byte)0xFF && bytes[1] == (byte)0xD8 && bytes[2] == (byte)0xFF) {
-            return true;
-        }
-        // PNG: 89 50 4E 47
-        if (bytes[0] == (byte)0x89 && bytes[1] == (byte)0x50 && bytes[2] == (byte)0x4E && bytes[3] == (byte)0x47) {
-            return true;
-        }
-        // GIF: 47 49 46 38
-        if (bytes[0] == (byte)0x47 && bytes[1] == (byte)0x49 && bytes[2] == (byte)0x46 && bytes[3] == (byte)0x38) {
-            return true;
-        }
-        // WEBP: RIFF .... WEBP
-        if (bytes.length >= 12 && bytes[0] == (byte)0x52 && bytes[1] == (byte)0x49
-            && bytes[2] == (byte)0x46 && bytes[3] == (byte)0x46
-            && bytes[8] == (byte)0x57 && bytes[9] == (byte)0x45
-            && bytes[10] == (byte)0x42 && bytes[11] == (byte)0x50) {
-            return true;
-        }
-        // BMP: 42 4D
-        if (bytes[0] == (byte)0x42 && bytes[1] == (byte)0x4D) {
-            return true;
-        }
-        // TIFF: 49 49 2A 00 (little-endian) 或 4D 4D 00 2A (big-endian)
-        if ((bytes[0] == (byte)0x49 && bytes[1] == (byte)0x49 && bytes[2] == (byte)0x2A && bytes[3] == (byte)0x00)
-            || (bytes[0] == (byte)0x4D && bytes[1] == (byte)0x4D && bytes[2] == (byte)0x00 && bytes[3] == (byte)0x2A)) {
-            return true;
-        }
-        String header = new String(bytes, 0, Math.min(bytes.length, 128), StandardCharsets.UTF_8).trim().toLowerCase(Locale.ROOT);
-        if (header.startsWith("<svg") || header.contains("<svg")) {
-            return true;
-        }
-        // AVIF: 以 ftypavif / ftypavis 为特征的 ISOBMFF 容器
-        if (bytes.length >= 12 && bytes[4] == (byte)0x66 && bytes[5] == (byte)0x74
-            && bytes[6] == (byte)0x79 && bytes[7] == (byte)0x70) {
-            String boxType = new String(bytes, 4, 8, StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
-            if (boxType.contains("avif") || boxType.contains("avis")) {
-                return true;
-            }
-        }
-        return false;
+        return MagicBytesValidator.isImage(bytes);
     }
 
     /**
@@ -2160,22 +2117,117 @@ public class AdminBookServiceImpl implements AdminBookService {
     }
 
     private String markdownToHtml(String markdown) {
-        String[] lines = defaultString(markdown, "").replace("\r\n", "\n").split("\n");
+        String text = defaultString(markdown, "").replace("\r\n", "\n");
         StringBuilder builder = new StringBuilder();
-        for (String line : lines) {
+        int i = 0;
+        String[] lines = text.split("\n", -1);
+        while (i < lines.length) {
+            String line = lines[i];
             String trimmed = line.trim();
-            if (trimmed.isEmpty()) continue;
-            if (trimmed.startsWith("### ")) {
-                builder.append("<h3>").append(escapeHtml(trimmed.substring(4))).append("</h3>");
-            } else if (trimmed.startsWith("## ")) {
-                builder.append("<h2>").append(escapeHtml(trimmed.substring(3))).append("</h2>");
-            } else if (trimmed.startsWith("# ")) {
-                builder.append("<h1>").append(escapeHtml(trimmed.substring(2))).append("</h1>");
-            } else {
-                builder.append("<p>").append(escapeHtml(trimmed)).append("</p>");
+
+            if (trimmed.isEmpty()) {
+                i++;
+                continue;
             }
+
+            // 分隔线
+            if (trimmed.matches("^[-*_]{3,}$")) {
+                builder.append("<hr />");
+                i++;
+                continue;
+            }
+
+            // 围栏代码块
+            if (trimmed.startsWith("```")) {
+                String lang = trimmed.substring(3).trim();
+                builder.append("<pre><code");
+                if (!lang.isEmpty()) {
+                    builder.append(" class=\"language-").append(escapeHtml(lang)).append("\"");
+                }
+                builder.append(">");
+                i++;
+                while (i < lines.length && !lines[i].trim().startsWith("```")) {
+                    builder.append(escapeHtml(lines[i])).append("\n");
+                    i++;
+                }
+                builder.append("</code></pre>");
+                i++; // skip closing ```
+                continue;
+            }
+
+            // 标题
+            if (trimmed.startsWith("### ")) {
+                builder.append("<h3>").append(renderInlineMarkdown(trimmed.substring(4))).append("</h3>");
+                i++;
+                continue;
+            }
+            if (trimmed.startsWith("## ")) {
+                builder.append("<h2>").append(renderInlineMarkdown(trimmed.substring(3))).append("</h2>");
+                i++;
+                continue;
+            }
+            if (trimmed.startsWith("# ")) {
+                builder.append("<h1>").append(renderInlineMarkdown(trimmed.substring(2))).append("</h1>");
+                i++;
+                continue;
+            }
+
+            // 引用
+            if (trimmed.startsWith("> ")) {
+                builder.append("<blockquote><p>").append(renderInlineMarkdown(trimmed.substring(2))).append("</p></blockquote>");
+                i++;
+                continue;
+            }
+
+            // 无序列表
+            if (trimmed.matches("^[-*+]\\s.+")) {
+                builder.append("<ul>");
+                while (i < lines.length && lines[i].trim().matches("^[-*+]\\s.+")) {
+                    String itemText = lines[i].trim().replaceFirst("^[-*+]\\s+", "");
+                    builder.append("<li>").append(renderInlineMarkdown(itemText)).append("</li>");
+                    i++;
+                }
+                builder.append("</ul>");
+                continue;
+            }
+
+            // 有序列表
+            if (trimmed.matches("^\\d+\\.\\s.+")) {
+                builder.append("<ol>");
+                while (i < lines.length && lines[i].trim().matches("^\\d+\\.\\s.+")) {
+                    String itemText = lines[i].trim().replaceFirst("^\\d+\\.\\s+", "");
+                    builder.append("<li>").append(renderInlineMarkdown(itemText)).append("</li>");
+                    i++;
+                }
+                builder.append("</ol>");
+                continue;
+            }
+
+            // 普通段落
+            builder.append("<p>").append(renderInlineMarkdown(trimmed)).append("</p>");
+            i++;
         }
         return builder.toString();
+    }
+
+    /**
+     * 渲染行内 Markdown：加粗、斜体、行内代码、删除线、链接、图片。
+     */
+    private String renderInlineMarkdown(String text) {
+        String escaped = escapeHtml(text);
+        // 图片 ![alt](url)
+        escaped = escaped.replaceAll("!\\[([^]]*)]\\(([^)]+)\\)", "<img src=\"$2\" alt=\"$1\" />");
+        // 链接 [text](url)
+        escaped = escaped.replaceAll("\\[([^]]*)]\\(([^)]+)\\)", "<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>");
+        // 加粗 **text**
+        escaped = escaped.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+        // 斜体 *text* (不冲突已处理的加粗)
+        escaped = escaped.replaceAll("(?<!<strong[^>]*>)\\*(.+?)\\*(?!</strong>)", "<em>$1</em>");
+        // 删除线 ~~text~~
+        escaped = escaped.replaceAll("~~(.+?)~~", "<del>$1</del>");
+        // 行内代码 `code`
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+        return escaped;
     }
 
     private String textToParagraphHtml(String text) {

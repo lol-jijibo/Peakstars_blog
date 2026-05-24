@@ -987,7 +987,7 @@ function isOpeningImageOnlyChapter(chapter) {
 
   const html = normalizeContentHtml(chapter?.contentHtml)
   if (!html) {
-    return false
+    return true
   }
 
   if (typeof document === 'undefined') {

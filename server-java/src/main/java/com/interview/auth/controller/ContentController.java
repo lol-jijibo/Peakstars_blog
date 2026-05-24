@@ -5,8 +5,10 @@ import com.interview.auth.domain.dto.response.PageResult;
 import com.interview.auth.domain.dto.response.TechArticleResponse;
 import com.interview.auth.domain.dto.response.WorldNewsIssueResponse;
 import com.interview.auth.domain.dto.response.WorldNewsSuggestionResponse;
+import com.interview.auth.service.CommentRateLimitService;
 import com.interview.auth.service.ContentService;
 import com.interview.auth.service.TokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +35,7 @@ public class ContentController {
 
     private final ContentService contentService;
     private final TokenService tokenService;
+    private final CommentRateLimitService commentRateLimitService;
 
     /**
      * 提供技术文章模块分页列表接口。
@@ -162,7 +165,8 @@ public class ContentController {
      * 新评论写入成功后同步回写文章统计值，并把最新评论返回给前端。
      */
     @PostMapping("/tech-articles/{articleKey}/comments")
-    public ApiResponse<Map<String, Object>> addArticleComment(@PathVariable String articleKey, @RequestBody Map<String, Object> body) {
+    public ApiResponse<Map<String, Object>> addArticleComment(@PathVariable String articleKey, @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        commentRateLimitService.checkRateLimit(extractClientIp(request));
         String nickname = (String) body.getOrDefault("nickname", "匿名用户");
         String content = (String) body.get("content");
         String avatarText = (String) body.getOrDefault("avatarText", "匿");
@@ -200,5 +204,17 @@ public class ContentController {
         }
         Map<String, Object> payload = tokenService.parseToken(authorization);
         return Long.valueOf(String.valueOf(payload.get("userId")));
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

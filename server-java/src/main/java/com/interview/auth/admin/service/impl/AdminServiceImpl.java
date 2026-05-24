@@ -22,6 +22,7 @@ import com.interview.auth.common.BusinessException;
 import com.interview.auth.common.TechArticleReadTimeCalculator;
 import com.interview.auth.config.CacheConfig;
 import com.interview.auth.domain.entity.Category;
+import com.interview.auth.domain.entity.Company;
 import com.interview.auth.domain.entity.Interview;
 import com.interview.auth.domain.entity.TechArticle;
 import com.interview.auth.domain.entity.WorldNewsIssue;
@@ -605,10 +606,13 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * 解析公司 ID，默认使用全部分类对应公司。
+     * 根据分类编码解析公司 ID，优先通过 company 表的 short_name / name 匹配。
+     * 未匹配到时回退到默认公司 1L，保证现有数据不中断。
      */
     private Long parseCompanyId(String category) {
-        return 1L;
+        String normalizedCode = normalizeInterviewCategoryCode(category);
+        Company company = adminMapper.findCompanyByCategoryCode(normalizedCode);
+        return company != null ? company.getId() : 1L;
     }
 
     /**

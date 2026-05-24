@@ -284,7 +284,7 @@ const themeStore = useThemeStore()
 const techArticles = ref([])
 const learningRoutes = ref([])
 const interviewCount = ref(0)
-const routeEnrollCount = ref(62) // TODO: 后续接入后端 API 返回实际注册人数
+const routeEnrollCount = ref(0)
 
 const sortedArticles = computed(() => {
   return [...techArticles.value].sort((left, right) => {
@@ -312,10 +312,12 @@ const popularTags = computed(() => {
 })
 
 async function loadHomeData() {
-  const [articleResult, routeResult, interviewResult] = await Promise.allSettled([
+  const apiBase = import.meta.env.VITE_JAVA_API_BASE_URL || '/auth-api'
+  const [articleResult, routeResult, interviewResult, userCountResult] = await Promise.allSettled([
     getTechArticles({ pageSize: 20 }),
     getLearningRoutes(),
-    getInterviews({ page: 1, pageSize: 1 })
+    getInterviews({ page: 1, pageSize: 1 }),
+    fetch(`${apiBase}/api/auth/user-count`).then(r => r.ok ? r.json() : null)
   ])
 
   if (articleResult.status === 'fulfilled' && articleResult.value?.list) {
@@ -328,6 +330,10 @@ async function loadHomeData() {
 
   if (interviewResult.status === 'fulfilled') {
     interviewCount.value = Number(interviewResult.value?.total || 0)
+  }
+
+  if (userCountResult.status === 'fulfilled' && userCountResult.value?.data) {
+    routeEnrollCount.value = Number(userCountResult.value.data.userCount || 0)
   }
 }
 

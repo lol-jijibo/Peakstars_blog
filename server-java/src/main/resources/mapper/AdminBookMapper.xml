@@ -103,7 +103,9 @@
   </insert>
 
   <select id="findSourceFileByKey" resultType="com.interview.auth.admin.entity.BookSourceFile">
-    SELECT *
+    SELECT
+      id, file_key, original_name, storage_url, file_size, file_hash,
+      created_at, updated_at
     FROM book_source_file
     WHERE file_key = #{fileKey}
     LIMIT 1
@@ -161,7 +163,12 @@
   </insert>
 
   <select id="findImportJobByKey" resultMap="BookImportJobResultMap">
-    SELECT *
+    SELECT
+      id, job_key, book_key, title, author, translator, publisher,
+      summary, category, cover_url, source_file_key, import_type,
+      source_url, original_format, file_size, status, progress,
+      total_chapters, success_chapters, fail_chapters, message,
+      created_at, updated_at
     FROM book_import_job
     WHERE job_key = #{jobKey}
     LIMIT 1
@@ -232,14 +239,20 @@
   </insert>
 
   <select id="findImportStagesByJobKey" resultMap="BookImportStageResultMap">
-    SELECT *
+    SELECT
+      id, job_key, temp_chapter_key, source_path, chapter_no,
+      title, subtitle, content_html, plain_text, word_count,
+      warning_json, review_status, sort_order, created_at, updated_at
     FROM book_import_chapter_stage
     WHERE job_key = #{jobKey}
     ORDER BY sort_order ASC, chapter_no ASC, id ASC
   </select>
 
   <select id="findImportStageByKey" resultMap="BookImportStageResultMap">
-    SELECT *
+    SELECT
+      id, job_key, temp_chapter_key, source_path, chapter_no,
+      title, subtitle, content_html, plain_text, word_count,
+      warning_json, review_status, sort_order, created_at, updated_at
     FROM book_import_chapter_stage
     WHERE job_key = #{jobKey}
       AND temp_chapter_key = #{tempChapterKey}
@@ -323,7 +336,10 @@
   </delete>
 
   <select id="findBookChaptersByBookKey" resultMap="BookChapterResultMap">
-    SELECT *
+    SELECT
+      id, chapter_key, book_key, chapter_no, title, subtitle,
+      content_html, word_count, is_free, status, sort_order,
+      created_at, updated_at
     FROM book_chapter
     WHERE book_key = #{bookKey}
     ORDER BY sort_order ASC, chapter_no ASC, id ASC
@@ -377,13 +393,21 @@
   </insert>
 
   <select id="findAllBooks" resultMap="BookResultMap">
-    SELECT *
+    SELECT
+      id, book_key, title, author, translator, publisher,
+      category, summary, cover_url, tag_list, word_count,
+      chapter_count, read_count, rating, status, sort_order,
+      published_at, created_at, updated_at
     FROM book
     ORDER BY updated_at DESC, sort_order ASC, published_at DESC
   </select>
 
   <select id="findBookByKey" resultMap="BookResultMap">
-    SELECT *
+    SELECT
+      id, book_key, title, author, translator, publisher,
+      category, summary, cover_url, tag_list, word_count,
+      chapter_count, read_count, rating, status, sort_order,
+      published_at, created_at, updated_at
     FROM book
     WHERE book_key = #{bookKey}
     LIMIT 1
@@ -437,14 +461,24 @@
   </delete>
 
   <select id="listImportJobs" resultMap="BookImportJobResultMap">
-    SELECT *
+    SELECT
+      id, job_key, book_key, title, author, translator, publisher,
+      summary, category, cover_url, source_file_key, import_type,
+      source_url, original_format, file_size, status, progress,
+      total_chapters, success_chapters, fail_chapters, message,
+      created_at, updated_at
     FROM book_import_job
     ORDER BY updated_at DESC
     LIMIT #{limit}
   </select>
 
   <select id="findImportJobsByBookKey" resultMap="BookImportJobResultMap">
-    SELECT *
+    SELECT
+      id, job_key, book_key, title, author, translator, publisher,
+      summary, category, cover_url, source_file_key, import_type,
+      source_url, original_format, file_size, status, progress,
+      total_chapters, success_chapters, fail_chapters, message,
+      created_at, updated_at
     FROM book_import_job
     WHERE book_key = #{bookKey}
     ORDER BY updated_at DESC
@@ -474,7 +508,12 @@
   </update>
 
   <select id="findImportJobsByCategory" resultMap="BookImportJobResultMap">
-    SELECT *
+    SELECT
+      id, job_key, book_key, title, author, translator, publisher,
+      summary, category, cover_url, source_file_key, import_type,
+      source_url, original_format, file_size, status, progress,
+      total_chapters, success_chapters, fail_chapters, message,
+      created_at, updated_at
     FROM book_import_job
     WHERE category = #{category}
     ORDER BY updated_at DESC

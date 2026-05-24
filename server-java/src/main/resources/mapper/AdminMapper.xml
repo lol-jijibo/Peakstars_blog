@@ -325,6 +325,14 @@
     LIMIT 1
   </select>
 
+  <select id="findCompanyByCategoryCode" resultType="com.interview.auth.domain.entity.Company">
+    SELECT id, name, short_name, avatar_text, avatar_color, logo_url, description, created_at, updated_at
+    FROM company
+    WHERE short_name = #{categoryCode}
+       OR name = #{categoryCode}
+    LIMIT 1
+  </select>
+
   <insert id="saveInterview" useGeneratedKeys="true" keyProperty="id">
     INSERT INTO interview (
       id, company_id, category_id, title, author, summary, content, cover_url,

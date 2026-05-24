@@ -11,6 +11,7 @@ import com.interview.auth.admin.dto.response.AdminDashboardResponse;
 import com.interview.auth.admin.dto.response.AdminDraftResponse;
 import com.interview.auth.admin.service.AdminService;
 import com.interview.auth.common.ApiResponse;
+import com.interview.auth.common.MagicBytesValidator;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.io.InputStream;
@@ -265,35 +266,10 @@ public class AdminController {
         }
 
         try (InputStream in = file.getInputStream()) {
-            byte[] header = new byte[12];
-            int read = in.read(header);
-            if (read < 4) {
-                return false;
-            }
-
-            // PNG: 89 50 4E 47
-            if (match(header, 0, 0x89, 0x50, 0x4E, 0x47)) return true;
-            // JPEG: FF D8 FF
-            if (match(header, 0, 0xFF, 0xD8, 0xFF)) return true;
-            // GIF: 47 49 46 38
-            if (match(header, 0, 0x47, 0x49, 0x46, 0x38)) return true;
-            // WebP: 52 49 46 46 ... 57 45 42 50
-            if (read >= 12 && match(header, 0, 0x52, 0x49, 0x46, 0x46) && match(header, 8, 0x57, 0x45, 0x42, 0x50)) return true;
-            // BMP: 42 4D
-            if (match(header, 0, 0x42, 0x4D)) return true;
-
-            return false;
+            byte[] header = MagicBytesValidator.readHeader(in, 12);
+            return MagicBytesValidator.isImage(header);
         } catch (IOException e) {
             return false;
         }
-    }
-
-    private boolean match(byte[] header, int offset, int... expected) {
-        for (int i = 0; i < expected.length; i++) {
-            if ((header[offset + i] & 0xFF) != expected[i]) {
-                return false;
-            }
-        }
-        return true;
     }
 }

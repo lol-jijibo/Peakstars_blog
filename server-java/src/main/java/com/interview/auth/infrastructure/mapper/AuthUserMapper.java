@@ -61,4 +61,6 @@ public interface AuthUserMapper {
      * @return 影响行数
      */
     int updatePassword(@Param("id") Long id, @Param("passwordHash") String passwordHash);
+
+    long countUsers();
 }

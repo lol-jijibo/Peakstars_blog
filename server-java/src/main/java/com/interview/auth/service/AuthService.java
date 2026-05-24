@@ -19,4 +19,6 @@ public interface AuthService {
     AuthUserResponse getCurrentUser(String bearerToken);
 
     String forgotPassword(ForgotPasswordRequest request);
+
+    long getUserCount();
 }

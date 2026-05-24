@@ -58,7 +58,7 @@ public class BookServiceImpl implements BookService {
      */
     @Override
     public List<BookChapterResponse> listBookChapters(String bookKey) {
-        return bookMapper.findPublishedChaptersByBookKey(bookKey).stream().map(this::toBookChapterResponse).toList();
+        return bookMapper.findPublishedChaptersLightByBookKey(bookKey).stream().map(this::toBookChapterResponse).toList();
     }
 
     /**

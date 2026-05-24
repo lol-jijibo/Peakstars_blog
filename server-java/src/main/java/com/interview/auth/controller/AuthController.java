@@ -135,6 +135,15 @@ public class AuthController {
      * 2. 再读取 X-Real-IP，兼容部分代理服务器配置。
      * 3. 最后回退到 Servlet 容器识别到的远端地址。
      */
+    /**
+     * 获取网站注册用户总数，供首页统计展示。
+     * 无需认证，直接返回已激活用户数量。
+     */
+    @GetMapping("/user-count")
+    public ApiResponse<Map<String, Object>> getUserCount() {
+        return ApiResponse.success(Map.of("userCount", authService.getUserCount()));
+    }
+
     private String extractClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (forwardedFor != null && !forwardedFor.isBlank()) {

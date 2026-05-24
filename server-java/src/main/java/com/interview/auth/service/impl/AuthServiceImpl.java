@@ -135,4 +135,9 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(400, "This email has already been registered");
         }
     }
+
+    @Override
+    public long getUserCount() {
+        return authUserMapper.countUsers();
+    }
 }

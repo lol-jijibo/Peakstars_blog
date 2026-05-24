@@ -11,6 +11,7 @@ import com.interview.auth.admin.dto.response.AdminBookImportChapterResponse;
 import com.interview.auth.admin.dto.response.AdminBookImportJobResponse;
 import com.interview.auth.admin.service.AdminBookService;
 import com.interview.auth.common.ApiResponse;
+import com.interview.auth.common.MagicBytesValidator;
 import com.interview.auth.domain.dto.response.BookResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -340,40 +341,22 @@ public class AdminBookController {
         }
         String ext = originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
 
-        // 纯文本格式无固定魔数，跳过校验
         if (Set.of("txt", "md", "markdown", "html", "htm").contains(ext)) {
             return true;
         }
 
         try (InputStream in = file.getInputStream()) {
-            byte[] header = new byte[4];
-            int read = in.read(header);
-            if (read < 4) {
-                return false;
-            }
+            byte[] header = MagicBytesValidator.readHeader(in, 4);
 
-            // PDF: 25 50 44 46 (%PDF)
-            if (ext.equals("pdf")) {
-                return match(header, 0, 0x25, 0x50, 0x44, 0x46);
+            if ("pdf".equals(ext)) {
+                return MagicBytesValidator.isPdf(header);
             }
-
-            // ZIP / EPUB / DOCX: 50 4B 03 04 (PK..)
-            if (ext.equals("zip") || ext.equals("epub") || ext.equals("docx")) {
-                return match(header, 0, 0x50, 0x4B, 0x03, 0x04);
+            if (Set.of("zip", "epub", "docx").contains(ext)) {
+                return MagicBytesValidator.isZipBased(header);
             }
-
             return false;
         } catch (IOException e) {
             return false;
         }
-    }
-
-    private boolean match(byte[] header, int offset, int... expected) {
-        for (int i = 0; i < expected.length; i++) {
-            if ((header[offset + i] & 0xFF) != expected[i]) {
-                return false;
-            }
-        }
-        return true;
     }
 }

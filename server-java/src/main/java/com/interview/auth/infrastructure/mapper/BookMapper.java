@@ -19,5 +19,7 @@ public interface BookMapper {
 
     List<BookChapter> findPublishedChaptersByBookKey(@Param("bookKey") String bookKey);
 
+    List<BookChapter> findPublishedChaptersLightByBookKey(@Param("bookKey") String bookKey);
+
     BookChapter findPublishedChapterByKey(@Param("bookKey") String bookKey, @Param("chapterKey") String chapterKey);
 }
