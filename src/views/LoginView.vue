@@ -47,7 +47,7 @@
     <main class="card">
       <div class="brand">
         <div class="brand-icon">
-          <img class="brand-icon-image" src="/peakstars-blog-icon.jpg" alt="PeakStars_blog" />
+          <img class="brand-icon-image" src="/peakstars-blog-icon.svg" alt="PeakStars_blog" />
         </div>
         <div class="brand-name">PeakStars_blog</div>
         <div class="brand-sub">欢迎回来，请登录您的账号</div>

@@ -139,7 +139,7 @@
           </div>
 
           <div v-if="article.coverUrl" class="article-row-cover" :class="`category-${article.category}`">
-            <img :src="article.coverUrl" :alt="article.title" loading="lazy" />
+            <img :src="article.coverUrl" :alt="article.title" loading="lazy" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
           </div>
         </article>
       </section>

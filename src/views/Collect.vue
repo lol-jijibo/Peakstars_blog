@@ -16,7 +16,7 @@
           @click="router.push(`/articles/${article.id}`)"
         >
           <div class="article-cover" v-if="article.coverUrl">
-            <img :src="article.coverUrl" :alt="article.title" />
+            <img :src="article.coverUrl" :alt="article.title" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
           </div>
           <div class="article-body">
             <span class="article-tag">{{ article.category === 'frontend' ? '前端' : '后端' }}</span>

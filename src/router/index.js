@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { isAdminUser, isAuthenticated } from '@/stores/auth'
+import { isAdminUser, isAuthenticated, verifyAdminAccess } from '@/stores/auth'
 import {
   finishEntryTransitionLoader,
   startEntryTransitionLoader,
@@ -96,6 +96,13 @@ const routes = [
   }
 ]
 
+function redirectUnavailable() {
+  return {
+    path: '/home',
+    query: { notice: 'unavailable' }
+  }
+}
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
@@ -119,7 +126,7 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.requiresAuth && !isAuthenticated()) {
     stopEntryTransitionLoader()
     return {
@@ -130,7 +137,15 @@ router.beforeEach((to) => {
 
   if (to.meta.requiresAdmin && !isAdminUser()) {
     stopEntryTransitionLoader()
-    return { path: '/home' }
+    return redirectUnavailable()
+  }
+
+  if (to.meta.requiresAdmin) {
+    const verified = await verifyAdminAccess()
+    if (!verified) {
+      stopEntryTransitionLoader()
+      return redirectUnavailable()
+    }
   }
 
   if (to.path === '/login' && isAuthenticated()) {

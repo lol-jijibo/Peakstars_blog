@@ -105,7 +105,7 @@
   <select id="findSourceFileByKey" resultType="com.interview.auth.admin.entity.BookSourceFile">
     SELECT
       id, file_key, original_name, storage_url, file_size, file_hash,
-      created_at, updated_at
+      created_at
     FROM book_source_file
     WHERE file_key = #{fileKey}
     LIMIT 1

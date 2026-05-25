@@ -1,6 +1,7 @@
 package com.interview.auth.infrastructure.storage;
 
 import com.interview.auth.common.BusinessException;
+import com.interview.auth.config.AliyunOssProperties;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -17,6 +18,7 @@ public class StorageRoutingService {
     private final ObjectProvider<MinioContentStorageService> minioStorageProvider;
     private final ObjectProvider<AliyunOssContentStorageService> ossStorageProvider;
     private final ObjectProvider<ContentStorageService> contentStorageProvider;
+    private final ObjectProvider<AliyunOssProperties> ossPropertiesProvider;
 
     /**
      * 按业务模块选择目标存储服务。
@@ -37,9 +39,14 @@ public class StorageRoutingService {
      */
     public StorageTarget resolveTarget(String moduleType) {
         String normalized = moduleType == null ? "" : moduleType.trim().toLowerCase(Locale.ROOT);
+        AliyunOssProperties ossProperties = ossPropertiesProvider.getIfAvailable();
+        if (ossProperties == null || !ossProperties.isEnabled()) {
+            return StorageTarget.AUTO;
+        }
         return switch (normalized) {
             case "interview", "interview-rich-text", "interview-cover",
-                 "tech-article", "tech-article-cover", "tech-article-rich-text",
+                 "tech", "tech-article", "tech-article-cover", "tech-article-rich-text",
+                 "ai",
                  "book", "book-cover", "book-rich-text", "book-import", "book-source" -> StorageTarget.OSS;
             default -> StorageTarget.AUTO;
         };

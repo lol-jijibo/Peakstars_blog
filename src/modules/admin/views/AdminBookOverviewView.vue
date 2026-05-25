@@ -140,7 +140,7 @@
               <td>
                 <div class="book-overview-book-meta">
                   <div class="book-overview-cover-frame">
-                    <img :src="resolveCoverImage(book)" :alt="book.title" />
+                    <img :src="resolveCoverImage(book)" :alt="book.title" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
                   </div>
                   <div class="book-overview-book-copy">
                     <span class="book-overview-book-title">{{ book.title }}</span>
@@ -367,9 +367,9 @@ const activeActionBook = computed(() =>
 )
 
 const sampleCoverMap = [
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDMt93gdU22B4C94v4JY_6NBSOVIu-OicMYuhPIT4ar-LpSWGO-ORkbrdPeXkiIxgDXnOKrYu0gLLYe6r_YmvAdhZ87oYkXRpDlAAFTntjcjCvE7DK2jdfoW105SFzmMZLPn-yZwE00WeFfpBC_1sLFKcsFnSUIo9LpDRhXB3-X8FHkbPPFEDcAsbrhWM6coFp1a85ihCtPCGGf6879dSE92ITBsSSMtJ61afMXIa6kN7-N8PMK2pONHu0SBlWR8azcF3LTmyI3REU',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDNtHa1K-TiCkEx-htH7nymWQll8FvRogEMOhdtZSnhXl6hawefYXu1JVu4Lw3LbsOvEmR6r1ACgL0tCVb1vGWNcKzqLjhCf_IG_YRZBpTEM5Cr62i7ZvC2Eg6ve-p6SDWdcdSQmBnUmSbGNSNUIerIVDwt369Y69qrzXivI0HNRlp4TJIj8-lX87doL1uuAua6fAKq-ps53SpB1MJEXD4iYwZ5d9YwFc1ov9Z7sK508jK4aMu6-U9bUZezeMv95_dlyNe4pGimwe4',
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDjXskEbc4Q-6mXEeHzoWOcCN_dg0mUi16Ic7794n0B3othaZktwHah3Gwrlmp9uytee4ljbQeVQDOgTjxXcKS94nLyAgc_16F3r_K74ozh9zfrPzWPP-KrnY4XQ-Og9CJsi5KIcQgdwZiAPg32HQJpDHLrEiJ1-Ys9xrr9JNcKf6EW9mEpiHthmHozRblSzh5puTTddRqOdqzGn69lFq_Tjq3h40_TcYkAAT6GCdHE9gmBeTp0Us4Soc9vGOoxrisdxkB5nog2X_o'
+  '/peakstars-blog-icon.svg',
+  '/peakstars-blog-icon.svg',
+  '/peakstars-blog-icon.svg'
 ]
 
 const totalBooks = computed(() => books.value.length)

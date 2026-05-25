@@ -561,8 +561,8 @@
                 class="admin-console-hidden-input"
                 @change="handleCoverFileSelect"
               />
-              <div v-if="draftForm.coverUrl" class="cover-preview">
-                <img :src="draftForm.coverUrl" alt="封面预览" />
+              <div v-if="draftForm.coverUrl || localCoverPreviewUrl" class="cover-preview">
+                <img :src="localCoverPreviewUrl || draftForm.coverUrl" alt="封面预览" @error="handleCoverImageError" />
                 <button type="button" class="cover-remove-btn" @click="removeCover">✕</button>
               </div>
               <div v-else class="cover-placeholder" @click="triggerCoverSelect">
@@ -814,6 +814,7 @@ const excelFileInputRef = ref(null)
 const documentImportInputRef = ref(null)
 const coverFileInputRef = ref(null)
 const coverUploading = ref(false)
+const localCoverPreviewUrl = ref('')
 const importPreviewLoading = ref(false)
 const importFileName = ref('')
 const draftForm = reactive(createEmptyDraft())
@@ -1327,6 +1328,7 @@ watch(routeSection, (nextSection) => {
 
 onBeforeUnmount(() => {
   clearTimeout(autoSaveTimer)
+  clearLocalCoverPreview()
   adminStore.stopRealtime()
 })
 
@@ -1709,6 +1711,7 @@ function refreshCurrentType() {
 function openCreateDialog() {
   isEditing.value = false
   Object.assign(draftForm, createEmptyDraft())
+  clearLocalCoverPreview()
   dialogVisible.value = true
   // 打开创建对话框时，根据当前分类加载标签
   if (currentType.value === 'interview') {
@@ -1721,6 +1724,7 @@ function openCreateDialog() {
 function openEditDialog(record) {
   isEditing.value = true
   Object.assign(draftForm, createDraftFromRecord(record))
+  clearLocalCoverPreview()
   dialogVisible.value = true
   // 打开编辑对话框时，根据记录的分类加载标签
   if (currentType.value === 'interview') {
@@ -1730,7 +1734,15 @@ function openEditDialog(record) {
   }
 }
 
+function clearLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = ''
+  }
+}
+
 function closeDialog() {
+  clearLocalCoverPreview()
   dialogVisible.value = false
 }
 
@@ -1782,19 +1794,24 @@ function triggerCoverSelect() {
 
 async function handleCoverFileSelect(event) {
   const file = event.target.files?.[0]
+  event.target.value = ''
   if (!file) return
 
   if (!file.type.startsWith('image/')) {
     showToast('请选择图片文件', 'error')
-    event.target.value = ''
     return
   }
 
   if (file.size > 10 * 1024 * 1024) {
     showToast('图片大小不能超过 10MB', 'error')
-    event.target.value = ''
     return
   }
+
+  // 立即生成本地预览，避免等待上传完成
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+  }
+  localCoverPreviewUrl.value = URL.createObjectURL(file)
 
   coverUploading.value = true
   try {
@@ -1805,12 +1822,22 @@ async function handleCoverFileSelect(event) {
     showToast(error.message || '封面图片上传失败', 'error')
   } finally {
     coverUploading.value = false
-    event.target.value = ''
   }
 }
 
 function removeCover() {
   draftForm.coverUrl = ''
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = ''
+  }
+}
+
+function handleCoverImageError(e) {
+  if (localCoverPreviewUrl.value) {
+    return
+  }
+  e.target.src = '/peakstars-blog-icon.svg'
 }
 
 async function handleExcelImportFile(event) {

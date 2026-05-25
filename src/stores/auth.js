@@ -9,7 +9,8 @@ const REQUEST_TIMEOUT_MS = 15000
 const STORAGE_KEYS = {
   accessToken: 'interview_demo_access_token',
   currentUser: 'interview_demo_current_user',
-  rememberedAccount: 'interview_demo_remembered_account'
+  rememberedAccount: 'interview_demo_remembered_account',
+  adminVerifiedToken: 'interview_demo_admin_verified_token'
 }
 
 // 安全读取 localStorage 中的 JSON，解析失败时回退到默认值。
@@ -115,6 +116,7 @@ function persistAccessToken() {
     localStorage.setItem(STORAGE_KEYS.accessToken, state.accessToken)
   } else {
     localStorage.removeItem(STORAGE_KEYS.accessToken)
+    localStorage.removeItem(STORAGE_KEYS.adminVerifiedToken)
   }
 }
 
@@ -216,6 +218,46 @@ function logout() {
   persistCurrentUser()
 }
 
+async function refreshCurrentUser() {
+  if (!state.accessToken) {
+    return { success: false, message: '当前页面暂时不可用' }
+  }
+
+  try {
+    const response = await requestAuth('/api/auth/me', {
+      headers: {
+        Authorization: `Bearer ${state.accessToken}`
+      }
+    })
+
+    state.user = sanitizeUser(response.data?.user || null)
+    persistCurrentUser()
+    return { success: true, user: state.user }
+  } catch (error) {
+    logout()
+    return { success: false, message: error.message }
+  }
+}
+
+async function ensureAdminSession() {
+  if (!isAuthenticated() || state.user?.role !== 'admin') {
+    return false
+  }
+
+  if (localStorage.getItem(STORAGE_KEYS.adminVerifiedToken) === state.accessToken) {
+    return true
+  }
+
+  const result = await refreshCurrentUser()
+  const verified = Boolean(result.success && state.user?.role === 'admin')
+  if (verified) {
+    localStorage.setItem(STORAGE_KEYS.adminVerifiedToken, state.accessToken)
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.adminVerifiedToken)
+  }
+  return verified
+}
+
 // 登录页初始化时读取“记住我”的账号。
 function getRemembered() {
   return state.rememberedAccount
@@ -253,6 +295,10 @@ export function isAdminUser() {
   return state.user?.role === 'admin'
 }
 
+export async function verifyAdminAccess() {
+  return ensureAdminSession()
+}
+
 // 暴露给页面使用的 auth store。
 export function useAuthStore() {
   return {
@@ -267,6 +313,8 @@ export function useAuthStore() {
     sendRegisterEmailCode,
     register,
     login,
-    logout
+    logout,
+    refreshCurrentUser,
+    ensureAdminSession
   }
 }

@@ -196,6 +196,9 @@ async function startBackendIfNeeded() {
   }
   log('starting Java backend')
   const backendProcess = spawnCommand('java', [
+    '-Dfile.encoding=UTF-8',
+    '-Dsun.stdout.encoding=UTF-8',
+    '-Dsun.stderr.encoding=UTF-8',
     '-jar',
     backendJar,
     '--spring.profiles.active=dev'
@@ -251,6 +254,11 @@ async function startVite() {
 }
 
 async function main() {
+  if (process.platform === 'win32') {
+    try {
+      require('node:child_process').execSync('chcp 65001', { stdio: 'ignore' })
+    } catch {}
+  }
   await removeStaleRuntimePortFile()
   await startBackendIfNeeded()
   await startVite()

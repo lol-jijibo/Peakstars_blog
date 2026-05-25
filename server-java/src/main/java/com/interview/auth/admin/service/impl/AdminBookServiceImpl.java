@@ -758,6 +758,27 @@ public class AdminBookServiceImpl implements AdminBookService {
     }
 
     /**
+     * 批量修复导入任务封面。
+     * 逐个调用单任务修复流程，单条异常不影响其他任务。
+     */
+    @Override
+    public AdminBookImportBatchResponse batchRepairImportJobCovers(AdminBookImportBatchRequest request) {
+        AdminBookImportBatchResponse response = new AdminBookImportBatchResponse();
+        for (String jobKey : normalizeJobKeys(request)) {
+            try {
+                AdminBookImportJobResponse repaired = repairImportJobCover(jobKey);
+                response.getJobs().add(repaired);
+                response.setSuccessCount(response.getSuccessCount() + 1);
+            } catch (Exception exception) {
+                log.warn("批量修复封面失败(jobKey={}): {}", jobKey, exception.getMessage());
+                response.getFailedKeys().add(jobKey);
+            }
+        }
+        response.setFailedCount(response.getFailedKeys().size());
+        return response;
+    }
+
+    /**
      * 尝试从源文件中解析封面。
      * 源文件在 OSS 中不存在时返回空字符串（不抛异常），以便回退到其他策略。
      */
@@ -859,7 +880,13 @@ public class AdminBookServiceImpl implements AdminBookService {
             }
             String normalizedUrl = normalizeCoverUrlForDisplay(src);
             if (!normalizedUrl.isBlank()) {
-                return normalizedUrl;
+                if (normalizedUrl.equals(normalizedExcludedCoverUrl) && !excludedCoverUsable) {
+                    continue;
+                }
+                if (isUsableCoverUrl(normalizedUrl)) {
+                    return normalizedUrl;
+                }
+                continue;
             }
             String normalizedStoredUrl = normalizeStoredAssetUrlForDisplay(src);
             String normalizedDisplayUrl = normalizeCoverUrlForDisplay(normalizedStoredUrl);
@@ -904,13 +931,39 @@ public class AdminBookServiceImpl implements AdminBookService {
         if (lowerCoverUrl.startsWith("data:image/")) {
             return true;
         }
-        if (!isManagedStorageUrl(normalizedCoverUrl)) {
-            return normalizedCoverUrl.startsWith("/") || lowerCoverUrl.startsWith("http://") || lowerCoverUrl.startsWith("https://");
+        if (isManagedStorageUrl(normalizedCoverUrl)) {
+            return probeStorageResource(normalizedCoverUrl);
         }
+        if (normalizedCoverUrl.startsWith("/")) {
+            return probeStorageResource(normalizedCoverUrl);
+        }
+        if (lowerCoverUrl.startsWith("http://") || lowerCoverUrl.startsWith("https://")) {
+            return probeHttpResource(normalizedCoverUrl);
+        }
+        return false;
+    }
+
+    private boolean probeStorageResource(String normalizedCoverUrl) {
         try (InputStream inputStream = contentStorageService.download(normalizedCoverUrl)) {
             return inputStream.read() >= 0;
         } catch (Exception exception) {
             log.warn("封面资源校验失败(url={}): {}", normalizedCoverUrl, exception.getMessage());
+            return false;
+        }
+    }
+
+    private boolean probeHttpResource(String url) {
+        try {
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            connection.setRequestMethod("HEAD");
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(3000);
+            connection.setInstanceFollowRedirects(true);
+            int status = connection.getResponseCode();
+            connection.disconnect();
+            return status >= 200 && status < 400;
+        } catch (Exception exception) {
+            log.warn("封面资源 HTTP 探测失败(url={}): {}", url, exception.getMessage());
             return false;
         }
     }
@@ -3111,7 +3164,7 @@ public class AdminBookServiceImpl implements AdminBookService {
         response.setPublisher(book.getPublisher());
         response.setCategory(book.getCategory());
         response.setSummary(book.getSummary());
-        response.setCoverUrl(book.getCoverUrl());
+        response.setCoverUrl(resolveAdminCoverUrl(book.getCoverUrl()));
         response.setTags(splitPipeValues(book.getTagList()));
         response.setWordCount(defaultInt(book.getWordCount()));
         response.setChapterCount(defaultInt(book.getChapterCount()));
@@ -3119,6 +3172,20 @@ public class AdminBookServiceImpl implements AdminBookService {
         response.setRating(book.getRating());
         response.setPublishedAt(formatDateTime(book.getPublishedAt()));
         return response;
+    }
+
+    private String resolveAdminCoverUrl(String coverUrl) {
+        if (coverUrl == null || coverUrl.isBlank()) {
+            return "/peakstars-blog-icon.jpg";
+        }
+        String trimmed = coverUrl.trim();
+        if (trimmed.startsWith("/uploads/")) {
+            return trimmed;
+        }
+        if (trimmed.startsWith("uploads/")) {
+            return "/" + trimmed;
+        }
+        return trimmed;
     }
 
     private List<String> parseWarnings(String warningJson) {

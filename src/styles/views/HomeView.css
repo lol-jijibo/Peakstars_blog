@@ -48,6 +48,47 @@
   transition: background-color 0.3s, color 0.3s;
 }
 
+/* ═══════════════════════════════════════
+   ACCESS TOAST (管理后台隐晦阻断提示)
+═══════════════════════════════════════ */
+.home-access-toast {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+  background: rgba(241, 245, 249, 0.92);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 过渡动画：淡入上移 → 淡出上移 */
+.home-access-toast-enter-active {
+  transition: all 0.35s ease-out;
+}
+
+.home-access-toast-leave-active {
+  transition: all 0.45s ease-in;
+}
+
+.home-access-toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+.home-access-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-12px);
+}
+
 .home-page a { text-decoration: none; color: inherit; }
 .container { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem; }
 
@@ -854,6 +895,13 @@
 /* ═══════════════════════════════════════
    DARK THEME
 ═══════════════════════════════════════ */
+html[data-theme='dark'] .home-access-toast {
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: #1e293b;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
 html[data-theme='dark'] .home-page {
   --bg-primary: #000000;
   --bg-card: #0a0a0a;

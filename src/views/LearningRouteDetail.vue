@@ -54,7 +54,7 @@
             </div>
           </div>
 
-          <img :src="routeDetail.coverUrl" :alt="routeDetail.title" class="learning-detail-cover" />
+          <img :src="routeDetail.coverUrl" :alt="routeDetail.title" class="learning-detail-cover" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
         </section>
 
         <section class="learning-detail-stats" aria-label="路线数据">

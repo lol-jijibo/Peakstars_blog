@@ -199,3 +199,10 @@ export function repairImportJobCover(jobKey) {
     method: 'POST'
   })
 }
+
+export function batchRepairImportJobCovers(jobKeys) {
+  return request('/api/admin/books/import-jobs/batch/repair-cover', {
+    method: 'POST',
+    body: JSON.stringify({ jobKeys })
+  })
+}

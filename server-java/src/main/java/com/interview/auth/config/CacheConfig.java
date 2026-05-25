@@ -1,6 +1,5 @@
 package com.interview.auth.config;
 
-import java.util.List;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
@@ -21,10 +20,10 @@ public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        return new ConcurrentMapCacheManager(List.of(
+        return new ConcurrentMapCacheManager(
             CACHE_STAR_READ,
             CACHE_ADMIN_SUMMARY,
             CACHE_ADMIN_HOT
-        ));
+        );
     }
 }

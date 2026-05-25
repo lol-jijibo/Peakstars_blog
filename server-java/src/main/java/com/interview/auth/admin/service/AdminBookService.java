@@ -153,4 +153,13 @@ public interface AdminBookService {
      * @return 更新后的导入任务响应，coverUrl 已填充
      */
     AdminBookImportJobResponse repairImportJobCover(String jobKey) throws Exception;
+
+    /**
+     * 批量修复导入任务封面。
+     * 逐个调用单任务修复流程，单条异常不影响其他任务。
+     *
+     * @param request 包含 jobKeys 的批量请求
+     * @return 批量修复结果摘要，含成功/失败计数和最新任务列表
+     */
+    AdminBookImportBatchResponse batchRepairImportJobCovers(AdminBookImportBatchRequest request);
 }

@@ -69,7 +69,7 @@
 
                 <div ref="pageViewportRef" class="reader-page-viewport" @wheel.prevent>
                   <figure v-if="showCoverSpread" class="reader-cover-spread">
-                    <img :src="coverSpreadImage.src" :alt="coverSpreadImage.alt" />
+                    <img :src="coverSpreadImage.src" :alt="coverSpreadImage.alt" @error="e => e.target.style.display = 'none'" />
                   </figure>
                   <div
                     v-show="!showCoverSpread"
@@ -1150,6 +1150,8 @@ function decorateReaderImages(root) {
     normalizedImage.removeAttribute('width')
     normalizedImage.removeAttribute('height')
     normalizedImage.removeAttribute('style')
+    normalizedImage.setAttribute('loading', 'lazy')
+    normalizedImage.setAttribute('onerror', "this.style.display='none';this.closest('.reader-image-page')?.remove()")
 
     const figure = document.createElement('figure')
     figure.className = isCoverPageImage ? 'reader-image-page reader-cover-page' : 'reader-image-page'

@@ -253,6 +253,9 @@
             <button class="bk-imp-btn bk-imp-btn-danger bk-imp-btn-sm" type="button" :disabled="batchOperating || !selectedJobKeys.length" @click="batchDeleteSelected">
               {{ batchOperating ? '删除中...' : '批量删除' }} {{ selectedJobKeys.length }}
             </button>
+            <button class="bk-imp-btn bk-imp-btn-sm" type="button" :disabled="batchRepairingCover || !selectedJobKeys.length" @click="batchRepairCovers">
+              {{ batchRepairingCover ? '修复中...' : '批量修复封面' }} {{ selectedJobKeys.length }}
+            </button>
           </div>
         </div>
 
@@ -263,7 +266,7 @@
             </label>
             <div class="bk-imp-history-left">
               <div v-if="getDisplayCoverUrl(job)" class="bk-imp-history-cover">
-                <img :src="getDisplayCoverUrl(job)" :alt="`${job.title || '导入书籍'}封面`" />
+                <img :src="getDisplayCoverUrl(job)" :alt="`${job.title || '导入书籍'}封面`" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
               </div>
               <div v-else class="bk-imp-history-format">{{ resolveFormatLabel(job.originalFormat || job.importType) }}</div>
             </div>
@@ -432,7 +435,7 @@
                   @change="handleCoverFileSelect"
                 />
                 <button class="bk-imp-cover-preview" type="button" @click="triggerCoverSelect">
-                  <img v-if="validMetadataCoverUrl" :src="validMetadataCoverUrl" alt="书籍封面预览" />
+                  <img v-if="validMetadataCoverUrl || localCoverPreviewUrl" :src="localCoverPreviewUrl || validMetadataCoverUrl" alt="书籍封面预览" @error="handleCoverImageError" />
                   <span v-else>自动识别或上传封面</span>
                 </button>
                 <div class="bk-imp-cover-fields">
@@ -567,7 +570,8 @@ import {
   restoreImportJob,
   batchDeleteImportJobs,
   deleteImportJobsByCategory,
-  repairImportJobCover
+  repairImportJobCover,
+  batchRepairImportJobCovers
 } from '@/modules/admin/api/bookAdmin'
 import { uploadCoverImage } from '@/modules/admin/api/admin'
 
@@ -587,6 +591,7 @@ const REVIEW_READY_MAX_ATTEMPTS = 12
 const activePanel = ref('import')
 const uploading = ref(false)
 const coverUploading = ref(false)
+const localCoverPreviewUrl = ref('')
 const importingExternal = ref(false)
 const publishing = ref(false)
 const savingPage = ref(false)
@@ -594,6 +599,7 @@ const savingMetadata = ref(false)
 const savingChapter = ref(false)
 const historyLoading = ref(false)
 const batchOperating = ref(false)
+const batchRepairingCover = ref(false)
 const deletingJob = ref(false)
 const repairingCoverKey = ref('')
 const restoringJobKey = ref('')
@@ -832,6 +838,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleMetadataOutsidePointerDown, true)
   clearSuccessMessageTimer()
+  clearLocalCoverPreview()
 })
 
 watch(() => props.subModule, (val) => {
@@ -1021,6 +1028,13 @@ async function handleCoverFileSelect(event) {
     errorMessage.value = '封面图片不能超过 10MB'
     return
   }
+
+  // 立即生成本地预览
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+  }
+  localCoverPreviewUrl.value = URL.createObjectURL(file)
+
   coverUploading.value = true
   errorMessage.value = ''
   try {
@@ -1036,6 +1050,17 @@ async function handleCoverFileSelect(event) {
 
 function removeCover() {
   metadataForm.coverUrl = ''
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = ''
+  }
+}
+
+function handleCoverImageError(e) {
+  if (localCoverPreviewUrl.value) {
+    return
+  }
+  e.target.src = '/peakstars-blog-icon.svg'
 }
 
 function fillMetadataForm(job) {
@@ -1046,12 +1071,20 @@ function fillMetadataForm(job) {
   metadataForm.coverUrl = job.coverUrl || ''
 }
 
+function clearLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = ''
+  }
+}
+
 function resetMetadataFormValues() {
   metadataForm.title = ''
   metadataForm.author = '未知作者'
   metadataForm.translator = '无'
   metadataForm.category = '精品书籍'
   metadataForm.coverUrl = ''
+  clearLocalCoverPreview()
 }
 
 async function saveMetadata(options = {}) {
@@ -1509,6 +1542,36 @@ async function handleRepairCover(job) {
     errorMessage.value = error.message || '封面恢复失败'
   } finally {
     repairingCoverKey.value = ''
+  }
+}
+
+async function batchRepairCovers() {
+  const keys = [...selectedJobKeys.value]
+  if (!keys.length) return
+  batchRepairingCover.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const result = await batchRepairImportJobCovers(keys)
+    if (activeJob.value && keys.includes(activeJob.value.jobKey)) {
+      const updated = result.jobs?.find((j) => j.jobKey === activeJob.value.jobKey)
+      if (updated) {
+        activeJob.value = updated
+        fillMetadataForm(updated)
+      }
+    }
+    await reloadHistory()
+    const successCount = result?.successCount || 0
+    const failedCount = result?.failedCount || 0
+    if (failedCount) {
+      successMessage.value = `封面修复完成：${successCount} 本成功${failedCount > 0 ? '，' + failedCount + ' 本失败' : ''}`
+    } else {
+      successMessage.value = `封面修复完成：${successCount} 本全部成功`
+    }
+  } catch (error) {
+    errorMessage.value = error.message || '批量封面修复失败'
+  } finally {
+    batchRepairingCover.value = false
   }
 }
 

@@ -297,6 +297,17 @@ public class AdminBookController {
     }
 
     /**
+     * 批量修复导入任务封面。
+     * 逐个调用单任务修复流程，单条异常不影响其他任务。
+     */
+    @PostMapping("/import-jobs/batch/repair-cover")
+    public ApiResponse<AdminBookImportBatchResponse> batchRepairImportJobCovers(
+        @Valid @RequestBody AdminBookImportBatchRequest request
+    ) {
+        return ApiResponse.success(adminBookService.batchRepairImportJobCovers(request));
+    }
+
+    /**
      * 统一校验上传书籍文件：文件名扩展名、Content-Type、文件魔数、大小限制。
      * 防止将可执行文件或恶意脚本伪装成书籍格式上传。
      */

@@ -1,6 +1,11 @@
 ﻿<template>
   <div class="home-page">
     <blog-mega-header current-page="home" />
+    <transition name="home-access-toast">
+      <div v-if="accessNoticeVisible" class="home-access-toast" role="status">
+        页面暂时不可用，请稍后再试
+      </div>
+    </transition>
 
     <main class="home-main">
       <!-- HERO -->
@@ -146,7 +151,7 @@
               @click="openArticle(article.id)"
             >
               <div class="hl-cover">
-                <img class="hl-cover-image" :src="resolveCoverUrl(article.coverUrl)" :alt="article.title" loading="lazy" />
+                <img class="hl-cover-image" :src="resolveCoverUrl(article.coverUrl)" :alt="article.title" loading="lazy" @error="e => e.target.src = '/peakstars-blog-icon.svg'" />
                 <span class="hl-badge">{{ resolveArticleLabel(article.category) }}</span>
               </div>
               <div class="hl-body">
@@ -271,8 +276,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BlogMegaHeader from '@/components/BlogMegaHeader.vue'
 import { getTechArticles } from '@/api/content'
 import { getInterviews } from '@/api/interview'
@@ -280,11 +285,14 @@ import { getLearningRoutes } from '@/api/learningRoute'
 import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
+const route = useRoute()
 const themeStore = useThemeStore()
 const techArticles = ref([])
 const learningRoutes = ref([])
 const interviewCount = ref(0)
 const routeEnrollCount = ref(0)
+const accessNoticeVisible = ref(false)
+let accessNoticeTimer = 0
 
 const sortedArticles = computed(() => {
   return [...techArticles.value].sort((left, right) => {
@@ -337,6 +345,19 @@ async function loadHomeData() {
   }
 }
 
+function showAccessNotice() {
+  accessNoticeVisible.value = true
+  if (accessNoticeTimer) {
+    window.clearTimeout(accessNoticeTimer)
+  }
+
+  accessNoticeTimer = window.setTimeout(() => {
+    accessNoticeVisible.value = false
+  }, 2600)
+
+  router.replace({ path: '/home' })
+}
+
 function goArticles() { router.push('/articles') }
 function goInterview() { router.push('/interview') }
 function openArticle(articleId) { router.push(`/articles/${articleId}`) }
@@ -371,7 +392,7 @@ function tagColorClass(tag) {
 }
 
 function resolveCoverUrl(coverUrl) {
-  return coverUrl || '/peakstars-blog-icon.jpg'
+  return coverUrl || '/peakstars-blog-icon.svg'
 }
 
 function formatReadTime(value) {
@@ -386,6 +407,16 @@ function formatShortDateCN(value) {
   if (!match) return text || '--'
   return `${match[1]}-${match[2]}-${match[3]}`
 }
+
+watch(
+  () => route.query.notice,
+  (notice) => {
+    if (notice === 'unavailable') {
+      showAccessNotice()
+    }
+  },
+  { immediate: true }
+)
 
 onMounted(() => { loadHomeData() })
 </script>
